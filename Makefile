@@ -28,6 +28,10 @@ HDR:=$(wildcard $(HDR)/*.h)
 OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
 DEP:=$(OBJ:%.o=%.d)
 
+c_trace_fwd: $(OBJ)
+	@echo $+
+	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $@
+
 -include $(DEP)
 
 # %.o: %.c
@@ -37,13 +41,12 @@ $(OBJDIR)/app/%.o: %.c
 $(OBJDIR)/conf/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
+$(OBJDIR)/drv/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 $(OBJDIR)/service/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 $(OBJDIR)/state/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
-
-c_trace_fwd: $(OBJ)
-	@echo $+
-	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $@

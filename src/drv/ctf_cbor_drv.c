@@ -1,0 +1,28 @@
+#include "ctf_cbor_drv_priv.h"
+
+const struct cbor_callbacks ctf_cbor_drv = {
+	.uint8 = ctf_uint8,
+	.uint16 = ctf_uint16,
+	.uint32 = ctf_uint32,
+	.uint64 = ctf_uint64,
+	.negint8 = ctf_negint8,
+	.negint16 = ctf_negint16,
+	.negint32 = ctf_negint32,
+	.negint64 = ctf_negint64,
+	.byte_string_start = ctf_byte_string_start,
+	.byte_string = ctf_byte_string,
+	.string = ctf_string,
+	.string_start = ctf_string_start,
+	.indef_array_start = ctf_indef_array_start,
+	.array_start = ctf_array_start,
+	.indef_map_start = ctf_indef_map_start,
+	.map_start = ctf_map_start,
+	.tag = ctf_tag,
+	.float2 = ctf_float2,
+	.float4 = ctf_float4,
+	.float8 = ctf_float8,
+	.undefined = ctf_undefined,
+	.null = ctf_null,
+	.boolean = ctf_boolean,
+	.indef_break = ctf_indef_break,
+};
