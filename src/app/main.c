@@ -1,5 +1,7 @@
-#include <getopt.h>
+#include <stddef.h>
+#include <sys/types.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include "c_trace_fwd.h"
 
 int
