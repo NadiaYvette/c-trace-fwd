@@ -20,7 +20,7 @@ INCDIR:=$(TOPDIR)/incl
 INCFLAGS:=-I$(INCDIR)
 
 LDFLAGS:=$(CBOR_LIBS)
-CFLAGS:=-Wall -Wno-unused-function -O -std=c23 $(CBOR_CFLAGS) $(INCFLAGS) -MD
+CFLAGS:=-Wall -Wno-unused-function -O -std=gnu23 $(CBOR_CFLAGS) $(INCFLAGS) -MD
 
 vpath %.h $(INCDIR)
 vpath %.c $(SRCDIRS)
