@@ -14,11 +14,13 @@ SRCDIR:=$(TOPDIR)/src
 SRCDIRS:=$(addprefix $(SRCDIR)/,$(SUBDIRS))
 OBJDIR:=$(TOPDIR)/obj
 OBJDIRS:=$(addprefix $(OBJDIR)/,$(SUBDIRS))
+OBJBINDIR:=$(OBJDIR)/bin
+OBJLIBDIR:=$(OBJDIR)/lib
 INCDIR:=$(TOPDIR)/incl
 INCFLAGS:=-I$(INCDIR)
 
 LDFLAGS:=$(CBOR_LIBS)
-CFLAGS:=-Wall -O -std=c23 $(CBOR_CFLAGS) $(INCFLAGS) -MD
+CFLAGS:=-Wall -Wno-unused-function -O -std=c23 $(CBOR_CFLAGS) $(INCFLAGS) -MD
 
 vpath %.h $(INCDIR)
 vpath %.c $(SRCDIRS)
@@ -28,7 +30,7 @@ HDR:=$(wildcard $(HDR)/*.h)
 OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
 DEP:=$(OBJ:%.o=%.d)
 
-c_trace_fwd: $(OBJ)
+$(OBJBINDIR)/c_trace_fwd: $(OBJ)
 	@echo $+
 	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $@
 
