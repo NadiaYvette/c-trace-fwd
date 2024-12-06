@@ -32,6 +32,7 @@ stack.yaml.lock
 /db-[0-9]
 /doc*
 /logs
+/obj*
 /profile
 /launch_*
 /state-*
