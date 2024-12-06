@@ -5,6 +5,26 @@
 #include <unistd.h>
 #include "c_trace_fwd.h"
 
+static int
+split_addrinfo(struct addrinfo **addrinfo, char *s)
+{
+	char *token, *after_colon = s;
+	int retval = RETVAL_FAILURE;
+
+	*addrinfo = calloc(1, sizeof(struct addrinfo));
+	if (*addrinfo == NULL)
+		return retval;
+	token = strsep(&after_colon, ":");
+	if (getaddrinfo(token, after_colon, NULL /* hints */, addrinfo))
+		goto exit_failure;
+	retval = RETVAL_SUCCESS;
+	return retval;
+exit_failure:
+	free (*addrinfo);
+	*addrinfo = NULL;
+	return retval;
+}
+
 static void
 copy_optarg(struct sockaddr_un *unix_sock, const char *s)
 {
@@ -19,11 +39,14 @@ setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 	*conf = calloc(1, sizeof(struct c_trace_fwd_conf));
 	if (*conf == NULL)
 		goto exit_failure;
-	while ((opt = getopt(argc, argv, "f:")) != -1) {
+	while ((opt = getopt(argc, argv, "f:u:")) != -1) {
 		switch (opt) {
 		case 'f':
 			copy_optarg(&(*conf)->unix_sock, optarg);
 			break;
+		case 'u':
+			if (split_addrinfo(&(*conf)->ux_addr, optarg))
+				goto exit_cleanup;
 		default:
 			fprintf(stderr, "c_trace_fwd: unrecognized "
 					"option\n");
