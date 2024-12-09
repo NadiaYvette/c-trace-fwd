@@ -26,7 +26,7 @@ retry_alloc:
 	*ret = NULL;
 	if (to_print < 0)
 		return -1;
-	buf_len *= 2;
+	buf_len = to_print + 1;
 	goto retry_alloc;
 }
 
