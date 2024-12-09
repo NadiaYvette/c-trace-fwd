@@ -37,7 +37,17 @@ ctf_null(void *ctx)
 void
 ctf_boolean(void *ctx, bool val)
 {
+	struct c_trace_fwd_state *state = ctx;
+	size_t pos;
+
 	(*cbor_empty_callbacks.boolean)(ctx, val);
+	pos = state->item_tbl_pos;
+	if (pos + 1 < state->item_tbl_sz && ctf_tbl_expand(state))
+		return;
+	state->item_tbl[pos] = cbor_build_bool(val);
+	if (!state->item_tbl[pos])
+		return;
+	state->item_tbl_pos++;
 }
 
 void
@@ -49,5 +59,6 @@ ctf_indef_break(void *ctx)
 void
 ctf_tag(void *ctx, uint64_t val)
 {
+	/* What does the tag get attached to? */
 	(*cbor_empty_callbacks.tag)(ctx, val);
 }
