@@ -1,4 +1,26 @@
 #include <cbor.h>
+#include "c_trace_fwd.h"
+
+int
+ctf_tbl_expand(struct c_trace_fwd_state *state)
+{
+	size_t new_tbl_sz, item_tbl_sz = state->item_tbl_sz;
+	cbor_item_t **item_tbl, **new_tbl;
+	int retval = RETVAL_FAILURE;
+
+	new_tbl_sz = 2*item_tbl_sz;
+	new_tbl = calloc(new_tbl_sz, sizeof(cbor_item_t *));
+	if (!new_tbl)
+		goto exit_failure;
+	retval = RETVAL_SUCCESS;
+	item_tbl = state->item_tbl;
+	memcpy(new_tbl, item_tbl, item_tbl_sz * sizeof(cbor_item_t *));
+	state->item_tbl = new_tbl;
+	state->item_tbl_sz = new_tbl_sz;
+	free(item_tbl);
+exit_failure:
+	return retval;
+}
 
 void
 ctf_undefined(void *ctx)
