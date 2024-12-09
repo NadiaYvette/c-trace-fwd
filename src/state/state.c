@@ -5,17 +5,33 @@
 int
 setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 {
-	int retval = RETVAL_FAILURE;
+	struct addrinfo *ux_addr;
+	struct sockaddr *unix_sock;
+	int ai_family, ai_socktype, ai_protocol, unix_sock_fd,
+	    retval = RETVAL_FAILURE;
 
 	*state = calloc(1, sizeof(struct c_trace_fwd_state));
 	(*state)->unix_sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if ((*state)->unix_sock_fd == -1)
 		goto exit_failure;
-	if (connect((*state)->unix_sock_fd, (struct sockaddr *)&conf->unix_sock, sizeof(struct sockaddr_un)))
-		goto exit_shutdown;
+	unix_sock_fd = (*state)->unix_sock_fd;
+	unix_sock = (struct sockaddr *)&conf->unix_sock;
+	if (connect(unix_sock_fd, unix_sock, sizeof(struct sockaddr_un)))
+		goto exit_shutdown_unix;
+	ux_addr = conf->ux_addr;
+	ai_family = ux_addr->ai_family;
+	ai_socktype = ux_addr->ai_socktype;
+	ai_protocol = ux_addr->ai_protocol;
+	(*state)->ux_sock_fd = socket(ai_family, ai_socktype, ai_protocol);
+	if ((*state)->ux_sock_fd == -1)
+		goto exit_shutdown_unix;
+	if (bind((*state)->ux_sock_fd, ux_addr->ai_addr, ux_addr->ai_addrlen))
+		goto exit_shutdown_ux;
 	retval = RETVAL_SUCCESS;
 	return retval;
-exit_shutdown:
+exit_shutdown_ux:
+	shutdown((*state)->ux_sock_fd, SHUT_RDWR);
+exit_shutdown_unix:
 	shutdown((*state)->unix_sock_fd, SHUT_RDWR);
 exit_failure:
 	free(*state);
