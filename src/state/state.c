@@ -35,7 +35,7 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	ai_addrlen = ux_addr->ai_addrlen;
 	(*state)->ux_sock_fd = socket(ai_family, ai_socktype, ai_protocol);
 	if ((*state)->ux_sock_fd == -1)
-		goto exit_shutdown_unix;
+		goto exit_free_items;
 	if (bind((*state)->ux_sock_fd, ux_addr->ai_addr, ai_addrlen))
 		goto exit_shutdown_ux;
 	retval = RETVAL_SUCCESS;
