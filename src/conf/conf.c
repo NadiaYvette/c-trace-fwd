@@ -48,6 +48,7 @@ setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 		case 'u':
 			if (split_addrinfo(&(*conf)->ux_addr, optarg))
 				goto exit_cleanup;
+			break;
 		default:
 			fprintf(stderr, "c_trace_fwd: unrecognized "
 					"option\n");
