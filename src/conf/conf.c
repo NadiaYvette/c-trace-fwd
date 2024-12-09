@@ -28,6 +28,7 @@ exit_failure:
 static void
 copy_optarg(struct sockaddr_un *unix_sock, const char *s)
 {
+	unix_sock->sun_family = AF_UNIX;
 	strncpy(unix_sock->sun_path, s, sizeof(unix_sock->sun_path));
 }
 
