@@ -39,8 +39,7 @@ ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
 	pos = state->item_tbl_pos;
 	if (pos + 1 < state->item_tbl_sz && ctf_tbl_expand(state))
 		return;
-	/* Is this right? There's no cbor_build_byte_string() */
-	state->item_tbl[pos] = cbor_build_string((const char *)buf);
+	state->item_tbl[pos] = cbor_build_bytestring(buf, len);
 	if (!state->item_tbl[pos])
 		return;
 	state->item_tbl_pos++;
