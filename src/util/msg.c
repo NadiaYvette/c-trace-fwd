@@ -7,8 +7,7 @@
 #include <unistd.h>
 #include "ctf_util.h"
 
-static int
-vsnprintf_alloc(char **ret, const char *fmt, ...)
+static int vsnprintf_alloc(char **ret, const char *fmt, ...)
 {
 	ssize_t to_print, buf_len = 1024;
 	va_list args;
@@ -30,16 +29,15 @@ retry_alloc:
 	goto retry_alloc;
 }
 
-int
-ctf_msg_core(const struct ctf_msg_ctx *ctx, const char *fmt, ...)
+int ctf_msg_core(const struct ctf_msg_ctx *ctx, const char *fmt, ...)
 {
 	char *tmp_fmt, *pfx = NULL;
 	size_t len;
 	va_list args;
 	int retval = -1;
 
-	if (vsnprintf_alloc(&pfx, "[%s] %s (%s:%d) ", ctx->ctx,
-				ctx->func, ctx->file, ctx->line))
+	if (vsnprintf_alloc(&pfx, "[%s] %s (%s:%d) ", ctx->ctx, ctx->func,
+			    ctx->file, ctx->line))
 		return retval;
 
 	len = strlen(fmt) + strlen(pfx) + 1;

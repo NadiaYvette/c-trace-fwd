@@ -5,8 +5,7 @@
 #include <unistd.h>
 #include "c_trace_fwd.h"
 
-static int
-split_addrinfo(struct addrinfo **addrinfo, char *s)
+static int split_addrinfo(struct addrinfo **addrinfo, char *s)
 {
 	char *token, *after_colon = s;
 	int retval = RETVAL_FAILURE;
@@ -20,20 +19,18 @@ split_addrinfo(struct addrinfo **addrinfo, char *s)
 	retval = RETVAL_SUCCESS;
 	return retval;
 exit_failure:
-	free (*addrinfo);
+	free(*addrinfo);
 	*addrinfo = NULL;
 	return retval;
 }
 
-static void
-copy_optarg(struct sockaddr_un *unix_sock, const char *s)
+static void copy_optarg(struct sockaddr_un *unix_sock, const char *s)
 {
 	unix_sock->sun_family = AF_UNIX;
 	strncpy(unix_sock->sun_path, s, sizeof(unix_sock->sun_path));
 }
 
-int
-setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
+int setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 {
 	int opt, retval = RETVAL_FAILURE;
 
@@ -52,8 +49,10 @@ setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 		default:
 			fprintf(stderr, "c_trace_fwd: unrecognized "
 					"option\n");
-			fprintf(stderr, "unrecognized option character "
-					"\'%c\'\n", (char)opt);
+			fprintf(stderr,
+				"unrecognized option character "
+				"\'%c\'\n",
+				(char)opt);
 			fprintf(stderr, "optind = %d\n", optind);
 			goto exit_cleanup;
 			break;
@@ -68,8 +67,7 @@ exit_failure:
 	return retval;
 }
 
-void
-teardown_conf(struct c_trace_fwd_conf **conf)
+void teardown_conf(struct c_trace_fwd_conf **conf)
 {
 	free(*conf);
 	*conf = NULL;

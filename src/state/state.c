@@ -4,14 +4,13 @@
 #include <unistd.h>
 #include "c_trace_fwd.h"
 
-int
-setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
+int setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 {
 	struct addrinfo *ux_addr;
 	struct sockaddr *unix_sock;
 	socklen_t ai_addrlen;
-	int ai_family, ai_socktype, ai_protocol, unix_sock_fd,
-	    page_size, retval = RETVAL_FAILURE;
+	int ai_family, ai_socktype, ai_protocol, unix_sock_fd, page_size,
+		retval = RETVAL_FAILURE;
 
 	*state = calloc(1, sizeof(struct c_trace_fwd_state));
 	if (!*state)
@@ -64,8 +63,7 @@ exit_failure:
 	return retval;
 }
 
-void
-teardown_state(struct c_trace_fwd_state **state)
+void teardown_state(struct c_trace_fwd_state **state)
 {
 	shutdown((*state)->unix_sock_fd, SHUT_RDWR);
 	shutdown((*state)->ux_sock_fd, SHUT_RDWR);

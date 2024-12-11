@@ -1,14 +1,12 @@
 #include <cbor.h>
 #include "c_trace_fwd.h"
 
-void
-ctf_string_start(void *ctx)
+void ctf_string_start(void *ctx)
 {
 	(*cbor_empty_callbacks.string_start)(ctx);
 }
 
-void
-ctf_string(void *ctx, cbor_data buf, uint64_t len)
+void ctf_string(void *ctx, cbor_data buf, uint64_t len)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -23,14 +21,12 @@ ctf_string(void *ctx, cbor_data buf, uint64_t len)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_byte_string_start(void *ctx)
+void ctf_byte_string_start(void *ctx)
 {
 	(*cbor_empty_callbacks.byte_string_start)(ctx);
 }
 
-void
-ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
+void ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;

@@ -1,8 +1,7 @@
 #include <cbor.h>
 #include "c_trace_fwd.h"
 
-void
-ctf_float2(void *ctx, float val)
+void ctf_float2(void *ctx, float val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -17,8 +16,7 @@ ctf_float2(void *ctx, float val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_float4(void *ctx, float val)
+void ctf_float4(void *ctx, float val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -33,8 +31,7 @@ ctf_float4(void *ctx, float val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_float8(void *ctx, double val)
+void ctf_float8(void *ctx, double val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;

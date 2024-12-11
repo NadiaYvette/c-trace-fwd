@@ -5,8 +5,7 @@
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
 
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int exit_status = EXIT_FAILURE;
 	struct c_trace_fwd_conf *conf = NULL;

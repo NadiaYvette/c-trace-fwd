@@ -1,8 +1,7 @@
 #include <cbor.h>
 #include "c_trace_fwd.h"
 
-void
-ctf_uint8(void *ctx, uint8_t val)
+void ctf_uint8(void *ctx, uint8_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -17,8 +16,7 @@ ctf_uint8(void *ctx, uint8_t val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_uint16(void *ctx, uint16_t val)
+void ctf_uint16(void *ctx, uint16_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -33,8 +31,7 @@ ctf_uint16(void *ctx, uint16_t val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_uint32(void *ctx, uint32_t val)
+void ctf_uint32(void *ctx, uint32_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -49,8 +46,7 @@ ctf_uint32(void *ctx, uint32_t val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_uint64(void *ctx, uint64_t val)
+void ctf_uint64(void *ctx, uint64_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -65,8 +61,7 @@ ctf_uint64(void *ctx, uint64_t val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_negint8(void *ctx, uint8_t val)
+void ctf_negint8(void *ctx, uint8_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -81,8 +76,7 @@ ctf_negint8(void *ctx, uint8_t val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_negint16(void *ctx, uint16_t val)
+void ctf_negint16(void *ctx, uint16_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -97,8 +91,7 @@ ctf_negint16(void *ctx, uint16_t val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_negint32(void *ctx, uint32_t val)
+void ctf_negint32(void *ctx, uint32_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
@@ -113,8 +106,7 @@ ctf_negint32(void *ctx, uint32_t val)
 	state->item_tbl_pos++;
 }
 
-void
-ctf_negint64(void *ctx, uint64_t val)
+void ctf_negint64(void *ctx, uint64_t val)
 {
 	struct c_trace_fwd_state *state = ctx;
 	size_t pos;
