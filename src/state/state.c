@@ -16,9 +16,14 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	*state = calloc(1, sizeof(struct c_trace_fwd_state));
 	if (!*state)
 		return RETVAL_FAILURE;
+	(*state)->stack = calloc(1024, sizeof(cbor_item_t *));
+	if (!(*state)->stack)
+		goto exit_failure;
+	(*state)->stack_sz = 1024;
+	(*state)->stack_top = -1;
 	(*state)->unix_sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if ((*state)->unix_sock_fd == -1)
-		goto exit_failure;
+		goto exit_free_stack;
 	page_size = getpagesize();
 	if (page_size < 0)
 		goto exit_shutdown_unix;
@@ -50,6 +55,9 @@ exit_free_items:
 	(*state)->item_tbl_sz = 0;
 exit_shutdown_unix:
 	shutdown((*state)->unix_sock_fd, SHUT_RDWR);
+exit_free_stack:
+	free((*state)->stack);
+	(*state)->stack_top = -1;
 exit_failure:
 	free(*state);
 	*state = NULL;
