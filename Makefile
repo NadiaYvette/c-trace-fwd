@@ -55,3 +55,7 @@ $(OBJDIR)/state/%.o: %.c
 $(OBJDIR)/util/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
+
+.PHONY: clean
+clean:
+	-rm -f $(OBJ)
