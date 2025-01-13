@@ -5,7 +5,6 @@
 /cabal.project.freeze
 /cabal.project.local*
 /cabal.project.old
-dist-newstyle
 dist-newstyle/
 dist-profiled/
 dist/
