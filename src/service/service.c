@@ -55,6 +55,31 @@ to_dequeue(struct c_trace_fwd_state *state)
 }
 
 static int
+to_dequeue_multi(struct c_trace_fwd_state *state, struct trace_object **to, int n)
+{
+	int nr_to = MIN(n, state->nr_to);
+	struct trace_object **new_to;
+
+	if (!nr_to)
+		return RETVAL_FAILURE;
+	memccpy(to, state->to_queue, nr_to, sizeof(struct trace_object *));
+	memmove(&state->to_queue[0], &state->to_queue[nr_to],
+		(state->nr_to - nr_to) * sizeof(struct trace_object *));
+	new_to = reallocarray(state->to_queue, state->nr_to - nr_to,
+				sizeof(struct trace_object *));
+	if (!!new_to) {
+		state->to_queue = new_to;
+		state->nr_to -= nr_to;
+		return RETVAL_SUCCESS;
+	}
+	memmove(&state->to_queue[nr_to], &state->to_queue[0],
+		(state->nr_to - nr_to) * sizeof(struct trace_object));
+	memccpy(state->to_queue, to, nr_to, sizeof(struct trace_object *));
+	memset(to, 0, nr_to * sizeof(struct trace_object *));
+	return RETVAL_FAILURE;
+}
+
+static int
 service_unix_sock(struct c_trace_fwd_state *state)
 {
 	int retval = RETVAL_FAILURE;
@@ -125,25 +150,15 @@ retry_read:
 	reply = &tof_reply_msg->tof_msg_body.reply;
 	reply->tof_nr_replies = reply_nr_to;
 	reply->tof_replies = calloc(reply_nr_to, sizeof(struct trace_object *));
-	for (k = 0; k < reply_nr_to; ++k) {
-		reply->tof_replies[k] = to_dequeue(state);
-		if (!reply->tof_replies[k])
-			goto exit_free_reply;
-	}
+	if (to_dequeue_multi(state, reply->tof_replies, reply_nr_to))
+		goto exit_free_reply_tof;
 	reply_buf = ctf_proto_stk_encode(tof_reply_msg);
 	if (sdu_decode((uint32_t *)reply_buf, &reply_sdu))
-		goto exit_free_reply_buf;
+		goto exit_free_reply_tof;
 	ret_sz = write(pollfd->fd, reply_buf, reply_sdu.sdu_len + 2 * sizeof(uint32_t));
 	retval = RETVAL_SUCCESS;
 exit_free_reply_buf:
 	free(reply_buf);
-exit_free_reply:
-	/* this mangles the ordering, but it's an error case anyway */
-	for (k = reply_nr_to - 1; k >= 0; --k) {
-		if (!reply->tof_replies[k])
-			continue;
-		to_enqueue(state, reply->tof_replies[k]);
-	}
 exit_free_tof:
 	if (tof->tof_msg_type == tof_reply)
 		free(tof->tof_msg_body.reply.tof_replies);
