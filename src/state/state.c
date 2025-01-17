@@ -48,6 +48,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	while (!(reply_len = read(state->unix_sock_fd, buf, buf_sz))) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK)
 			break;
+		errno = 0;
 	}
 	if (reply_len < 0)
 		goto out_free_buf;
@@ -67,8 +68,10 @@ out_decref_proposal:
 	return retval;
 }
 
+/* This may be worth separating the components of for readability's sake. */
 int setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 {
+	pthread_mutexattr_t state_lock_attr;
 	struct addrinfo *ux_addr;
 	struct sockaddr *unix_sock;
 	socklen_t ai_addrlen;
@@ -78,14 +81,18 @@ int setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	*state = calloc(1, sizeof(struct c_trace_fwd_state));
 	if (!*state)
 		return RETVAL_FAILURE;
+	if (pthread_mutexattr_init(&state_lock_attr))
+		goto exit_failure;
+	(void)!pthread_mutex_init(&(*state)->state_lock, &state_lock_attr);
 	(*state)->stack = calloc(1024, sizeof(cbor_item_t *));
 	if (!(*state)->stack)
-		goto exit_failure;
+		goto exit_destroy_mutex;
 	(*state)->stack_sz = 1024;
 	(*state)->stack_top = -1;
 	(*state)->unix_sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if ((*state)->unix_sock_fd == -1)
 		goto exit_free_stack;
+	FD_SET((*state)->unix_sock_fd, &(*state)->state_fds);
 	page_size = getpagesize();
 	if (page_size < 0)
 		goto exit_shutdown_unix;
@@ -101,17 +108,25 @@ int setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	(*state)->ux_sock_fd = socket(ai_family, ai_socktype, ai_protocol);
 	if ((*state)->ux_sock_fd == -1)
 		goto exit_shutdown_unix;
+	FD_SET((*state)->ux_sock_fd, &(*state)->state_fds);
 	if (bind((*state)->ux_sock_fd, ux_addr->ai_addr, ai_addrlen))
 		goto exit_shutdown_ux;
 	retval = state_handshake(*state, conf);
 	return retval;
 exit_shutdown_ux:
-	shutdown((*state)->ux_sock_fd, SHUT_RDWR);
+	(void)!shutdown((*state)->ux_sock_fd, SHUT_RDWR);
+	(void)!close((*state)->ux_sock_fd);
+	(*state)->ux_sock_fd = 0;
 exit_shutdown_unix:
-	shutdown((*state)->unix_sock_fd, SHUT_RDWR);
+	(void)!shutdown((*state)->unix_sock_fd, SHUT_RDWR);
+	(void)!close((*state)->unix_sock_fd);
+	(*state)->unix_sock_fd = 0;
 exit_free_stack:
 	free((*state)->stack);
 	(*state)->stack_top = -1;
+exit_destroy_mutex:
+	(void)!pthread_mutex_destroy(&(*state)->state_lock);
+	(void)!pthread_mutexattr_destroy(&state_lock_attr);
 exit_failure:
 	free(*state);
 	*state = NULL;
@@ -120,8 +135,13 @@ exit_failure:
 
 void teardown_state(struct c_trace_fwd_state **state)
 {
-	shutdown((*state)->unix_sock_fd, SHUT_RDWR);
-	shutdown((*state)->ux_sock_fd, SHUT_RDWR);
+	(void)!shutdown((*state)->unix_sock_fd, SHUT_RDWR);
+	(void)!close((*state)->unix_sock_fd);
+	(*state)->unix_sock_fd = 0;
+	(void)!shutdown((*state)->ux_sock_fd, SHUT_RDWR);
+	(void)!close((*state)->ux_sock_fd);
+	(*state)->ux_sock_fd = 0;
+	(void)!pthread_mutex_destroy(&(*state)->state_lock);
 	free(*state);
 	*state = NULL;
 }

@@ -2,9 +2,11 @@
 
 /* for EXIT_SUCCESS and EXIT_FAILURE */
 #include <netdb.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -13,6 +15,7 @@
 #define RETVAL_FAILURE EXIT_FAILURE
 
 struct cbor_item_t;
+struct tof_msg;
 
 struct c_trace_fwd_conf {
 	/* The path length is limited by this structure. */
@@ -22,9 +25,14 @@ struct c_trace_fwd_conf {
 struct c_trace_fwd_state {
 	int ux_sock_fd;
 	int unix_sock_fd;
+	int nr_clients;
+	fd_set state_fds;
+	int nr_to;
+	struct trace_object **to_queue;
 	ssize_t stack_top; /* negative for empty stack */
 	size_t stack_sz;
 	struct cbor_item_t **stack; /* to parse nested structures */
+	pthread_mutex_t state_lock;
 };
 
 int setup_conf(struct c_trace_fwd_conf **, int, char *[]);
