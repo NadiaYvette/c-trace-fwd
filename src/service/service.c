@@ -60,7 +60,6 @@ service_unix_sock(struct c_trace_fwd_state *state)
 	int retval = RETVAL_FAILURE;
 	unsigned char *buf;
 	ssize_t ret_sz;
-	cbor_item_t *item;
 	struct tof_msg *tof;
 
 	if (!(buf = calloc(1024, 1024)))
@@ -73,15 +72,11 @@ retry_read:
 		errno = 0;
 		goto retry_read;
 	}
-	if (!(item = cbor_load(buf, ret_sz, NULL)))
+	if (!(tof = ctf_proto_stk_decode(buf)))
 		goto exit_free_buf;
-	if (!(tof = tof_decode(item)))
-		goto exit_cbor_decref;
 	if (tof->tof_msg_type != tof_reply)
-		goto exit_cbor_decref;
+		goto exit_free_buf;
 	retval = RETVAL_SUCCESS;
-exit_cbor_decref:
-	cbor_decref(&item);
 exit_free_buf:
 	free(buf);
 	return retval;
