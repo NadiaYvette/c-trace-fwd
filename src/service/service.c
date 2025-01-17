@@ -4,6 +4,7 @@
 #include <poll.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/param.h>
 #include "c_trace_fwd.h"
 #include "proto_stk.h"
 #include "sdu.h"
@@ -93,7 +94,7 @@ service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 	unsigned char *buf, *reply_buf;
 	ssize_t ret_sz;
 	struct tof_reply *reply;
-	struct tof_msg *tof, *tof_reply;
+	struct tof_msg *tof, *tof_reply_msg;
 	struct tof_request *req;
 	struct sdu reply_sdu;
 
@@ -121,17 +122,20 @@ retry_read:
 	if (tof->tof_msg_type != tof_request)
 		goto exit_free_tof;
 	req = &tof->tof_msg_body.request;
-	tof_reply = malloc(sizeof(struct tof_msg));
-	if (!tof_reply)
+	tof_reply_msg = malloc(sizeof(struct tof_msg));
+	if (!tof_reply_msg)
 		goto exit_free_tof;
-	tof_reply->tof_msg_type = tof_reply;
+	tof_reply_msg->tof_msg_type = tof_reply;
 	reply_nr_to = MIN(req->tof_nr_obj, state->nr_to);
-	reply = &tof_reply->tof_msg_body.reply;
+	reply = &tof_reply_msg->tof_msg_body.reply;
 	reply->tof_nr_replies = reply_nr_to;
 	reply->tof_replies = calloc(reply_nr_to, sizeof(struct trace_object *));
-	for (k = 0; k < reply_nr_to; ++k)
+	for (k = 0; k < reply_nr_to; ++k) {
 		reply->tof_replies[k] = to_dequeue(state);
-	reply_buf = ctf_proto_stk_encode(tof_reply);
+		if (!reply->tof_replies[k])
+			goto exit_free_reply;
+	}
+	reply_buf = ctf_proto_stk_encode(tof_reply_msg);
 	if (sdu_decode((uint32_t *)reply_buf, &reply_sdu))
 		goto exit_free_reply_buf;
 	ret_sz = write(pollfd->fd, reply_buf, reply_sdu.sdu_len + 2 * sizeof(uint32_t));
