@@ -5,16 +5,16 @@
 #include "tof.h"
 
 struct tof_msg *
-ctf_proto_stk_decode(const char *buf)
+ctf_proto_stk_decode(const void *buf)
 {
 	struct sdu sdu;
 	struct cbor_load_result cbor_load_result;
 	cbor_item_t *tof_cbor;
-	uint32_t *hdr = (uint32_t *)buf;
+	const uint32_t *hdr = (uint32_t *)buf;
 
 	if (sdu_decode(hdr, &sdu))
 		return NULL;
-	sdu.sdu_data = &buf[2 * sizeof(uint32_t)];
+	sdu.sdu_data = (const char *)&hdr[2];
 	tof_cbor = cbor_load((cbor_data)sdu.sdu_data, sdu.sdu_len, &cbor_load_result);
 	if (!tof_cbor)
 		return NULL;
