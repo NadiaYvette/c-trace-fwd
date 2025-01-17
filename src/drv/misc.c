@@ -22,10 +22,7 @@ void ctf_boolean(void *ctx, bool val)
 		return;
 	if (ctf_stk_push(state, item))
 		goto out_decref;
-	if (ctf_tbl_push(state, item))
-		goto out_popstk;
 	return;
-out_popstk:
 	ctf_stk_pop(state);
 out_decref:
 	cbor_decref(&item);
@@ -46,8 +43,6 @@ void ctf_indef_break(void *ctx)
 	case CBOR_TYPE_BYTESTRING:
 		if (!cbor_bytestring_is_indefinite(item))
 			break;
-		if (ctf_tbl_push(state, item))
-			cbor_decref(&item);
 	default:
 	}
 }
@@ -63,10 +58,7 @@ void ctf_tag(void *ctx, uint64_t val)
 		return;
 	if (ctf_stk_push(state, item))
 		goto out_decref;
-	if (ctf_tbl_push(state, item))
-		goto out_popstk;
 	return;
-out_popstk:
 	ctf_stk_pop(state);
 out_decref:
 	cbor_decref(&item);

@@ -23,15 +23,11 @@ void ctf_string(void *ctx, cbor_data buf, uint64_t len)
 	(*cbor_empty_callbacks.string)(ctx, buf, len);
 	if (!(chunk = cbor_build_string((const char *)buf)))
 		return;
-	if (ctf_tbl_push(state, chunk))
-		goto out_decref;
 	stack_top = state->stack[state->stack_top];
 	if (cbor_string_is_definite(stack_top))
 		return;
 	if (cbor_string_add_chunk(stack_top, chunk))
 		return;
-	ctf_tbl_pop(state);
-out_decref:
 	ctf_msg(drv, "failed adding cbor bytestring chunk \"%s\"\n", buf);
 	cbor_decref(&chunk);
 }
@@ -56,15 +52,11 @@ void ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
 	(*cbor_empty_callbacks.byte_string)(ctx, buf, len);
 	if (!(chunk = cbor_build_bytestring(buf, len)))
 		return;
-	if (!ctf_tbl_push(state, chunk))
-		goto out_decref;
 	stack_top = state->stack[state->stack_top];
 	if (cbor_string_is_definite(stack_top))
 		return;
 	if (cbor_bytestring_add_chunk(stack_top, chunk))
 		return;
-	ctf_tbl_pop(state);
-out_decref:
 	ctf_msg(drv, "failed adding cbor bytestring chunk \"%s\"\n", buf);
 	cbor_decref(&chunk);
 }
