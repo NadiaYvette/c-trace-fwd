@@ -151,3 +151,29 @@ tof_decode(const cbor_item_t *msg)
 	}
 	return tof;
 }
+
+void trace_object_free(struct trace_object *to)
+{
+	int k;
+
+	free(to->to_human);
+	free(to->to_machine);
+	for (k = 0; k < to->to_namespace_nr; ++k)
+		free(to->to_namespace[k]);
+	free(to->to_hostname);
+	free(to->to_thread_id);
+}
+
+void tof_free(struct tof_msg *tof)
+{
+	struct tof_reply *reply;
+	int k;
+
+	if (tof->tof_msg_type != tof_reply)
+		goto exit_free_tof;
+	reply = &tof->tof_msg_body.reply;
+	for (k = 0; k < reply->tof_nr_replies; ++k)
+		trace_object_free(reply->tof_replies[k]);
+exit_free_tof:
+	free(tof);
+}

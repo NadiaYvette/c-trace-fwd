@@ -107,10 +107,68 @@ exit_free_buf:
 	return retval;
 }
 
+static struct tof_msg *
+service_recv_tof(struct c_trace_fwd_state *state, int fd)
+{
+	struct tof_msg *tof = NULL;
+	char *buf;
+	ssize_t ret_sz;
+
+	if (!(buf = calloc(1024, 1024)))
+		return NULL;
+retry_read:
+	ret_sz = read(fd, buf, 1024*1024);
+	if (ret_sz > 0)
+		tof = ctf_proto_stk_decode(buf);
+	else if (!ret_sz && errno == EAGAIN && errno == EWOULDBLOCK)
+		goto retry_read;
+	free(buf);
+	return tof;
+}
+
+static struct tof_msg *
+service_build_reply(struct c_trace_fwd_state *state, struct tof_request *req)
+{
+	struct tof_msg *tof;
+	struct tof_reply *reply;
+
+	if (!(tof = calloc(1, sizeof(struct tof_msg))))
+		return NULL;
+	tof->tof_msg_type = tof_reply;
+	reply = &tof->tof_msg_body.reply;
+	reply->tof_nr_replies = req->tof_nr_obj;
+	if (!!(reply->tof_replies = calloc(req->tof_nr_obj, sizeof(struct trace_object *))))
+		return tof;
+	free(tof);
+	return NULL;
+}
+
+static int
+service_send_tof(struct c_trace_fwd_state *state, struct tof_msg *tof, int fd)
+{
+	int retval = RETVAL_FAILURE;
+	unsigned char *buf;
+	struct sdu sdu;
+	size_t buf_len;
+	ssize_t ret_sz;
+
+	buf = ctf_proto_stk_encode(tof);
+	if (sdu_decode((uint32_t *)buf, &sdu))
+		goto exit_free_buf;
+	buf_len = sdu.sdu_len + 2*sizeof(uint32_t);
+	ret_sz = write(fd, buf, buf_len);
+	if (ret_sz != (ssize_t)buf_len)
+		goto exit_free_buf;
+	retval = RETVAL_SUCCESS;
+exit_free_buf:
+	free(buf);
+	return retval;
+}
+
 static int
 service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 {
-	int k, reply_nr_to, retval = RETVAL_FAILURE;
+	int reply_nr_to, retval = RETVAL_FAILURE;
 	unsigned char *buf, *reply_buf;
 	ssize_t ret_sz;
 	struct tof_reply *reply;
@@ -127,6 +185,16 @@ service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 	}
 	if (!(pollfd->revents & (POLLIN|POLLPRI)))
 		return RETVAL_SUCCESS;
+	if (!(tof = service_recv_tof(state, pollfd->fd)))
+		return RETVAL_FAILURE;
+	if (tof->tof_msg_type != tof_request)
+		goto exit_free_tof;
+	tof_reply_msg = service_build_reply(state, &tof->tof_msg_body.request);
+	if (!tof_reply_msg)
+		goto exit_free_tof;
+	if (service_send_tof(state, tof_reply_msg, pollfd->fd))
+		goto exit_free_reply_msg;
+
 	if (!(buf = calloc(1024, 1024)))
 		return RETVAL_FAILURE;
 retry_read:
@@ -139,8 +207,6 @@ retry_read:
 	}
 	if (!(tof = ctf_proto_stk_decode(buf)))
 		goto exit_free_buf;
-	if (tof->tof_msg_type != tof_request)
-		goto exit_free_tof;
 	req = &tof->tof_msg_body.request;
 	tof_reply_msg = malloc(sizeof(struct tof_msg));
 	if (!tof_reply_msg)
@@ -150,19 +216,24 @@ retry_read:
 	reply = &tof_reply_msg->tof_msg_body.reply;
 	reply->tof_nr_replies = reply_nr_to;
 	reply->tof_replies = calloc(reply_nr_to, sizeof(struct trace_object *));
+	if (!reply->tof_replies)
+		goto exit_free_tof;
 	if (to_dequeue_multi(state, reply->tof_replies, reply_nr_to))
-		goto exit_free_reply_tof;
-	reply_buf = ctf_proto_stk_encode(tof_reply_msg);
+		goto exit_free_reply_msg;
+	if (!(reply_buf = ctf_proto_stk_encode(tof_reply_msg)))
+		goto exit_free_reply_msg;
 	if (sdu_decode((uint32_t *)reply_buf, &reply_sdu))
-		goto exit_free_reply_tof;
+		goto exit_free_tof;
 	ret_sz = write(pollfd->fd, reply_buf, reply_sdu.sdu_len + 2 * sizeof(uint32_t));
+	if (ret_sz < 0)
+		goto exit_free_reply_buf;
 	retval = RETVAL_SUCCESS;
 exit_free_reply_buf:
 	free(reply_buf);
+exit_free_reply_msg:
+	tof_free(tof_reply_msg);
 exit_free_tof:
-	if (tof->tof_msg_type == tof_reply)
-		free(tof->tof_msg_body.reply.tof_replies);
-	free(tof);
+	tof_free(tof);
 exit_free_buf:
 	free(buf);
 	return retval;

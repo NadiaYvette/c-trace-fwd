@@ -65,3 +65,5 @@ struct tof_msg {
 
 cbor_item_t *tof_encode(const struct tof_msg *);
 struct tof_msg *tof_decode(const cbor_item_t *);
+void tof_free(struct tof_msg *);
+void trace_object_free(struct trace_object *);
