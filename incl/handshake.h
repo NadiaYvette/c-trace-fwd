@@ -76,13 +76,21 @@ struct handshake_refusal {
 	union handshake_refusal_message refusal_message;
 };
 
-/* struct handshake_query_reply; */
+struct handshake_query_reply_pair {
+	encode_word_t query_reply_key;
+	cbor_item_t *query_reply_value;
+};
+
+struct handshake_query_reply {
+	int handshake_query_reply_len;
+	struct handshake_query_reply_pair *handshake_query_reply;
+};
 
 enum handshake_type {
 	handshake_propose_versions = 0,
 	handshake_accept_version = 1,
-	handshake_refusal = 2
-	/* handshake_query_reply = 3 */
+	handshake_refusal = 2,
+	handshake_query_reply = 3
 };
 
 struct handshake {
@@ -90,9 +98,9 @@ struct handshake {
 	union {
 		struct handshake_propose_versions propose_versions;
 		/* struct handshake_reply_versions reply_versions; */
-		/* struct handshake_query_reply query_reply; */
 		struct handshake_accept_version accept_version;
 		struct handshake_refusal refusal;
+		struct handshake_query_reply query_reply;
 	} handshake_message;
 };
 
