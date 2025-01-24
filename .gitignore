@@ -20,6 +20,9 @@ result*
 /launch-*
 stack.yaml.lock
 
+# clang linter files
+*.plist
+
 # ELF object files
 *.o
 
