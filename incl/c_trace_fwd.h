@@ -37,6 +37,5 @@ struct c_trace_fwd_state {
 
 int setup_conf(struct c_trace_fwd_conf **, int, char *[]);
 int setup_state(struct c_trace_fwd_state **, struct c_trace_fwd_conf *);
-int service_loop(struct c_trace_fwd_state *, struct c_trace_fwd_conf *);
 void teardown_state(struct c_trace_fwd_state **);
 void teardown_conf(struct c_trace_fwd_conf **);

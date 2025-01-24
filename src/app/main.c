@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
+#include "service.h"
 
 int main(int argc, char *argv[])
 {
