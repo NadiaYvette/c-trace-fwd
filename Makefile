@@ -59,6 +59,11 @@ $(OBJDIR)/util/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 
-.PHONY: clean
+.PHONY: check clean
+check:
+	clang-check --analyze -p ./ \
+		$(shell find $(INCDIR) $(SRCDIR) -name '*.[ch]') -- \
+		-std=gnu23 -I./incl -isystem /usr/include \
+		-isystem /usr/lib/clang/19/include
 clean:
 	-rm -f $(OBJ)
