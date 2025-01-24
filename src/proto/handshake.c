@@ -196,24 +196,41 @@ handshake_decode(const cbor_item_t *msg_array)
 static cbor_item_t *
 propose_versions_encode(const struct handshake_propose_versions *propose_versions)
 {
-	cbor_item_t *versions_map, *item;
+	cbor_item_t *type_tag, *versions_map, *item;
 	unsigned k;
 
 	item = cbor_new_definite_array(2);
-	(void)!cbor_array_set(item, 0, cbor_build_encode_word(handshake_propose_versions));
-	versions_map = cbor_new_definite_array(propose_versions->handshake_propose_versions_len);
-	(void)!cbor_array_set(item, 1, versions_map);
+	if (!item)
+		return NULL;
+	if (!(type_tag = cbor_build_encode_word(handshake_propose_versions)))
+		goto exit_free_item;
+	if (!cbor_array_set(item, 0, type_tag)) {
+		cbor_decref(&type_tag);
+		goto exit_free_item;
+	}
+	if (!(versions_map = cbor_new_definite_array(propose_versions->handshake_propose_versions_len)))
+		goto exit_free_item;
+	if (!cbor_array_set(item, 1, versions_map)) {
+		cbor_decref(&versions_map);
+		goto exit_free_item;
+	}
 	for (k = 0; k < propose_versions->handshake_propose_versions_len; ++k) {
 		struct cbor_pair pair;
 		struct handshake_propose_version_pair *elem;
 
 		elem = &propose_versions->handshake_propose_versions[k];
-		pair.key = cbor_build_encode_word(elem->propose_version_key);
+		if (!(pair.key = cbor_build_encode_word(elem->propose_version_key)))
+			goto exit_free_item;
 		pair.value = elem->propose_version_value;
-		(void)!cbor_map_add(versions_map, pair);
+		if (!cbor_map_add(versions_map, pair)) {
+			cbor_decref(&pair.key);
+			goto exit_free_item;
+		}
 	}
-	(void)!cbor_array_set(item, 1, versions_map);
 	return item;
+exit_free_item:
+	cbor_decref(&item);
+	return NULL;
 }
 
 static cbor_item_t *
