@@ -22,16 +22,16 @@ ctf_proto_stk_decode(const void *buf)
 }
 
 char *
-ctf_proto_stk_encode(const struct tof_msg *msg)
+ctf_proto_stk_encode(const struct tof_msg *msg, size_t *ret_sz)
 {
-	char *buf, *ret;
+	char *buf, *ret = NULL;
 	size_t buf_sz;
 	cbor_item_t *tof_cbor;
 	struct sdu sdu;
 
 	tof_cbor = tof_encode(msg);
 	if (!cbor_serialize_alloc(tof_cbor, (unsigned char **)&buf, &buf_sz))
-		return NULL;
+		goto exit_free_cbor;
 	sdu.sdu_xmit = time(NULL);
 	/* 0 is used everywhere I can find */
 	sdu.sdu_proto_num = 0;
@@ -39,10 +39,19 @@ ctf_proto_stk_encode(const struct tof_msg *msg)
 	sdu.sdu_init_or_resp = false;
 	sdu.sdu_len = buf_sz;
 	sdu.sdu_data = buf;
-	if (!(ret = malloc(buf_sz + 2 * sizeof(uint32_t))))
-		return NULL;
+	*ret_sz = buf_sz + 2 * sizeof(uint32_t);
+	if (!(ret = malloc(*ret_sz)))
+		goto exit_free_cbor_buf;
 	if (sdu_encode(&sdu, (uint32_t *)&ret[2 * sizeof(uint32_t)]))
-		return NULL;
+		goto exit_free_ret;
 	memcpy(&ret[2 * sizeof(uint32_t)], buf, buf_sz);
+	goto exit_free_cbor_buf;
+exit_free_ret:
+	free(ret);
+	ret = NULL;
+exit_free_cbor_buf:
+	free(buf);
+exit_free_cbor:
+	cbor_decref(&tof_cbor);
 	return ret;
 }

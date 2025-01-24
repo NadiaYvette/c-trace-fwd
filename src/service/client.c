@@ -34,15 +34,12 @@ service_send_tof(struct c_trace_fwd_state *state, struct tof_msg *tof, int fd)
 {
 	int retval = RETVAL_FAILURE;
 	unsigned char *buf;
-	struct sdu sdu;
 	size_t buf_len;
 	ssize_t ret_sz;
 
-	buf = ctf_proto_stk_encode(tof);
+	if (!(buf = ctf_proto_stk_encode(tof, &buf_len)))
+		return RETVAL_FAILURE;
 	/* This is an awkward enough pattern that the API should change. */
-	if (sdu_decode((uint32_t *)buf, &sdu))
-		goto exit_free_buf;
-	buf_len = sdu.sdu_len + 2*sizeof(uint32_t);
 	ret_sz = write(fd, buf, buf_len);
 	if (ret_sz != (ssize_t)buf_len)
 		goto exit_free_buf;
