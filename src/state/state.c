@@ -28,7 +28,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 {
 	struct handshake *handshake_reply;
 	cbor_item_t *handshake_proposal_cbor, *reply_cbor;
-	unsigned char *new_buf, *buf = NULL;
+	unsigned char *buf = NULL;
 	size_t buf_sz;
 	ssize_t reply_len;
 	int retval = RETVAL_FAILURE;
@@ -41,9 +41,12 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	if (write(state->unix_sock_fd, buf, buf_sz) <= 0 && errno != 0)
 		goto out_free_buf;
 	if (buf_sz < 1024 * 1024) {
-		buf_sz = 1024 * 1024;
+		unsigned char *new_buf;
+
 		if (!(new_buf = realloc(buf, 1024 * 1024)))
 			goto out_free_buf;
+		buf_sz = 1024 * 1024;
+		buf = new_buf;
 	}
 	while (!(reply_len = read(state->unix_sock_fd, buf, buf_sz))) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK)
