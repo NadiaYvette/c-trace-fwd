@@ -46,7 +46,7 @@ propose_versions_decode(const cbor_item_t *msg_array, struct handshake *handshak
 		= cbor_map_size(version_map);
 	propose_versions->handshake_propose_versions
 		= calloc(propose_versions->handshake_propose_versions_len,
-			sizeof(sizeof(struct handshake_propose_version_pair)));
+			sizeof(struct handshake_propose_version_pair));
 	for (k = 0; k < propose_versions->handshake_propose_versions_len; ++k) {
 		struct handshake_propose_version_pair *pair
 			= &propose_versions->handshake_propose_versions[k];
@@ -160,7 +160,7 @@ query_reply_decode(const cbor_item_t *msg_array, struct handshake *handshake)
 		= cbor_map_size(version_map);
 	query_reply->handshake_query_reply
 		= calloc(query_reply->handshake_query_reply_len,
-			sizeof(sizeof(struct handshake_query_reply_pair)));
+			sizeof(struct handshake_query_reply_pair));
 	for (k = 0; k < query_reply->handshake_query_reply_len; ++k) {
 		struct handshake_query_reply_pair *pair
 			= &query_reply->handshake_query_reply[k];
