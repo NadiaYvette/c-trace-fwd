@@ -1,6 +1,7 @@
 #include <cbor.h>
 #include "tof.h"
 #include "c_trace_fwd.h"
+#include "handshake.h"
 
 /* TODO: error handling */
 
@@ -125,10 +126,13 @@ struct tof_msg *
 tof_decode(const cbor_item_t *msg)
 {
 	struct tof_msg *tof = calloc(1, sizeof(struct tof_msg));
+	cbor_item_t *item;
 
 	if (!tof)
 		return NULL;
-	tof->tof_msg_type = (enum tof_msg_type)cbor_array_get(msg, 0);
+	if (!(item = cbor_array_get(msg, 0)))
+		goto exit_free_tof;
+	tof->tof_msg_type = (enum tof_msg_type)cbor_get_encode_word(item);
 	switch (tof->tof_msg_type) {
 	case tof_request:
 		struct tof_request *request = &tof->tof_msg_body.request;
@@ -150,6 +154,9 @@ tof_decode(const cbor_item_t *msg)
 		break;
 	}
 	return tof;
+exit_free_tof:
+	tof_free(tof);
+	return NULL;
 }
 
 void trace_object_free(struct trace_object *to)
