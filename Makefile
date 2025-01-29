@@ -1,3 +1,5 @@
+# This should be compatible with either gcc or clang.
+# CC:=clang
 CC:=gcc
 LD:=$(CC)
 
@@ -20,7 +22,15 @@ INCDIR:=$(TOPDIR)/incl
 INCFLAGS:=-I$(INCDIR)
 
 LDFLAGS:=$(CBOR_LIBS)
-CFLAGS:=-Wall -Wno-unused-function -O -std=gnu23 $(CBOR_CFLAGS) $(INCFLAGS) -MD
+
+# -Wno-unused-function may sometimes be helpful.
+# Theoretically, these could vary based on clang vs. gcc or other issues.
+DBGFLAGS:=-g
+OPTFLAGS:=-O
+STDFLAGS:=-std=gnu23
+WARNFLAGS:=-Wall
+CGENFLAGS:=$(DBGFLAGS) $(OPTFLAGS) $(STDFLAGS) $(WARNFLAGS)
+CFLAGS:=$(CGENFLAGS) $(CBOR_CFLAGS) $(INCFLAGS) -MD
 
 vpath %.h $(INCDIR)
 vpath %.c $(SRCDIRS)
@@ -31,7 +41,6 @@ OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(SRC),$(OBJDIR)/$(shell realpath --relat
 DEP:=$(OBJ:%.o=%.d)
 
 $(OBJBINDIR)/c_trace_fwd: $(OBJ)
-	@echo $+
 	$(CC) $(LDFLAGS) $(OBJ) $(LIBS) -o $@
 
 -include $(DEP)
