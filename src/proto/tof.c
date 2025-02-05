@@ -11,7 +11,7 @@ trace_object_decode(const cbor_item_t *array)
 {
 	size_t k, n, nsub;
 	struct trace_object *to;
-	cbor_item_t *item, *subarray, **handle;
+	cbor_item_t *item, *subarray;
 
 	to = calloc(1, sizeof(struct trace_object));
 	if (!to)
@@ -20,8 +20,6 @@ trace_object_decode(const cbor_item_t *array)
 		goto exit_free_to;
 	if ((n = cbor_array_size(array)) != 9)
 		ctf_msg(tof, "unexpected trace_object array length %d\n", n);
-	if (!(handle = cbor_array_handle(array)))
-		goto exit_free_to;
 	subarray = cbor_array_get(array, 1);
 	if (cbor_is_null(subarray))
 		ctf_msg(tof, "null subarray\n");

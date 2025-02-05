@@ -71,7 +71,7 @@ version_mismatch_decode(const cbor_item_t *refusal_array, struct handshake *hand
 		= cbor_array_size(mismatch_array);
 	mismatch->handshake_refusal_version_mismatch_versions
 		= calloc(mismatch->handshake_refusal_version_mismatch_len,
-				sizeof(uint64_t *));
+				sizeof(uint64_t));
 	for (k = 0; k < mismatch->handshake_refusal_version_mismatch_len; ++k)
 		mismatch->handshake_refusal_version_mismatch_versions[k]
 			= cbor_get_int(cbor_array_get(mismatch_array, k));

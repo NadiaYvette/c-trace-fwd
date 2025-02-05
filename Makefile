@@ -96,12 +96,21 @@ $(OBJDIR)/util/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 
-.PHONY: check clean depclean
+.PHONY: check clean ckclean depclean
 check:
+	# The per-C source file plist files don't mirror the
+	# filesystem hierarchy as expected; however, they don't appear
+	# to have meaningful content in observed cases and are largely
+	# undocumented. So it seems to be no great loss.
 	clang-check --analyze -p ./ \
-		$(shell find $(INCDIR) $(SRCDIR) -name '*.[ch]') -- \
+		$(shell find $(INCDIR) $(SRCDIR) -name '*.[ch]') \
+		--analyzer-output-path=$(OBJDIR)/analysis \
+		-- \
 		-std=gnu23 -I./incl -isystem /usr/include \
 		-isystem /usr/lib/clang/19/include
+ckclean:
+	-rm -f $(wildcard *.plist) $(wildcard $(OBJDIR)/*.plist) \
+		$(OBJDIR)/analysis
 clean:
 	-rm -f $(OBJ) $(CTF_LIB_DSO) $(CTF_BIN_EXE) $(TOF_BIN_EXE)
 
