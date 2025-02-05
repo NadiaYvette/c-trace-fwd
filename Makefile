@@ -13,8 +13,8 @@ CBOR_LIBS:=$(shell pkg-config --libs libcbor)
 # SUBDIRS:=$(notdir $(wildcard $(TOPDIR)/src/*))
 # SUBDIRS:=app conf proto service state
 # More libraries may need more variables in this scheme.
-APP_SUBDIRS:=app conf service state
-LIB_SUBDIRS:=proto
+APP_SUBDIRS:=app conf service state util
+LIB_SUBDIRS:=proto util
 SRCDIR:=$(TOPDIR)/src
 APP_SRCDIRS:=$(addprefix $(SRCDIR)/,$(APP_SUBDIRS))
 LIB_SRCDIRS:=$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))
@@ -35,14 +35,14 @@ LIBS:=$(CBOR_LIBS)
 # -Wno-unused-function may sometimes be helpful.
 # Theoretically, these could vary based on clang vs. gcc or other issues.
 DBGFLAGS:=-g
-OPTFLAGS:=-O
+OPTFLAGS:=-O0
 STDFLAGS:=-std=gnu23
 WARNFLAGS:=-Wall
 CGENFLAGS:=$(DBGFLAGS) $(OPTFLAGS) $(STDFLAGS) $(WARNFLAGS)
 CFLAGS:=$(CGENFLAGS) $(CBOR_CFLAGS) $(INCFLAGS) -MD
 
 vpath %.h $(INCDIR)
-vpath %.c $(APP_SRCDIRS) $(LIB_SRCDIRS)
+vpath %.c $(APP_SRCDIRS) $(LIB_SRCDIRS) $(SRCDIR)/test
 
 APP_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(APP_SUBDIRS))))
 LIB_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))))
@@ -54,6 +54,7 @@ DEP:=$(OBJ:%.o=%.d)
 
 CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
 CTF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,c_trace_fwd)
+TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
 
 $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 	@mkdir -p $(dir $@)
@@ -62,6 +63,10 @@ $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 $(CTF_LIB_DSO): $(LIB_OBJ)
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) -shared $(LIB_OBJ) $(LIBS) -o $@
+
+$(TOF_BIN_EXE): $(OBJDIR)/test/tof_stdin.o $(CTF_LIB_DSO)
+	@mkdir -p $(dir @)
+	$(CC) $(LDFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
 -include $(DEP)
 
@@ -84,9 +89,12 @@ $(OBJDIR)/service/%.o: %.c
 $(OBJDIR)/state/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
-$(OBJDIR)/util/%.o: %.c
+$(OBJDIR)/test/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
+$(OBJDIR)/util/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -fPIC -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 
 .PHONY: check clean depclean
 check:
@@ -95,7 +103,7 @@ check:
 		-std=gnu23 -I./incl -isystem /usr/include \
 		-isystem /usr/lib/clang/19/include
 clean:
-	-rm -f $(OBJ)
+	-rm -f $(OBJ) $(CTF_LIB_DSO) $(CTF_BIN_EXE) $(TOF_BIN_EXE)
 
 depclean:
 	-rm -f $(DEP)

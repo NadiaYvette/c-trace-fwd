@@ -1,43 +1,96 @@
 #include <cbor.h>
-#include "tof.h"
 #include "c_trace_fwd.h"
+#include "ctf_util.h"
 #include "handshake.h"
+#include "tof.h"
 
 /* TODO: error handling */
 
 struct trace_object *
-trace_object_decode(cbor_item_t *array)
+trace_object_decode(const cbor_item_t *array)
 {
-	int k;
+	size_t k, n, nsub;
 	struct trace_object *to;
-	cbor_item_t *item;
+	cbor_item_t *item, *subarray, **handle;
 
 	to = calloc(1, sizeof(struct trace_object));
 	if (!to)
 		return NULL;
-	item = cbor_array_get(array, 0);
-	if (cbor_is_null(item))
-		to->to_human = NULL;
+	if (!cbor_isa_array(array))
+		goto exit_free_to;
+	if ((n = cbor_array_size(array)) != 9)
+		ctf_msg(tof, "unexpected trace_object array length %d\n", n);
+	if (!(handle = cbor_array_handle(array)))
+		goto exit_free_to;
+	subarray = cbor_array_get(array, 1);
+	if (cbor_is_null(subarray))
+		ctf_msg(tof, "null subarray\n");
+	else if (!cbor_isa_array(subarray))
+		ctf_msg(tof, "subarray not an array\n");
+	else if ((nsub = cbor_array_size(subarray)) < 1)
+		ctf_msg(tof, "subarray size %d\n", nsub);
+	else if (!(item = cbor_array_get(subarray, 0)))
+		ctf_msg(tof, "subarray item 0 missing\n");
 	else
 		to->to_human = strdup((const char *)cbor_string_handle(item));
-	item = cbor_array_get(array, 1);
-	to->to_machine = strdup((const char *)cbor_string_handle(item));
 	item = cbor_array_get(array, 2);
-	to->to_namespace_nr = cbor_array_size(item);
+	to->to_machine = strdup((const char *)cbor_string_handle(item));
+	subarray = cbor_array_get(array, 3);
+	/* tags don't get used in this case */
+	to->to_namespace_nr = cbor_array_size(subarray);
 	to->to_namespace = calloc(to->to_namespace_nr, sizeof(char *));
 	for (k = 0; k < to->to_namespace_nr; ++k)
-		to->to_namespace[k] = strdup((const char *)cbor_string_handle(cbor_array_get(item, k)));
-	item = cbor_array_get(array, 3);
-	to->to_severity = cbor_get_uint32(item);
+		to->to_namespace[k] = strdup((const char *)cbor_string_handle(cbor_array_get(subarray, k)));
 	item = cbor_array_get(array, 4);
-	to->to_details = cbor_get_uint32(item);
+	if (cbor_isa_uint(item))
+		to->to_severity = cbor_get_int(item);
+	else if (cbor_isa_array(item) && cbor_array_size(item) >= 1) {
+		if (!!(item = cbor_array_get(item, 0)) && cbor_isa_uint(item))
+			to->to_severity = cbor_get_int(item);
+		else
+			ctf_msg(tof, "severity decode failed at depth\n");
+	} else
+		ctf_msg(tof, "severity type of wrong type\n");
 	item = cbor_array_get(array, 5);
-	to->to_timestamp = cbor_get_uint64(item);
-	item = cbor_array_get(array, 6);
-	to->to_hostname = strdup((const char *)cbor_string_handle(item));
-	item = cbor_array_get(array, 7);
-	to->to_thread_id = strdup((const char *)cbor_string_handle(item));
+	if (cbor_isa_uint(item))
+		to->to_details = cbor_get_int(item);
+	else if (cbor_isa_array(item) && cbor_array_size(item) >= 1) {
+		if (!!(item = cbor_array_get(item, 0)) && cbor_isa_uint(item))
+			to->to_details = cbor_get_int(item);
+		else
+			ctf_msg(tof, "details decode failed at depth\n");
+	} else
+		ctf_msg(tof, "details type of wrong type\n");
+	if (!(item = cbor_array_get(array, 6)))
+		ctf_msg(tof, "timestamp array entry NULL\n");
+	else if (cbor_is_null(item))
+		ctf_msg(tof, "timestamp array entry null cbor value\n");
+	else if (!cbor_isa_uint(item))
+		ctf_msg(tof, "timestamp array entry type non-integral\n");
+	else if (cbor_int_get_width(item) != CBOR_INT_64)
+		ctf_msg(tof, "timestamp array entry int width != 64\n");
+	else
+		to->to_timestamp = cbor_get_uint64(item);
+	if (!(item = cbor_array_get(array, 7)))
+		ctf_msg(tof, "hostname array entry NULL\n");
+	else if (cbor_is_null(item))
+		ctf_msg(tof, "hostname array entry null cbor value\n");
+	else if (!cbor_isa_string(item))
+		ctf_msg(tof, "hostname array entry type non-string\n");
+	else
+		to->to_hostname = strdup((const char *)cbor_string_handle(item));
+	if (!(item = cbor_array_get(array, 8)))
+		ctf_msg(tof, "thread_id array entry NULL\n");
+	else if (cbor_is_null(item))
+		ctf_msg(tof, "thread_id array entry null cbor value\n");
+	else if (!cbor_isa_string(item))
+		ctf_msg(tof, "thread_id array entry type non-string\n");
+	else
+		to->to_thread_id = strdup((const char *)cbor_string_handle(item));
 	return to;
+exit_free_to:
+	free(to);
+	return NULL;
 }
 
 cbor_item_t *
@@ -132,7 +185,7 @@ tof_decode(const cbor_item_t *msg)
 		return NULL;
 	if (!(item = cbor_array_get(msg, 0)))
 		goto exit_free_tof;
-	tof->tof_msg_type = (enum tof_msg_type)cbor_get_encode_word(item);
+	tof->tof_msg_type = (enum tof_msg_type)cbor_get_int(item);
 	switch (tof->tof_msg_type) {
 	case tof_request:
 		struct tof_request *request = &tof->tof_msg_body.request;

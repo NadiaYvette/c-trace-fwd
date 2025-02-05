@@ -1,35 +1,21 @@
 #include <cbor.h>
+#include <limits.h>
 #include <stdint.h>
 #include <string.h>
 #include "handshake.h"
 
-#if PTRDIFF_WIDTH == 32
-encode_word_t
-cbor_get_encode_word(const cbor_item_t *item)
-{
-	return cbor_get_uint32(item);
-}
-
 cbor_item_t *
-cbor_build_encode_word(encode_word_t value)
+cbor_build_encode_word(uint64_t value)
 {
-	return cbor_build_uint32(value);
+	if (value < 1ULL << 8)
+		return cbor_build_uint8(value);
+	else if (value < 1ULL << 16)
+		return cbor_build_uint16(value);
+	else if (value < 1ULL << 32)
+		return cbor_build_uint32(value);
+	else
+		return cbor_build_uint64(value);
 }
-#elif PTRDIFF_WIDTH == 64
-encode_word_t
-cbor_get_encode_word(const cbor_item_t *item)
-{
-	return cbor_get_uint64(item);
-}
-
-cbor_item_t *
-cbor_build_encode_word(encode_word_t value)
-{
-	return cbor_build_uint64(value);
-}
-#else
-#error "Unknown word size."
-#endif
 
 static struct handshake *
 propose_versions_decode(const cbor_item_t *msg_array, struct handshake *handshake)
@@ -51,8 +37,7 @@ propose_versions_decode(const cbor_item_t *msg_array, struct handshake *handshak
 		struct handshake_propose_version_pair *pair
 			= &propose_versions->handshake_propose_versions[k];
 
-		pair->propose_version_key
-			= cbor_get_encode_word(version_array[k].key);
+		pair->propose_version_key = cbor_get_int(version_array[k].key);
 		pair->propose_version_value = version_array[k].value;
 	}
 	return handshake;
@@ -65,7 +50,7 @@ accept_version_decode(const cbor_item_t *msg_array, struct handshake *handshake)
 
 	accept_version = &handshake->handshake_message.accept_version;
 	accept_version->handshake_accept_version_number
-		= cbor_get_encode_word(cbor_array_get(msg_array, 1));
+		= cbor_get_int(cbor_array_get(msg_array, 1));
 	accept_version->handshake_accept_version_params
 		= cbor_array_get(msg_array, 2);
 	return handshake;
@@ -86,10 +71,10 @@ version_mismatch_decode(const cbor_item_t *refusal_array, struct handshake *hand
 		= cbor_array_size(mismatch_array);
 	mismatch->handshake_refusal_version_mismatch_versions
 		= calloc(mismatch->handshake_refusal_version_mismatch_len,
-				sizeof(encode_word_t));
+				sizeof(uint64_t *));
 	for (k = 0; k < mismatch->handshake_refusal_version_mismatch_len; ++k)
 		mismatch->handshake_refusal_version_mismatch_versions[k]
-			= cbor_get_encode_word(cbor_array_get(mismatch_array, k));
+			= cbor_get_int(cbor_array_get(mismatch_array, k));
 	return handshake;
 }
 
@@ -102,7 +87,7 @@ decode_error_decode(const cbor_item_t *refusal_array, struct handshake *handshak
 	refusal = &handshake->handshake_message.refusal;
 	decode_error = &refusal->refusal_message.decode_error;
 	decode_error->handshake_refusal_decode_error_version
-		= cbor_get_encode_word(cbor_array_get(refusal_array, 1));
+		= cbor_get_int(cbor_array_get(refusal_array, 1));
 	decode_error->handshake_refusal_decode_error_string
 		= strdup((char *)cbor_string_handle(cbor_array_get(refusal_array, 2)));
 	return handshake;
@@ -117,7 +102,7 @@ refused_decode(const cbor_item_t *refusal_array, struct handshake *handshake)
 	refusal = &handshake->handshake_message.refusal;
 	refused = &refusal->refusal_message.refused;
 	refused->handshake_refusal_refused_version
-		= cbor_get_encode_word(cbor_array_get(refusal_array, 1));
+		= cbor_get_int(cbor_array_get(refusal_array, 1));
 	refused->handshake_refusal_refused_string
 		= strdup((char *)cbor_string_handle(cbor_array_get(refusal_array, 2)));
 	return handshake;
@@ -132,7 +117,7 @@ refusal_decode(const cbor_item_t *msg_array, struct handshake *handshake)
 
 	refusal_array = cbor_array_get(msg_array, 1);
 	refusal = &handshake->handshake_message.refusal;
-	reason_type = cbor_get_encode_word(cbor_array_get(refusal_array, 0));
+	reason_type = cbor_get_int(cbor_array_get(refusal_array, 0));
 	refusal->reason_type = reason_type;
 	switch (reason_type) {
 	case handshake_refusal_version_mismatch:
@@ -166,7 +151,7 @@ query_reply_decode(const cbor_item_t *msg_array, struct handshake *handshake)
 			= &query_reply->handshake_query_reply[k];
 
 		pair->query_reply_key
-			= cbor_get_encode_word(version_array[k].key);
+			= cbor_get_int(version_array[k].key);
 		pair->query_reply_value = version_array[k].value;
 	}
 	return handshake;
@@ -179,7 +164,7 @@ handshake_decode(const cbor_item_t *msg_array)
 
 	handshake = calloc(1, sizeof(struct handshake));
 	handshake->handshake_type
-		= cbor_get_encode_word(cbor_array_get(msg_array, 0));
+		= cbor_get_int(cbor_array_get(msg_array, 0));
 	switch (handshake->handshake_type) {
 	case handshake_propose_versions:
 		return propose_versions_decode(msg_array, handshake);

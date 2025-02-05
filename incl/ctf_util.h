@@ -17,5 +17,5 @@ int ctf_msg_core(const struct ctf_msg_ctx *, const char *, ...);
 			.line = __LINE__,                          \
 			.ctx = #mod,                               \
 		};                                                 \
-		ctf_msg_core(&__ctx_##__LINE__, fmt, __VA_ARGS__); \
+		ctf_msg_core(&__ctx_##__LINE__, fmt __VA_OPT__ (,) __VA_ARGS__); \
 	} while (0)
