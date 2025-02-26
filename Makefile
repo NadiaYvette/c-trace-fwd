@@ -34,7 +34,7 @@ LIBS:=$(CBOR_LIBS)
 
 # -Wno-unused-function may sometimes be helpful.
 # Theoretically, these could vary based on clang vs. gcc or other issues.
-DBGFLAGS:=-g
+DBGFLAGS:=-g -gdwarf-3 -fvar-tracking-assignments
 OPTFLAGS:=-O0
 STDFLAGS:=-std=gnu23
 WARNFLAGS:=-Wall
@@ -58,15 +58,15 @@ TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
 
 $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 	@mkdir -p $(dir $@)
-	$(CC) $(LDFLAGS) $(APP_OBJ) $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
+	$(CC) $(LDFLAGS) $(DBGFLAGS) $(APP_OBJ) $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
 $(CTF_LIB_DSO): $(LIB_OBJ)
 	@mkdir -p $(dir $@)
-	$(CC) $(LDFLAGS) -shared $(LIB_OBJ) $(LIBS) -o $@
+	$(CC) $(LDFLAGS) $(DBGFLAGS) -shared $(LIB_OBJ) $(LIBS) -o $@
 
 $(TOF_BIN_EXE): $(OBJDIR)/test/tof_stdin.o $(CTF_LIB_DSO)
 	@mkdir -p $(dir @)
-	$(CC) $(LDFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
+	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
 -include $(DEP)
 
