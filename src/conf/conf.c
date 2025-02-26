@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <unistd.h>
 #include "c_trace_fwd.h"
+#include "ctf_util.h"
 
 static int split_addrinfo(struct addrinfo **addrinfo, char *s)
 {
@@ -19,6 +20,7 @@ static int split_addrinfo(struct addrinfo **addrinfo, char *s)
 	retval = RETVAL_SUCCESS;
 	return retval;
 exit_failure:
+	ctf_msg(conf, "getaddrinfo failed on \"%s\"\n", s);
 	free(*addrinfo);
 	*addrinfo = NULL;
 	return retval;
