@@ -31,6 +31,7 @@ stack.yaml.lock
 *.d
 *.mh
 
+__pycache__
 /.cache
 /db
 /db-[0-9]
