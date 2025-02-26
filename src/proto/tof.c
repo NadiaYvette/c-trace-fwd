@@ -95,7 +95,7 @@ cbor_item_t *
 trace_object_encode(const struct trace_object *trace_object)
 {
 	int k;
-	cbor_item_t *array;
+	cbor_item_t *array, *human_array;
 	cbor_item_t *human, *machine, *namespace, *severity,
 		    *details, *timestamp, *hostname, *thread_id;
 
@@ -106,7 +106,9 @@ trace_object_encode(const struct trace_object *trace_object)
 		human = cbor_new_null();
 	else
 		human = cbor_build_string(trace_object->to_human);
-	(void)!cbor_array_set(array, 0, human);
+	human_array = cbor_new_definite_array(1);
+	(void)!cbor_array_set(human_array, 0, human);
+	(void)!cbor_array_set(array, 1, human_array);
 	machine = cbor_build_string(trace_object->to_machine);
 	(void)!cbor_array_set(array, 1, machine);
 	namespace = cbor_new_definite_array(trace_object->to_namespace_nr);
