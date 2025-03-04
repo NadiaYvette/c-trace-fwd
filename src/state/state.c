@@ -43,7 +43,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	struct handshake *handshake_reply;
 	cbor_item_t *reply_cbor;
 	unsigned char *sdu_buf, *buf = NULL;
-	size_t buf_sz;
+	size_t buf_sz, sdu_buf_sz;
 	ssize_t reply_len;
 	int retval = RETVAL_FAILURE;
 	struct sigaction old_sigact, new_sigact;
@@ -57,7 +57,8 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	handshake_proposal_cbor = handshake_encode(&handshake_proposal);
 	if (!cbor_serialize_alloc(handshake_proposal_cbor, &buf, &buf_sz))
 		return RETVAL_FAILURE;
-	if (!(sdu_buf = calloc(buf_sz + 2*sizeof(uint32_t), sizeof(char))))
+	sdu_buf_sz = buf_sz + 2*sizeof(uint32_t);
+	if (!(sdu_buf = calloc(sdu_buf_sz, sizeof(unsigned char))))
 		goto out_free_buf;
 	sdu.sdu_xmit = (uint32_t)time(NULL);
 	sdu.sdu_init_or_resp = false;
