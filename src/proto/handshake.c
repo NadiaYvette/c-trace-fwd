@@ -181,38 +181,51 @@ handshake_decode(const cbor_item_t *msg_array)
 static cbor_item_t *
 propose_versions_encode(const struct handshake_propose_versions *propose_versions)
 {
-	cbor_item_t *type_tag, *versions_map, *item;
+	cbor_item_t *type_tag, *versions_len, *versions_map, *item, *len;
 	unsigned k;
 
-	item = cbor_new_definite_array(2);
-	if (!item)
+	if (!(item = cbor_new_definite_array(3)))
 		return NULL;
+	if (!(len = cbor_build_encode_word(3)))
+		goto exit_free_item;
+	if (!cbor_array_set(item, 0, len))
+		goto exit_free_len;
 	if (!(type_tag = cbor_build_encode_word(handshake_propose_versions)))
-		goto exit_free_item;
-	if (!cbor_array_set(item, 0, type_tag)) {
-		cbor_decref(&type_tag);
-		goto exit_free_item;
-	}
-	if (!(versions_map = cbor_new_definite_array(propose_versions->handshake_propose_versions_len)))
-		goto exit_free_item;
-	if (!cbor_array_set(item, 1, versions_map)) {
-		cbor_decref(&versions_map);
-		goto exit_free_item;
-	}
-	for (k = 0; k < propose_versions->handshake_propose_versions_len; ++k) {
+		goto exit_free_len;
+	if (!cbor_array_set(item, 1, type_tag))
+		goto exit_free_tag;
+	if (!(versions_map = cbor_new_definite_array(propose_versions->handshake_propose_versions_len+1)))
+		goto exit_free_tag;
+	if (!cbor_array_set(item, 1, versions_map))
+		goto exit_free_map;
+	versions_len = cbor_build_encode_word(propose_versions->handshake_propose_versions_len);
+	if (!versions_len)
+		goto exit_free_map;
+	if (!cbor_array_set(versions_map, 0, versions_len))
+		goto exit_free_map_len;
+	for (k = 1; k < propose_versions->handshake_propose_versions_len; ++k) {
 		struct cbor_pair pair;
 		struct handshake_propose_version_pair *elem;
 
 		elem = &propose_versions->handshake_propose_versions[k];
-		if (!(pair.key = cbor_build_encode_word(elem->propose_version_key)))
-			goto exit_free_item;
+		pair.key = cbor_build_encode_word(elem->propose_version_key);
+		if (!pair.key)
+			goto exit_free_map_len;
 		pair.value = elem->propose_version_value;
 		if (!cbor_map_add(versions_map, pair)) {
 			cbor_decref(&pair.key);
-			goto exit_free_item;
+			goto exit_free_map_len;
 		}
 	}
 	return item;
+exit_free_map_len:
+	cbor_decref(&versions_len);
+exit_free_map:
+	cbor_decref(&versions_map);
+exit_free_tag:
+	cbor_decref(&type_tag);
+exit_free_len:
+	cbor_decref(&len);
 exit_free_item:
 	cbor_decref(&item);
 	return NULL;
