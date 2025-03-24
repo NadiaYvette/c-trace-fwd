@@ -25,6 +25,10 @@ mv ${SOCK_FILE} ${SOCK_FILE}.orig
 #        Receiving EOF on the other end will trigger an immediate exit.
 TIMEOUT=${TIMEOUT:-100}
 SOCAT_OPT=${SOCAT_OPT:-"-t${TIMEOUT} -v -x"}
+if [ -v SOCAT_LOG ]
+then
+	SOCAT_OPT="${SOCAT_OPT} -lf ${SOCAT_LOG}"
+fi
 
 # For want of specified nomenclature, the first socket/file/fd argument
 # is what this script will call the "front," and the second, the "back."
