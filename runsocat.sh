@@ -14,6 +14,7 @@ SOCK_FILE=${SOCK_FILE:-${SOCK_DIR}/tracer.socket}
 
 # The verbatim writing of this was:
 # mv mainnetsingle/socket/tracer.socket mainnetsingle/socket/tracer.socket.orig
+echo mv ${SOCK_FILE} ${SOCK_FILE}.orig
 mv ${SOCK_FILE} ${SOCK_FILE}.orig
 
 # -v tees data written to targets to stderr, prefixing lines with flow
@@ -27,7 +28,8 @@ TIMEOUT=${TIMEOUT:-100}
 SOCAT_OPT=${SOCAT_OPT:-"-t${TIMEOUT} -v -x"}
 if [ -v SOCAT_LOG ]
 then
-	SOCAT_OPT="${SOCAT_OPT} -lf ${SOCAT_LOG}"
+	SOCAT_OPT="${SOCAT_OPT} -r ${SOCAT_LOG}.A -R ${SOCAT_LOG}.B"
+	echo Saw SOCAT_LOG set, set SOCAT_OPT=\""${SOCAT_OPT}"\"
 fi
 
 # For want of specified nomenclature, the first socket/file/fd argument
@@ -38,6 +40,11 @@ BACK__ADDR_TYPE=${BACK__ADDR_TYPE:-"UNIX-CONNECT"}
 
 # Maybe someone might want to overridde it.
 SOCAT=${SOCAT:-$(which socat)}
+
+echo ${SOCAT} ${SOCAT_OPT} \
+  ${FRONT_ADDR_TYPE}:${SOCK_FILE},mode=777,reuseaddr,fork \
+  ${BACK__ADDR_TYPE}:${SOCK_FILE}.orig
+
 exec ${SOCAT} ${SOCAT_OPT} \
   ${FRONT_ADDR_TYPE}:${SOCK_FILE},mode=777,reuseaddr,fork \
   ${BACK__ADDR_TYPE}:${SOCK_FILE}.orig
