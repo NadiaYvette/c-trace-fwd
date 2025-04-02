@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "c_trace_fwd.h"
@@ -49,25 +50,36 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	struct sigaction old_sigact, new_sigact;
 	struct sdu sdu, reply_sdu;
 
+	ctf_msg(state, "entering\n");
 	handshake_versions[0].propose_version_key = 0;
 	if (!handshake_versions[0].propose_version_value) {
-		if (!(handshake_versions[0].propose_version_value = cbor_build_uint64(19)))
+		if (!(handshake_versions[0].propose_version_value = cbor_build_uint64(19))) {
+			ctf_msg(state, "version value alloc failed\n");
 			return RETVAL_FAILURE;
+		}
 	}
+	ctf_msg(state, "past checking version value, about to cbor encode\n");
 	handshake_proposal_cbor = handshake_encode(&handshake_proposal);
-	if (!cbor_serialize_alloc(handshake_proposal_cbor, &buf, &buf_sz))
+	if (!cbor_serialize_alloc(handshake_proposal_cbor, &buf, &buf_sz)) {
+		ctf_msg(state, "cbor_serialize_alloc failed\n");
 		return RETVAL_FAILURE;
+	}
+	cbor_describe(handshake_proposal_cbor, stdout);
 	sdu_buf_sz = buf_sz + 2*sizeof(uint32_t);
-	if (!(sdu_buf = calloc(sdu_buf_sz, sizeof(unsigned char))))
+	if (!(sdu_buf = calloc(sdu_buf_sz, sizeof(unsigned char)))) {
+		ctf_msg(state, "sdu_buf calloc failed\n");
 		goto out_free_buf;
+	}
 	sdu.sdu_xmit = (uint32_t)time(NULL);
 	sdu.sdu_init_or_resp = false;
 	sdu.sdu_proto_num = 19;
 	sdu.sdu_len = buf_sz;
 	sdu.sdu_data = (char *)&sdu_buf[sizeof(struct sdu)];
 	memcpy(&sdu_buf[2*sizeof(uint32_t)], buf, buf_sz);
-	if (sdu_encode(&sdu, (uint32_t *)sdu_buf) != RETVAL_SUCCESS)
+	if (sdu_encode(&sdu, (uint32_t *)sdu_buf) != RETVAL_SUCCESS) {
+		ctf_msg(state, "sdu_encode failed\n");
 		goto out_free_sdu;
+	}
 	if (write(state->unix_sock_fd, sdu_buf, buf_sz + 2*sizeof(uint32_t)) <= 0 && errno != 0) {
 		ctf_msg(state, "write error in handshake\n");
 		goto out_free_buf;
