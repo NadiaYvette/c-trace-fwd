@@ -19,3 +19,4 @@ struct sdu {
 
 int sdu_encode(const struct sdu *, uint32_t [2]);
 int sdu_decode(const uint32_t [2], struct sdu *);
+int sdu_print(const struct sdu *);

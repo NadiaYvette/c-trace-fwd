@@ -54,6 +54,7 @@ DEP:=$(OBJ:%.o=%.d)
 
 CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
 CTF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,c_trace_fwd)
+DSC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_cbor_dsc)
 TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
 
 $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
@@ -63,6 +64,10 @@ $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 $(CTF_LIB_DSO): $(LIB_OBJ)
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $(DBGFLAGS) -shared $(LIB_OBJ) $(LIBS) -o $@
+
+$(DSC_BIN_EXE): $(OBJDIR)/test/sdu_cbor_dsc.o $(CTF_LIB_DSO)
+	@mkdir -p $(dir @)
+	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
 $(TOF_BIN_EXE): $(OBJDIR)/test/tof_stdin.o $(CTF_LIB_DSO)
 	@mkdir -p $(dir @)
@@ -112,7 +117,8 @@ ckclean:
 	-rm -f $(wildcard *.plist) $(wildcard $(OBJDIR)/*.plist) \
 		$(OBJDIR)/analysis
 clean:
-	-rm -f $(OBJ) $(CTF_LIB_DSO) $(CTF_BIN_EXE) $(TOF_BIN_EXE)
+	-rm -f $(OBJ) $(CTF_LIB_DSO) \
+		$(CTF_BIN_EXE) $(DSC_BIN_EXE) $(TOF_BIN_EXE)
 
 depclean:
 	-rm -f $(DEP)
