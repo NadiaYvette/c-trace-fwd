@@ -55,7 +55,6 @@ restart_loop:
 		goto exit_free_buf;
 	}
 	cbor_describe(item, stdout);
-	retval = EXIT_SUCCESS;
 	cbor_decref(&item);
 	goto restart_loop;
 exit_free_buf:
