@@ -57,6 +57,7 @@ CTF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,c_trace_fwd)
 DSC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_cbor_dsc)
 SDU_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_dissect)
 TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
+TRY_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_try)
 
 $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 	@mkdir -p $(dir $@)
@@ -75,6 +76,10 @@ $(SDU_BIN_EXE): $(OBJDIR)/test/sdu_dissect.o $(CTF_LIB_DSO)
 	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
 $(TOF_BIN_EXE): $(OBJDIR)/test/tof_stdin.o $(CTF_LIB_DSO)
+	@mkdir -p $(dir @)
+	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
+
+$(TRY_BIN_EXE): $(OBJDIR)/test/cbor_try.o $(CTF_LIB_DSO)
 	@mkdir -p $(dir @)
 	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
@@ -123,7 +128,8 @@ ckclean:
 		$(OBJDIR)/analysis
 clean:
 	-rm -f $(OBJ) $(CTF_LIB_DSO) \
-		$(CTF_BIN_EXE) $(DSC_BIN_EXE) $(SDU_BIN_EXE) $(TOF_BIN_EXE)
+		$(CTF_BIN_EXE) $(DSC_BIN_EXE) $(SDU_BIN_EXE) \
+		$(TOF_BIN_EXE) $(TRY_BIN_EXE)
 
 depclean:
 	-rm -f $(DEP)
