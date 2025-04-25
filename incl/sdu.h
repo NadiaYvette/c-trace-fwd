@@ -7,6 +7,8 @@
 struct sdu {
 	/* RemoteClockModel wraps Word32 */
 	uint32_t sdu_xmit;
+	/* Raw second 32-bit chunk */
+	uint32_t sdu_chunk2;
 	/* MiniProtocolNum wraps Word16 */
 	uint16_t sdu_proto_num;
 	/* mhLength of SDUHeader is Word16 */

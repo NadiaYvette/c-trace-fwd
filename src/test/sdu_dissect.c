@@ -84,10 +84,13 @@ restart_loop:
 	if (sdu.sdu_len < sizeof(sdu_buf)) {
 		ctf_msg(sdu_dissect, "sdu_len < sizeof(struct sdu), "
 				     "trying to keep going anyway\n");
-		goto restart_loop_from_tell;
+		if (0)
+			goto restart_loop_from_tell;
+		ctf_msg(sdu_dissect, "omitting recovery attempt; "
+				     "it may merely reflect a small datum\n");
 	}
 	/* The tell was done before the read. */
-	dst_off = cur_off + sdu.sdu_len + sizeof(sdu_buf);
+	dst_off = cur_off + sdu.sdu_len;
 	if (dst_off > stat_buf.st_size) {
 		ctf_msg(sdu_dissect, "sdu_len runs past EOF, "
 				"dst_off = 0x%jx, "
