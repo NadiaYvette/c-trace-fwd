@@ -79,7 +79,7 @@ restart_loop:
 		ctf_msg(sdu_dissect, "SDU header sdu_decode() failure\n");
 		goto exit_free_buf;
 	}
-	printf("SDU header at off=%jx\n", (intmax_t)cur_off);
+	printf("SDU header at off=0x%jx\n", (intmax_t)cur_off);
 	sdu_print(&sdu);
 	if (sdu.sdu_len < sizeof(sdu_buf)) {
 		ctf_msg(sdu_dissect, "sdu_len < sizeof(struct sdu), "
@@ -90,8 +90,8 @@ restart_loop:
 	dst_off = cur_off + sdu.sdu_len + sizeof(sdu_buf);
 	if (dst_off > stat_buf.st_size) {
 		ctf_msg(sdu_dissect, "sdu_len runs past EOF, "
-				"dst_off = %jx, "
-				"st_size = %jx\n",
+				"dst_off = 0x%jx, "
+				"st_size = 0x%jx\n",
 				(intmax_t)dst_off,
 				(intmax_t)stat_buf.st_size);
 		goto exit_free_buf;
@@ -101,8 +101,8 @@ restart_loop:
 		goto exit_free_buf;
 	} else if (cur_off != dst_off) {
 		ctf_msg(sdu_dissect, "lseek to wrong offset, "
-				     "dst_off = %jx"
-				     "cur_off = %jx",
+				     "dst_off = 0x%jx"
+				     "cur_off = 0x%jx",
 				     (intmax_t)dst_off, (intmax_t)cur_off);
 		goto exit_free_buf;
 	}

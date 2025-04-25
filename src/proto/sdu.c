@@ -36,17 +36,20 @@ sdu_encode(const struct sdu *sdu, uint32_t hdr [2])
 int
 sdu_print(const struct sdu *sdu)
 {
-	return printf(	"struct sdu {\n"
-			"	uint32_t sdu_xmit = %"PRIx32";\n"
-			"	uint16_t sdu_proto_num = %"PRIu16";\n"
-			"	uint16_t sdu_len = %"PRIu16";\n"
-			"	bool sdu_init_or_resp = %s;\n"
-			"	const char *sdu_data = %p; };\n",
-			sdu->sdu_xmit,
-			sdu->sdu_proto_num,
-			sdu->sdu_len,
-			sdu->sdu_init_or_resp ? "true" : "false",
-			sdu->sdu_data) > 0
-		? RETVAL_SUCCESS
-		: RETVAL_FAILURE;
+	printf(	"struct sdu {\n");
+	printf(	"	uint32_t sdu_xmit = 0x%"PRIx32";\n",
+		sdu->sdu_xmit);
+	printf(	"	uint16_t sdu_proto_num = %"PRIu16
+		                             " (0x%"PRIx16");\n",
+		sdu->sdu_proto_num,
+		sdu->sdu_proto_num);
+	printf(	"	uint16_t sdu_len = %"PRIu16
+		                       " (0x%"PRIx16");\n",
+		sdu->sdu_len,
+		sdu->sdu_len);
+	printf(	"	bool sdu_init_or_resp = %s;\n",
+		sdu->sdu_init_or_resp ? "true" : "false");
+	printf(	"	const char *sdu_data = %p; };\n",
+		sdu->sdu_data);
+	return RETVAL_SUCCESS;
 }
