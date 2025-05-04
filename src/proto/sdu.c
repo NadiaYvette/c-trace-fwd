@@ -31,10 +31,15 @@ sdu_decode(const uint32_t hdr[2], struct sdu *sdu)
 int
 sdu_encode(const struct sdu *sdu, uint32_t hdr [2])
 {
+	uint16_t non_timestamp_network_words[2];
+
+	non_timestamp_network_words[0]
+		= (htons(sdu->sdu_proto_num) << 1)
+		| (sdu->sdu_init_or_resp ? 1UL : 0UL);
+	non_timestamp_network_words[1] = htons(sdu->sdu_len);
 	hdr[0] = htonl(sdu->sdu_xmit);
-	hdr[1] = htons(sdu->sdu_proto_num)
-		| (sdu->sdu_init_or_resp ? 0 : 1U << 15)
-		| (uint32_t)htons(sdu->sdu_len) << 16;
+	hdr[1] = non_timestamp_network_words[0]
+		| (uint32_t)non_timestamp_network_words[1] << 16;
 	/* assert(hdr[1] == sdu->sdu_chunk2); */
 	return RETVAL_SUCCESS;
 }
