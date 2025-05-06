@@ -116,7 +116,7 @@ $(OBJDIR)/util/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 
-.PHONY: check clean ckclean depclean
+.PHONY: check clean ckclean depclean trace-compare
 check:
 	# The per-C source file plist files don't mirror the
 	# filesystem hierarchy as expected; however, they don't appear
@@ -138,3 +138,8 @@ clean:
 
 depclean:
 	-rm -f $(DEP)
+
+trace-compare:
+	cd src/hs; \
+		cabal --reorder-goals --preference=newer \
+			build exe:trace-compare
