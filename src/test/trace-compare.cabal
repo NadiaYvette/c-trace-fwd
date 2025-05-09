@@ -11,18 +11,12 @@ author:                 Nadia Chambers
 maintainer:             nadia.chambers@iohk.io
 build-type:             Simple
 
-flag systemd
-  description:          Enable systemd support.
-  default:              True
-  manual:               True
-
 common project-config
   default-language:     GHC2021
   pkgconfig-depends:  , libblst
                       , libsodium
                       , libsecp256k1
   build-depends:        base >= 4.14 && < 5
-
   default-extensions: , ApplicativeDo
                       , BlockArguments
                       , DataKinds
@@ -36,10 +30,6 @@ common project-config
                       , RecordWildCards
                       , TypeFamilies
                       , ViewPatterns
-
-  if flag(systemd) && os(linux)
-    cpp-options:        -DSYSTEMD
-
   ghc-options:          -Wall
                         -Wcompat
                         -Wincomplete-record-updates
@@ -49,246 +39,56 @@ common project-config
                         -Wpartial-fields
                         -Wredundant-constraints
                         -fprint-potential-instances
+                        -rtsopts=all
+                        -threaded
+                        -- The -N option says to spawn a number of kernel
+                        -- threads proportional to the system's CPU count.
+                        -with-rtsopts=-N
 
 library
   import:               project-config
-
-
   hs-source-dirs:       src
   exposed-modules:      Trace.Forward.Test.CCodec
-
-  other-modules:
-       -- Paths_cardano_tracer
-  autogen-modules:
-       -- Paths_cardano_tracer
-
   build-depends:      , base
-                   -- , cardano-tracer
-                   -- , optparse-applicative-fork
-                   -- , aeson
-                   -- , bimap
-                   -- , bitvec
                       , bytestring
-                   -- , cardano-tracer
                       , cborg
                       , containers
-                   -- , ekg-core
-                   -- , ekg-forward
-                   -- , ekg-wai
                       , extra
                       , filepath
                       , network-mux
                       , ouroboros-network-framework < 0.17.0.0
-                   -- , stm
                       , these
                       , time
                       , trace-dispatcher
                       , transformers
                       , typed-protocols
 
-                      -- , aeson
-                      -- , async
-                      -- , auto-update
-                      -- , bimap
-                      -- , blaze-html
-                      -- , bytestring
-                      -- , cardano-node
-                      -- , cborg
-                      -- , containers
-                      -- , contra-tracer
-                      -- , directory
-                      -- , ekg-core
-                      -- , ekg-forward
-                      -- , ekg-wai
-                      -- , extra
-                      -- , filepath
-                      -- , http-types
-                      -- , io-classes
-                      -- , mime-mail
-                      -- , network-mux
-                      -- , optparse-applicative-fork
-                      -- , ouroboros-network
-                      -- , ouroboros-network-api
-                      -- , ouroboros-network-framework
-                      -- , signal
-                      -- , slugify
-                      -- , smtp-mail
-                      -- , stm
-                      -- , string-qq
-                      -- , text
-                      -- , these
-                      -- , time
-                      -- , trace-dispatcher
-                      -- , trace-forward
-                      -- , trace-resources
-                      , transformers
-                      -- , typed-protocols
-                      -- , typed-protocols-examples
-                      -- , unordered-containers
-                      -- , wai
-                      -- , warp
-                      -- , yaml
-
-  if os(windows)
-    build-depends:    Win32
-  else
-    build-depends:    unix
-
 executable trace-compare
   import:               project-config
-
   hs-source-dirs:       app
-
   main-is:              trace-compare.hs
-
-  other-modules:
-       -- Paths_cardano_tracer
-  autogen-modules:
-     -- Paths_cardano_tracer
-
-  default-extensions:   BlockArguments
-                      , ScopedTypeVariables
-
   build-depends:      , trace-compare
-
-  ghc-options:          -threaded
-                        -rtsopts
-                        -with-rtsopts=-T
+  -- The -T flag says to collect runtime statistics.
+  -- It's added to RTS options already in project-config's ghc-options.
+  ghc-options:          -with-rtsopts=-T
 
 test-suite trace-compare-test
   import:               project-config
   type:                 exitcode-stdio-1.0
-  default-extensions:   OverloadedStrings
-
-  if os(windows)
-    buildable:          False
-
   hs-source-dirs:       test
-
   main-is:              trace-compare-test.hs
-
-  other-modules:        Cardano.Tracer.Test.Forwarder
-                        Cardano.Tracer.Test.DataPoint.Tests
-                        Cardano.Tracer.Test.Logs.Tests
-                        Cardano.Tracer.Test.Restart.Tests
-                        Cardano.Tracer.Test.TestSetup
-                        Cardano.Tracer.Test.Utils
-                        Cardano.Tracer.Test.Queue.Tests
-  build-depends:
-                      -- , aeson
-                      -- , async
-                      -- , bytestring
-                      -- , cardano-tracer
-                      -- , cborg
-                      -- , containers
-                      -- , contra-tracer
-                      -- , deepseq
-                      -- , directory
-                      -- , ekg-core
-                      -- , ekg-forward
-                      -- , extra
-                      -- , filepath
-                      -- , generic-data
-                      -- , network-mux
-                      -- , optparse-applicative-fork
-                      -- , ouroboros-network-api
-                      -- , ouroboros-network-framework
-                      -- , stm
-                      -- , tasty
-                      -- , tasty-quickcheck
-                      -- , text
-                      -- , time
-                      -- , trace-dispatcher
-                      -- , trace-forward
-                      -- , unix-compat
-                      -- , vector
-                      -- , vector-algorithms
-                      -- , QuickCheck
-
-  ghc-options:          -threaded
-                        -rtsopts
-                        -with-rtsopts=-N
+  build-depends:      , trace-compare
 
 test-suite trace-compare-test-ext
   import:               project-config
   type:                 exitcode-stdio-1.0
-  default-extensions:   OverloadedStrings
-
   hs-source-dirs:       test
-
   main-is:              trace-compare-test-ext.hs
-
-  other-modules:        Cardano.Tracer.Test.Forwarder
-                        Cardano.Tracer.Test.TestSetup
-                        Cardano.Tracer.Test.Utils
-                        Cardano.Tracer.Test.ForwardingStressTest.Script
-                        Cardano.Tracer.Test.ForwardingStressTest.Config
-                        Cardano.Tracer.Test.ForwardingStressTest.Messages
-                        Cardano.Tracer.Test.ForwardingStressTest.Types
-
-  build-tool-depends:
---  cardano-tracer:cardano-tracer
-
-  -- Sadly, this does not work on Windows (Path vs. PATH?):
-  -- *** Failed! Exception: 'cardano-tracer: spawnProcess: failed (Success)' (after 1 test):
-  if os(windows)
-    buildable:          False
-
-  build-depends:
-                     -- aeson
-                      -- , async
-                      -- , bytestring
-                      -- , cardano-tracer
-                      -- , cborg
-                      -- , containers
-                      -- , contra-tracer
-                      -- , deepseq
-                      -- , directory
-                      -- , ekg-core
-                      -- , ekg-forward
-                      -- , extra
-                      -- , filepath
-                      -- , generic-data
-                      -- , Glob
-                      -- , network-mux
-                      -- , optparse-applicative-fork
-                      -- , ouroboros-network
-                      -- , ouroboros-network-api
-                      -- , ouroboros-network-framework
-                      -- , process
-                      -- , QuickCheck
-                      -- , tasty
-                      -- , tasty-quickcheck
-                      -- , text
-                      -- , time
-                      -- , trace-dispatcher
-                      -- , trace-forward
-                      -- , unix-compat
-                      -- , vector
-                      -- , vector-algorithms
-
-  ghc-options:          -threaded
-                        -rtsopts
-                        -with-rtsopts=-N
+  build-depends:      , trace-compare
 
 benchmark trace-compare-bench
   import:               project-config
   type:                 exitcode-stdio-1.0
-
   hs-source-dirs:       bench
-
   main-is:              trace-compare-bench.hs
-
-  build-depends:
-                     -- cardano-tracer
-                      -- , criterion
-                      -- , directory
-                      -- , deepseq
-                      -- , extra
-                      -- , filepath
-                      -- , time
-                      -- , trace-dispatcher
-
-  ghc-options:          -threaded
-                        -rtsopts
-                        -with-rtsopts=-N
+  build-depends:      , trace-compare
