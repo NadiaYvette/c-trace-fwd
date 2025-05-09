@@ -1,30 +1,3 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-error=unused-imports
-                -Wno-error=unused-local-binds
-                -Wno-error=unused-matches
-                -Wno-error=partial-type-signatures
-                -Wno-error=unused-top-binds #-}
-
 module Trace.Forward.Test.CCodec
   ( handshakeCodec
   , decodeHandshake
@@ -60,7 +33,7 @@ import           Control.Arrow (ArrowChoice (..))
 -- monomorphic use of the IO monad to future monad-polymorphic
 -- potentially pure use in the decoding functions.
 import           Control.Exception (throw)
-import           Control.Monad (forM)
+import           Control.Monad (forM, forM_)
 import           Control.Monad.IO.Class (MonadIO (..))
 import           Control.Monad.Trans.Except (ExceptT, except, runExceptT, tryE)
 import qualified Data.ByteString.Lazy as LBS (ByteString, hGet, readFile, splitAt)
@@ -68,11 +41,11 @@ import           Data.Either.Extra (eitherToMaybe, fromEither)
 import           Data.Function (on)
 import           Data.Functor ((<&>))
 import           Data.Kind (Type)
-import           Data.List.Extra (unsnoc)
+import           Data.List.Extra (intersperse, unsnoc)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map (fromList)
 import qualified Data.Map.Merge.Strict as Map (mapMissing, merge, zipWithMatched)
-import           Data.Maybe (fromJust)
+import           Data.Maybe (fromJust, listToMaybe, mapMaybe)
 import           Data.These (These (..))
 import qualified Data.These as These ()
 import           Data.Tuple.Extra (both, swap)
@@ -326,6 +299,10 @@ printSDU Mux.SDUHeader {..} offset = unlines is''' where
         , [ "const", "char", "*sdu_data", "=", "(nil)" ] ]
 
 printSDUallOffsets :: FilePath -> IO ()
-printSDUallOffsets filePath = fromEither . left throw <$> runExceptT monad where
-  monad = printSDU' <$$> parseFileSDUs filePath >>= mapM_ (liftIO . putStrLn)
-  printSDU' = head . lines . uncurry printSDU
+printSDUallOffsets filePath = fromEither . left throw <$> runExceptT do
+  sdus :: [(Mux.SDUHeader, Integer)] <- parseFileSDUs filePath
+  let sduLines :: [[String]]
+      sduLines = lines . uncurry printSDU <$> sdus
+      cutLines :: [String]
+      cutLines = intersperse "" $ mapMaybe listToMaybe sduLines
+  forM_ cutLines $ liftIO . putStrLn

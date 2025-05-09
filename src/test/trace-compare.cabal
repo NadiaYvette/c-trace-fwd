@@ -11,6 +11,11 @@ author:                 Nadia Chambers
 maintainer:             nadia.chambers@iohk.io
 build-type:             Simple
 
+common rts-opts
+                        -- The -N option says to spawn a number of kernel
+                        -- threads proportional to the system's CPU count.
+  ghc-options:          -with-rtsopts=-N
+
 common project-config
   default-language:     GHC2021
   pkgconfig-depends:  , libblst
@@ -38,12 +43,10 @@ common project-config
                         -Wno-orphans
                         -Wpartial-fields
                         -Wredundant-constraints
+                        -Wunused-packages
                         -fprint-potential-instances
                         -rtsopts=all
                         -threaded
-                        -- The -N option says to spawn a number of kernel
-                        -- threads proportional to the system's CPU count.
-                        -with-rtsopts=-N
 
 library
   import:               project-config
@@ -58,13 +61,12 @@ library
                       , network-mux
                       , ouroboros-network-framework < 0.17.0.0
                       , these
-                      , time
                       , trace-dispatcher
                       , transformers
                       , typed-protocols
 
 executable trace-compare
-  import:               project-config
+  import:               project-config, rts-opts
   hs-source-dirs:       app
   main-is:              trace-compare.hs
   build-depends:      , trace-compare
@@ -73,22 +75,22 @@ executable trace-compare
   ghc-options:          -with-rtsopts=-T
 
 test-suite trace-compare-test
-  import:               project-config
+  import:               project-config, rts-opts
   type:                 exitcode-stdio-1.0
-  hs-source-dirs:       test
+  hs-source-dirs:       src
   main-is:              trace-compare-test.hs
   build-depends:      , trace-compare
 
 test-suite trace-compare-test-ext
-  import:               project-config
+  import:               project-config, rts-opts
   type:                 exitcode-stdio-1.0
-  hs-source-dirs:       test
+  hs-source-dirs:       src
   main-is:              trace-compare-test-ext.hs
   build-depends:      , trace-compare
 
 benchmark trace-compare-bench
-  import:               project-config
+  import:               project-config, rts-opts
   type:                 exitcode-stdio-1.0
-  hs-source-dirs:       bench
+  hs-source-dirs:       src
   main-is:              trace-compare-bench.hs
   build-depends:      , trace-compare
