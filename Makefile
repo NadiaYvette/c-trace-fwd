@@ -140,6 +140,6 @@ depclean:
 	-rm -f $(DEP)
 
 trace-compare:
-	cd src/hs; \
+	cd src/test; \
 		cabal --reorder-goals --preference=newer \
 			build exe:trace-compare
