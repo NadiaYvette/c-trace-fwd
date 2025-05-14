@@ -11,10 +11,19 @@ author:                 Nadia Chambers
 maintainer:             nadia.chambers@iohk.io
 build-type:             Simple
 
-common rts-opts
-                        -- The -N option says to spawn a number of kernel
-                        -- threads proportional to the system's CPU count.
-  ghc-options:          -with-rtsopts=-N
+common library-deps
+  build-depends:      , base
+                      , bytestring
+                      , cborg
+                      , containers
+                      , extra
+                      , filepath
+                      , network-mux
+                      , ouroboros-network-framework < 0.17.0.0
+                      , these
+                      , trace-dispatcher
+                      , transformers
+                      , typed-protocols
 
 common project-config
   default-language:     GHC2021
@@ -48,49 +57,43 @@ common project-config
                         -rtsopts=all
                         -threaded
 
+common rts-opts
+                        -- The -N option says to spawn a number of kernel
+                        -- threads proportional to the system's CPU count.
+  ghc-options:          -with-rtsopts=-N
+
 library
-  import:               project-config
-  hs-source-dirs:       src
+  import:               library-deps, project-config
+  hs-source-dirs:       .
   exposed-modules:      Trace.Forward.Test.CCodec
-  build-depends:      , base
-                      , bytestring
-                      , cborg
-                      , containers
-                      , extra
-                      , filepath
-                      , network-mux
-                      , ouroboros-network-framework < 0.17.0.0
-                      , these
-                      , trace-dispatcher
-                      , transformers
-                      , typed-protocols
 
 executable trace-compare
-  import:               project-config, rts-opts
-  hs-source-dirs:       app
+  import:               library-deps, project-config, rts-opts
+  hs-source-dirs:       .
   main-is:              trace-compare.hs
   build-depends:      , trace-compare
   -- The -T flag says to collect runtime statistics.
   -- It's added to RTS options already in project-config's ghc-options.
   ghc-options:          -with-rtsopts=-T
+  other-modules:        Trace.Forward.Test.CCodec
 
 test-suite trace-compare-test
   import:               project-config, rts-opts
   type:                 exitcode-stdio-1.0
-  hs-source-dirs:       src
+  hs-source-dirs:       .
   main-is:              trace-compare-test.hs
   build-depends:      , trace-compare
 
 test-suite trace-compare-test-ext
   import:               project-config, rts-opts
   type:                 exitcode-stdio-1.0
-  hs-source-dirs:       src
+  hs-source-dirs:       .
   main-is:              trace-compare-test-ext.hs
   build-depends:      , trace-compare
 
 benchmark trace-compare-bench
   import:               project-config, rts-opts
   type:                 exitcode-stdio-1.0
-  hs-source-dirs:       src
+  hs-source-dirs:       .
   main-is:              trace-compare-bench.hs
   build-depends:      , trace-compare
