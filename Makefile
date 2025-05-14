@@ -16,6 +16,7 @@ CBOR_LIBS:=$(shell pkg-config --libs libcbor)
 APP_SUBDIRS:=app conf service state util
 LIB_SUBDIRS:=proto util
 SRCDIR:=$(TOPDIR)/src
+TSTDIR:=$(TOPDIR)/test
 APP_SRCDIRS:=$(addprefix $(SRCDIR)/,$(APP_SUBDIRS))
 LIB_SRCDIRS:=$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))
 OBJDIR:=$(TOPDIR)/obj
@@ -42,7 +43,7 @@ CGENFLAGS:=$(DBGFLAGS) $(OPTFLAGS) $(STDFLAGS) $(WARNFLAGS)
 CFLAGS:=$(CGENFLAGS) $(CBOR_CFLAGS) $(INCFLAGS) -MD
 
 vpath %.h $(INCDIR)
-vpath %.c $(APP_SRCDIRS) $(LIB_SRCDIRS) $(SRCDIR)/test
+vpath %.c $(APP_SRCDIRS) $(LIB_SRCDIRS) $(TSTDIR)
 
 APP_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(APP_SUBDIRS))))
 LIB_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))))
@@ -140,6 +141,6 @@ depclean:
 	-rm -f $(DEP)
 
 trace-compare:
-	cd src/test; \
+	cd $(TSTDIR); \
 		cabal --reorder-goals --preference=newer \
 			build exe:trace-compare
