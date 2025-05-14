@@ -15,6 +15,7 @@ common library-deps
   build-depends:      , base
                       , bytestring
                       , cborg
+                      , composition-extra
                       , containers
                       , extra
                       , filepath

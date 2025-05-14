@@ -40,12 +40,16 @@ import qualified Data.ByteString.Lazy as LBS (ByteString, hGet, readFile, splitA
 import           Data.Either.Extra (eitherToMaybe, fromEither)
 import           Data.Function (on)
 import           Data.Functor ((<&>))
+import           Data.Functor.Syntax ((<$$>))
 import           Data.Kind (Type)
 import           Data.List.Extra (intersperse, unsnoc)
+import           Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty (head)
 import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map (fromList)
+import qualified Data.Map.Strict as Map (fromList, toList)
+import           Data.Map.Merge.Strict (SimpleWhenMatched, SimpleWhenMissing)
 import qualified Data.Map.Merge.Strict as Map (mapMissing, merge, zipWithMatched)
-import           Data.Maybe (fromJust, listToMaybe, mapMaybe)
+import           Data.Maybe (fromJust)
 import           Data.These (These (..))
 import qualified Data.These as These ()
 import           Data.Tuple.Extra (both, swap)
@@ -208,13 +212,6 @@ parseFileSDUs filePath = do
       let newOffset = offset + fromIntegral mhLength
        in ((sduH, offset), newOffset)
 
-infixr 8 <$$>
-(<$$>) :: forall (f :: Type -> Type) (g :: Type -> Type) (t :: Type) (t' :: Type) . ()
-  => Functor f
-  => Functor g
-  => (t -> t') -> f (g t) -> f (g t')
-f <$$> xss = fmap f <$> xss
-
 fileOffsetsSDU :: FilePath -> ExceptT Mux.Error IO [Integer]
 fileOffsetsSDU filePath = snd <$$> parseFileSDUs filePath
 
@@ -255,34 +252,50 @@ cmpFileOffsetsSDU filePath1 filePath2
             =<< zipDropEqOnM fileOffsetsSDU filePath1 filePath2
 
 cmpFileSDUs :: FilePath -> FilePath -> ExceptT Mux.Error IO (Map Integer (These Mux.SDUHeader Mux.SDUHeader))
-cmpFileSDUs = liftA2 merge' `on` mapOfFile where
-      merge' = Map.merge this' that' these'
-      this'  = Map.mapMissing . const $ This
-      that'  = Map.mapMissing . const $ That
-      these' = Map.zipWithMatched . const $ These
-      mapOfFile f = Map.fromList <$> swap <$$> parseFileSDUs f
+cmpFileSDUs = liftA2 mergeThese `on` mapOfFile where
+  mapOfFile f = Map.fromList <$> swap <$$> parseFileSDUs f
 
 deriving instance Eq Mux.SDUHeader
 
-cmpShowSDUs :: String -> String -> Integer -> These Mux.SDUHeader Mux.SDUHeader -> [String]
+cmpShowSDUs :: String -> String -> Integer
+  -> These Mux.SDUHeader Mux.SDUHeader -> NonEmpty String
 cmpShowSDUs label1 label2 offset = \case
-  This sdu -> ((label1 <> ": ") <>) <$> lines (printSDU sdu offset)
-  That sdu -> ((label2 <> ": ") <>) <$> lines (printSDU sdu offset)
+  This sdu -> ((label1 <> ": ") <>) <$> printSDU sdu offset
+  That sdu -> ((label2 <> ": ") <>) <$> printSDU sdu offset
   These sdu1 sdu2
-    | sdu1 /= sdu2 -> undefined
-    | otherwise    -> undefined
+    | sdu1 /= sdu2
+    , offsetLine :| rest1 <- printSDU sdu1 offset
+    , _          :| rest2 <- printSDU sdu2 offset
+    -> ("sdu1 /= sdu2 " <> offsetLine)
+         :| (((label1 <> ": ") <>) <$> rest1)
+         <> (((label2 <> ": ") <>) <$> rest2)
+    | otherwise
+    , offsetLine :| rest <- printSDU sdu1 offset
+    -> ("sdu1 == sdu2" <> offsetLine) :| rest
+
+mapMissing' :: (t -> t') -> SimpleWhenMissing k t t'
+mapMissing' = Map.mapMissing . const
+
+zipWithMatched' :: (t -> t' -> t'') -> SimpleWhenMatched k t t' t''
+zipWithMatched' = Map.zipWithMatched . const
+
+mergeThese :: Map Integer t -> Map Integer t' -> Map Integer (These t t')
+mergeThese = Map.merge (mapMissing' This) (mapMissing' That) $ zipWithMatched' These
 
 diffFileSDUs :: FilePath -> FilePath -> ExceptT Mux.Error IO ()
 diffFileSDUs filePath1 filePath2
-  | (_, _label1) <- FilePath.splitExtension filePath1
-  , (_, _label2) <- FilePath.splitExtension filePath2
-  = undefined
+  | (_, label1) <- FilePath.splitExtension filePath1
+  , (_, label2) <- FilePath.splitExtension filePath2
+  = do
+       diff <- Map.toList <$> (filePath1 `cmpFileSDUs` filePath2)
+       liftIO do forM_ diff \(off, theseSDUs) ->
+                   mapM_ putStrLn $ cmpShowSDUs label1 label2 off theseSDUs
 
-printSDU :: Mux.SDUHeader -> Integer -> String
-printSDU Mux.SDUHeader {..} offset = unlines is''' where
+printSDU :: Mux.SDUHeader -> Integer -> NonEmpty String
+printSDU Mux.SDUHeader {..} offset = is''' where
   Mux.MiniProtocolNum mhNum' = mhNum
-  is''' :: [String]
-  is''' = [ "SDU header at off=" <> showHex' offset ] <> is''
+  is''' :: NonEmpty String
+  is''' = ("SDU header at off=" <> showHex' offset) :| is''
   is'' :: [String]
   is'' | (frontList, backElt) <- fromJust $ unsnoc is'
        = [ "struct sdu {" ] <> frontList <> [ backElt <> " };" ]
@@ -301,8 +314,8 @@ printSDU Mux.SDUHeader {..} offset = unlines is''' where
 printSDUallOffsets :: FilePath -> IO ()
 printSDUallOffsets filePath = fromEither . left throw <$> runExceptT do
   sdus :: [(Mux.SDUHeader, Integer)] <- parseFileSDUs filePath
-  let sduLines :: [[String]]
-      sduLines = lines . uncurry printSDU <$> sdus
+  let sduLines :: [NonEmpty String]
+      sduLines = uncurry printSDU <$> sdus
       cutLines :: [String]
-      cutLines = intersperse "" $ mapMaybe listToMaybe sduLines
+      cutLines = intersperse "" $ NonEmpty.head <$> sduLines
   forM_ cutLines $ liftIO . putStrLn
