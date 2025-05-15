@@ -35,7 +35,7 @@ import           Control.Arrow (ArrowChoice (..))
 import           Control.Exception (throw)
 import           Control.Monad (forM, forM_)
 import           Control.Monad.IO.Class (MonadIO (..))
-import           Control.Monad.Trans.Except (ExceptT, except, runExceptT, tryE)
+import           Control.Monad.Trans.Except (ExceptT, except, runExceptT, throwE, tryE)
 import qualified Data.ByteString.Lazy as LBS (ByteString, hGet, readFile, splitAt)
 import           Data.Either.Extra (eitherToMaybe, fromEither)
 import           Data.Function (on)
@@ -284,12 +284,15 @@ mergeThese = Map.merge (mapMissing' This) (mapMissing' That) $ zipWithMatched' T
 
 diffFileSDUs :: FilePath -> FilePath -> ExceptT Mux.Error IO ()
 diffFileSDUs filePath1 filePath2
-  | (_, label1) <- FilePath.splitExtension filePath1
-  , (_, label2) <- FilePath.splitExtension filePath2
+  | (_, '.' : label1) <- FilePath.splitExtension filePath1
+  , (_, '.' : label2) <- FilePath.splitExtension filePath2
   = do
        diff <- Map.toList <$> (filePath1 `cmpFileSDUs` filePath2)
        liftIO do forM_ diff \(off, theseSDUs) ->
                    mapM_ putStrLn $ cmpShowSDUs label1 label2 off theseSDUs
+  | otherwise
+  = throwE . Mux.SDUDecodeError
+  $ unwords [ "bad filenames", filePath1, filePath2 ]
 
 printSDU :: Mux.SDUHeader -> Integer -> NonEmpty String
 printSDU Mux.SDUHeader {..} offset = is''' where
