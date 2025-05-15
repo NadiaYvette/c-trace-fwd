@@ -12,6 +12,9 @@ dist*
 \#*
 \.#*
 
+# Ignore Haskell profiling and coverage data.
+*.[mt]ix
+
 # Ignore vim swapfiles; swo is for when swp already exists.
 *.sw[op]
 .dir-locals.el
