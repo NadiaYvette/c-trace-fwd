@@ -141,6 +141,6 @@ depclean:
 	-rm -f $(DEP)
 
 trace-compare:
-	cd $(TSTDIR); \
-		cabal --reorder-goals --preference=newer \
-			build exe:trace-compare
+	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
+	cd $(TSTDIR); cabal run trace-compare:exe:trace-compare \
+		-- ../logs/*.007.A ../logs/*.007.C

@@ -72,7 +72,10 @@ executable trace-compare
   import:               library-deps, project-config, rts-opts
   hs-source-dirs:       .
   main-is:              trace-compare.hs
-  build-depends:      , trace-compare
+  build-depends:      , directory
+                      , filepath
+                      , optparse-applicative
+                      , trace-compare
                       , transformers-except
   -- The -T flag says to collect runtime statistics.
   -- It's added to RTS options already in project-config's ghc-options.

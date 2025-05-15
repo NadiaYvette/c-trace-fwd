@@ -1,37 +1,38 @@
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-error=unused-imports
-                -Wno-error=unused-local-binds
-                -Wno-error=unused-matches
-                -Wno-error=partial-type-signatures
-                -Wno-error=unused-top-binds #-}
-
 module Main (main) where
-import qualified Control.Monad.Trans.Except.Extra as Except (exceptT)
-import qualified Trace.Forward.Test.CCodec as CCodec (diffFileSDUs)
-import qualified System.Environment as Env (getArgs)
+import qualified "base" Data.List as
+  List (isPrefixOf)
+import qualified "directory" System.Directory as
+  Dir (listDirectory)
+
+import           "filepath" System.FilePath ((</>))
+import qualified "filepath" System.FilePath as
+  FilePath (splitFileName)
+
+import qualified "optparse-applicative" Options.Applicative as
+  Options (Completer, Parser, ParserInfo, completer, execParser
+          , fullDesc, info, mkCompleter, strArgument)
+
+import qualified "trace-compare" Trace.Forward.Test.CCodec as
+  CCodec (diffFileSDUs)
+
+import qualified "transformers-except" Control.Monad.Trans.Except.Extra as
+  Except (exceptT)
+
+tcComplete :: Options.Completer
+tcComplete = Options.mkCompleter \(FilePath.splitFileName -> (dir, pfx)) -> do
+  dirEnts <- Dir.listDirectory dir
+  pure $ [dir </> d | d <- dirEnts, pfx `List.isPrefixOf` d]
+
+tcInfo :: Options.ParserInfo (FilePath, FilePath)
+tcInfo = Options.info options Options.fullDesc
+
+options :: Options.Parser (FilePath, FilePath)
+options = do
+  path1 <- Options.strArgument $ Options.completer tcComplete
+  path2 <- Options.strArgument $ Options.completer tcComplete
+  pure (path1, path2)
 
 main :: IO ()
-main = Env.getArgs >>= \case
-  [path1, path2] ->
-    Except.exceptT print pure $ CCodec.diffFileSDUs path1 path2
-  _ -> putStrLn "Usage: trace-compare FILE1 FILE2"
+main = do
+  (path1, path2) <- Options.execParser tcInfo
+  Except.exceptT print pure $ path1 `CCodec.diffFileSDUs` path2
