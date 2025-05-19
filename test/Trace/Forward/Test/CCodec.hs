@@ -12,52 +12,84 @@ module Trace.Forward.Test.CCodec
   , printSDUallOffsets
   ) where
 
-import           Prelude hiding (unzip)
-import           Cardano.Logging.Version (ForwardingVersion, forwardingVersionCodec)
--- import           Cardano.Tracer.Environment
--- import           Cardano.Tracer.Types
--- import           Cardano.Tracer.Utils
-import qualified Network.Mux.Codec as Mux (decodeSDU)
-import qualified Network.Mux.Trace as Mux (Error (..))
-import qualified Network.Mux.Types as Mux (MiniProtocolNum (..), RemoteClockModel (..), SDU (..), SDUHeader (..))
-import           Network.TypedProtocol.Codec (Codec (..), DecodeStep (..), SomeMessage (..), runDecoder)
-import           Network.TypedProtocol.Core (IsActiveState (..), Protocol (..))
-import           Ouroboros.Network.Protocol.Handshake.Codec (codecHandshake)
-import           Ouroboros.Network.Protocol.Handshake.Type (Handshake (..), SingHandshake (..))
-
-import qualified Codec.CBOR.Read as CBOR (DeserialiseFailure)
-import qualified Codec.CBOR.Term as CBOR (Term)
-
-import           Control.Arrow (ArrowChoice (..))
+import           "base" Prelude hiding (unzip)
+import           "base" Control.Arrow (ArrowChoice (..))
 -- This as-of-yet unused import reflects a goal to generalize from
 -- monomorphic use of the IO monad to future monad-polymorphic
 -- potentially pure use in the decoding functions.
-import           Control.Exception (throw)
-import           Control.Monad (forM, forM_)
-import           Control.Monad.IO.Class (MonadIO (..))
-import           Control.Monad.Trans.Except (ExceptT, except, runExceptT, throwE, tryE)
-import qualified Data.ByteString.Lazy as LBS (ByteString, hGet, readFile, splitAt)
-import           Data.Either.Extra (eitherToMaybe, fromEither)
-import           Data.Function (on)
-import           Data.Functor ((<&>))
-import           Data.Functor.Syntax ((<$$>))
-import           Data.Kind (Type)
-import           Data.List.Extra (intersperse, unsnoc)
-import           Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NonEmpty (head)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map (fromList, toList)
-import           Data.Map.Merge.Strict (SimpleWhenMatched, SimpleWhenMissing)
-import qualified Data.Map.Merge.Strict as Map (mapMissing, merge, zipWithMatched)
-import           Data.Maybe (fromJust)
-import           Data.These (These (..))
-import qualified Data.These as These ()
-import           Data.Tuple.Extra (both, swap)
-import           GHC.Generics (Generic (..))
-import           Numeric (showHex)
-import qualified System.FilePath as FilePath (splitExtension)
-import           System.IO (Handle, IOMode (..), SeekMode (..))
-import qualified System.IO as IO (hSeek, hTell, openFile)
+import           "base" Control.Exception (IOException, throw)
+import           "base" Control.Monad (forM, forM_)
+import           "base" Control.Monad.IO.Class (MonadIO (liftIO))
+import           "base" Data.Function (on)
+import           "base" Data.Functor ((<&>))
+import           "base" Data.Kind (Type)
+import           "base" Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified "base" Data.List.NonEmpty as NonEmpty (head)
+import           "base" Data.Maybe (fromJust)
+import           "base" Debug.Trace (trace)
+import           "base" GHC.Generics (Generic (..))
+import           "base" Numeric (showHex)
+import           "base" System.IO (Handle, IOMode (..), SeekMode (..))
+import qualified "base" System.IO as IO (hSeek, hTell, openFile)
+
+import qualified "bytestring" Data.ByteString.Lazy as
+  LBS (ByteString, hGet, readFile, splitAt)
+
+import qualified "cborg" Codec.CBOR.Read as CBOR (DeserialiseFailure)
+import qualified "cborg" Codec.CBOR.Term as CBOR (Term)
+
+import           "composition-extra" Data.Functor.Syntax ((<$$>), (<$$$>))
+
+import           "containers" Data.Map.Strict (Map)
+import qualified "containers" Data.Map.Strict as
+  Map (fromList, toList)
+import           "containers" Data.Map.Merge.Strict as
+  Map (SimpleWhenMatched, SimpleWhenMissing)
+import qualified "containers" Data.Map.Merge.Strict as
+  Map (mapMissing, merge, zipWithMatched)
+import           "containers" Data.Set as
+  Set (Set)
+import qualified "containers" Data.Set as
+  Set (insert, member)
+
+import           "extra" Control.Monad.Extra (maybeM)
+import           "extra" Data.Either.Extra (eitherToMaybe, fromEither)
+import           "extra" Data.List.Extra (intersperse, unsnoc)
+import           "extra" Data.Tuple.Extra (both, swap)
+
+import qualified "filepath" System.FilePath as FilePath (splitExtension)
+
+import           "io-classes-mtl" Control.Monad.Class.MonadThrow.Trans ()
+import           "io-classes" Control.Monad.Class.MonadThrow (MonadCatch (..))
+
+import qualified "network-mux" Network.Mux.Codec as
+  Mux (decodeSDU)
+import qualified "network-mux" Network.Mux.Trace as
+  Mux (Error (..), handleIOException)
+import qualified "network-mux" Network.Mux.Types as
+  Mux (MiniProtocolNum (..), RemoteClockModel (..), SDU (..), SDUHeader (..))
+
+import           "ouroboros-network-framework" Ouroboros.Network.Protocol.Handshake.Codec as
+  Ouroboros (codecHandshake)
+import           "ouroboros-network-framework" Ouroboros.Network.Protocol.Handshake.Type as
+  Ouroboros (Handshake (..), SingHandshake (..))
+
+import           "these" Data.These (These (..))
+import qualified "these" Data.These as These ()
+
+import           "trace-dispatcher" Cardano.Logging.Version as
+  Trace (ForwardingVersion, forwardingVersionCodec)
+
+import           "transformers" Control.Monad.Trans.Class (MonadTrans (lift))
+import           "transformers" Control.Monad.Trans.Except (ExceptT)
+import qualified "transformers" Control.Monad.Trans.Except as
+  Except (except, handleE, mapExceptT, runExceptT, throwE, tryE)
+import           "transformers" Control.Monad.Trans.RWS (RWST)
+import qualified "transformers" Control.Monad.Trans.RWS as
+  RWS (ask, modify, tell)
+
+import           "typed-protocols" Network.TypedProtocol.Codec (Codec (..), DecodeStep (..), SomeMessage (..), runDecoder)
+import           "typed-protocols" Network.TypedProtocol.Core (IsActiveState (..), Protocol (..))
 
 handshakeCodec :: forall
       (error :: Type)
@@ -184,30 +216,69 @@ parseHandshakeLog logFile = parseSDU <$> LBS.readFile logFile >>= \case
     print . take 1024 $ show cborBS
     pure ()
 
-preadLBS :: Handle -> Integer -> Int -> IO LBS.ByteString
-preadLBS handle offset count = do
-  savedOffset <- IO.hTell handle
-  IO.hSeek handle AbsoluteSeek offset
-  byteString <- LBS.hGet handle count
-  IO.hSeek handle AbsoluteSeek savedOffset
-  pure byteString
+handleMuxIO :: MonadCatch monad
+  => String -> ExceptT IOException monad t -> ExceptT error monad t
+handleMuxIO msg = Except.handleE $ Mux.handleIOException msg
+
+hSize :: Handle -> IO Integer
+hSize fileHandle = do
+  savedOffset <- IO.hTell fileHandle
+  IO.hSeek fileHandle SeekFromEnd 0
+  endOffset <- IO.hTell fileHandle
+  IO.hSeek fileHandle AbsoluteSeek savedOffset
+  pure endOffset
+
+preadLBS :: Handle -> Integer -> Int -> ExceptT Mux.Error IO LBS.ByteString
+preadLBS fileHandle offset count = do
+  endOffset <- "checking size" `handleMuxIO` liftIO do hSize fileHandle
+  if offset + fromIntegral count >= endOffset
+    then Except.throwE . Mux.SDUDecodeError
+                $ unwords ["offset + count", show $ offset + fromIntegral count, " >= EOF", show endOffset]
+    else "doing read" `handleMuxIO` liftIO do
+      savedOffset <- IO.hTell fileHandle
+      IO.hSeek fileHandle AbsoluteSeek offset
+      byteString <- LBS.hGet fileHandle count
+      IO.hSeek fileHandle AbsoluteSeek savedOffset
+      pure byteString
 
 parseSDUatOffset :: Handle -> Integer -> Int -> ExceptT Mux.Error IO Mux.SDU
-parseSDUatOffset handle offset count = do
-  byteString <- liftIO do preadLBS handle offset count
-  except $ fst <$> parseSDU byteString
+parseSDUatOffset fileHandle offset count = do
+  byteString <- preadLBS fileHandle offset count
+  Except.except $ fst <$> parseSDU byteString
 
 -- | A monadic unfold.
 unfoldM :: Monad m => (s -> m (Maybe (a, s))) -> s -> m [a]
 unfoldM f s = do
     f s >>= maybe (pure []) \(a, s') -> (a :) <$> unfoldM f s'
 
+loopM' :: Monad monad => monad (Maybe t) -> monad [t]
+loopM' action = flip (maybeM $ pure []) action $ pure . (:[])
+
+parseFileSDUs' :: ExceptT Mux.Error (RWST Handle [(Mux.SDUHeader, Integer)] (Set Integer) IO) Bool
+parseFileSDUs' = do
+  fileHandle <- lift RWS.ask
+  offset <- liftIO do IO.hTell fileHandle
+  Mux.SDU{..}
+    <- Except.mapExceptT liftIO $ parseSDUatOffset fileHandle offset 8
+  let sduH@Mux.SDUHeader{..} = msHeader
+  lift do
+    RWS.modify $ Set.insert offset
+    RWS.tell [(sduH, offset)]
+  let newOffset = offset + 8 + fromIntegral mhLength
+  fileSize <- liftIO do hSize fileHandle
+  if newOffset >= fileSize
+    then pure False
+    else liftIO do
+      -- Since the content isn't being touched here:
+      IO.hSeek fileHandle RelativeSeek newOffset
+      pure True
+
 parseFileSDUs :: FilePath -> ExceptT Mux.Error IO [(Mux.SDUHeader, Integer)]
-parseFileSDUs filePath = do
-  handle <- liftIO do IO.openFile filePath ReadMode
-  flip unfoldM 0 \(offset :: Integer) -> do
-    maybeSDUH <- fmap eitherToMaybe . tryE $
-      Mux.msHeader <$> parseSDUatOffset handle offset 8
+parseFileSDUs filePath = unwords ["parseFileSDUs", filePath] `traceBrackets` do
+  fileHandle <- liftIO do IO.openFile filePath ReadMode
+  flip unfoldM 0 \(offset :: Integer) -> unwords ["offset", show offset] `traceBrackets` do
+    maybeSDUH <- fmap eitherToMaybe . Except.tryE $
+      Mux.msHeader <$> parseSDUatOffset fileHandle offset 8
     pure $ maybeSDUH <&> \sduH@Mux.SDUHeader {..} ->
       let newOffset = offset + fromIntegral mhLength
        in ((sduH, offset), newOffset)
@@ -282,16 +353,31 @@ zipWithMatched' = Map.zipWithMatched . const
 mergeThese :: Map Integer t -> Map Integer t' -> Map Integer (These t t')
 mergeThese = Map.merge (mapMissing' This) (mapMissing' That) $ zipWithMatched' These
 
+traceBrackets :: Monad monad => String -> monad t -> monad t
+name `traceBrackets` action = do
+  unwords ["begin", name] `trace` pure ()
+  x <- action
+  unwords ["finish", name] `trace` pure x
+
+traceM :: Applicative apply => String -> t -> apply t
+s `traceM` x = s `trace` pure x
+
+traceAct :: Applicative apply => String -> apply ()
+traceAct = (`traceM` ())
+
 diffFileSDUs :: FilePath -> FilePath -> ExceptT Mux.Error IO ()
 diffFileSDUs filePath1 filePath2
   | (_, '.' : label1) <- FilePath.splitExtension filePath1
   , (_, '.' : label2) <- FilePath.splitExtension filePath2
-  = do
+  = unwords ["diffFileSDUs", filePath1, filePath2] `traceBrackets` do
        diff <- Map.toList <$> (filePath1 `cmpFileSDUs` filePath2)
-       liftIO do forM_ diff \(off, theseSDUs) ->
+       traceAct "past cmpFileSDUs"
+       liftIO do forM_ diff \(off, theseSDUs) -> do
+                   flip trace (pure ()) $ "begin SDU at off " <> show off
                    mapM_ putStrLn $ cmpShowSDUs label1 label2 off theseSDUs
+                   flip trace (pure ()) $ "finish SDU at off " <> show off
   | otherwise
-  = throwE . Mux.SDUDecodeError
+  = Except.throwE . Mux.SDUDecodeError
   $ unwords [ "bad filenames", filePath1, filePath2 ]
 
 printSDU :: Mux.SDUHeader -> Integer -> NonEmpty String
@@ -315,7 +401,7 @@ printSDU Mux.SDUHeader {..} offset = is''' where
         , [ "const", "char", "*sdu_data", "=", "(nil)" ] ]
 
 printSDUallOffsets :: FilePath -> IO ()
-printSDUallOffsets filePath = fromEither . left throw <$> runExceptT do
+printSDUallOffsets filePath = fromEither . left throw <$> Except.runExceptT do
   sdus :: [(Mux.SDUHeader, Integer)] <- parseFileSDUs filePath
   let sduLines :: [NonEmpty String]
       sduLines = uncurry printSDU <$> sdus

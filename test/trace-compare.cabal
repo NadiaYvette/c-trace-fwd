@@ -19,6 +19,8 @@ common library-deps
                       , containers
                       , extra
                       , filepath
+                      , io-classes
+                      , io-classes-mtl
                       , network-mux
                       , ouroboros-network-framework < 0.17.0.0
                       , these

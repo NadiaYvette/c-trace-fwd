@@ -140,7 +140,7 @@ clean:
 depclean:
 	-rm -f $(DEP)
 
-trace-compare:
+trace-compare: $(shell find $(TSTDIR) -name '*.hs')
 	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
 	cd $(TSTDIR); cabal run trace-compare:exe:trace-compare \
-		-- ../logs/*.007.A ../logs/*.007.C
+		-- ../logs/*.007.A ../logs/*.007.D
