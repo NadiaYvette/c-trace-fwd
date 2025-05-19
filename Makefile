@@ -144,3 +144,7 @@ trace-compare: $(shell find $(TSTDIR) -name '*.hs')
 	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
 	cd $(TSTDIR); cabal run trace-compare:exe:trace-compare \
 		-- ../logs/*.007.A ../logs/*.007.D
+
+trace-compare-repl: $(shell find $(TSTDIR) -name '*.hs')
+	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
+	cd $(TSTDIR); cabal repl trace-compare:exe:trace-compare

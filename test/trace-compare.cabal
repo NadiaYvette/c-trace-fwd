@@ -26,6 +26,7 @@ common library-deps
                       , these
                       , trace-dispatcher
                       , transformers
+                      , transformers-except
                       , typed-protocols
 
 common project-config

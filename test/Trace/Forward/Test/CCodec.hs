@@ -17,14 +17,15 @@ import           "base" Control.Arrow (ArrowChoice (..))
 -- This as-of-yet unused import reflects a goal to generalize from
 -- monomorphic use of the IO monad to future monad-polymorphic
 -- potentially pure use in the decoding functions.
-import           "base" Control.Exception (IOException, throw)
-import           "base" Control.Monad (forM, forM_)
+import           "base" Control.Exception (IOException, assert, throw, throwIO)
+import           "base" Control.Monad (forM, forM_, join)
 import           "base" Control.Monad.IO.Class (MonadIO (liftIO))
 import           "base" Data.Function (on)
 import           "base" Data.Functor ((<&>))
 import           "base" Data.Kind (Type)
+import qualified "base" Data.List as List (intersperse)
 import           "base" Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified "base" Data.List.NonEmpty as NonEmpty (head)
+import qualified "base" Data.List.NonEmpty as NonEmpty (head, take)
 import           "base" Data.Maybe (fromJust)
 import           "base" Debug.Trace (trace)
 import           "base" GHC.Generics (Generic (..))
@@ -42,7 +43,7 @@ import           "composition-extra" Data.Functor.Syntax ((<$$>), (<$$$>))
 
 import           "containers" Data.Map.Strict (Map)
 import qualified "containers" Data.Map.Strict as
-  Map (fromList, toList)
+  Map ((!?), assocs, empty, fromList, insert, toList)
 import           "containers" Data.Map.Merge.Strict as
   Map (SimpleWhenMatched, SimpleWhenMissing)
 import qualified "containers" Data.Map.Merge.Strict as
@@ -52,10 +53,10 @@ import           "containers" Data.Set as
 import qualified "containers" Data.Set as
   Set (insert, member)
 
-import           "extra" Control.Monad.Extra (maybeM)
+import           "extra" Control.Monad.Extra (maybeM, whenJustM, whileM)
 import           "extra" Data.Either.Extra (eitherToMaybe, fromEither)
 import           "extra" Data.List.Extra (intersperse, unsnoc)
-import           "extra" Data.Tuple.Extra (both, swap)
+import           "extra" Data.Tuple.Extra (both, swap, uncurry3)
 
 import qualified "filepath" System.FilePath as FilePath (splitExtension)
 
@@ -86,7 +87,10 @@ import qualified "transformers" Control.Monad.Trans.Except as
   Except (except, handleE, mapExceptT, runExceptT, throwE, tryE)
 import           "transformers" Control.Monad.Trans.RWS (RWST)
 import qualified "transformers" Control.Monad.Trans.RWS as
-  RWS (ask, modify, tell)
+  RWS (ask, execRWST, gets, modify, runRWST, tell)
+
+import qualified "transformers-except" Control.Monad.Trans.Except.Extra as
+  Except (hoistEither)
 
 import           "typed-protocols" Network.TypedProtocol.Codec (Codec (..), DecodeStep (..), SomeMessage (..), runDecoder)
 import           "typed-protocols" Network.TypedProtocol.Core (IsActiveState (..), Protocol (..))
@@ -254,6 +258,84 @@ unfoldM f s = do
 loopM' :: Monad monad => monad (Maybe t) -> monad [t]
 loopM' action = flip (maybeM $ pure []) action $ pure . (:[])
 
+data ParseSDUEnv = ParseSDUEnv
+  { fileHandle :: Handle
+  , fileSize   :: Integer }
+  deriving (Eq, Show)
+
+type ParseSDUState = Map Integer Mux.SDUHeader
+type CombinedSDUState = Map Integer (These Mux.SDUHeader Mux.SDUHeader)
+type ParseSDURWS = RWST ParseSDUEnv () ParseSDUState IO
+type ParseSDUMonad = ExceptT Mux.Error ParseSDURWS
+
+cmpFileSDUs' :: FilePath -> FilePath -> ExceptT Mux.Error IO CombinedSDUState
+cmpFileSDUs' = liftA2 mergeThese `on` drvFileSDUs'
+
+drvFileSDUs'' :: FilePath -> IO ParseSDUState
+drvFileSDUs'' filePath = do
+  fileHandle <- IO.openFile filePath ReadMode
+  IO.hSeek fileHandle SeekFromEnd 0
+  fileSize <- IO.hTell fileHandle
+  IO.hSeek fileHandle AbsoluteSeek 0
+  let exceptStage = Except.runExceptT $ whileM parseFileSDUs''
+  fst <$> RWS.execRWST exceptStage ParseSDUEnv {..} Map.empty
+
+evalParseRWS :: ParseSDUEnv -> ParseSDURWS (Either Mux.Error ()) -> IO (Either Mux.Error ParseSDUState)
+evalParseRWS env monad = do
+  (result, state, _) <- RWS.runRWST monad env Map.empty
+  case result of
+    Left e  -> pure $ Left e
+    Right _ -> pure $ Right state
+
+drvFileSDUs' :: FilePath -> ExceptT Mux.Error IO ParseSDUState
+drvFileSDUs' filePath = do
+  fileHandle <- liftIO do IO.openFile filePath ReadMode
+  liftIO do IO.hSeek fileHandle SeekFromEnd 0
+  fileSize <- liftIO do IO.hTell fileHandle
+  liftIO do IO.hSeek fileHandle AbsoluteSeek 0
+  Except.mapExceptT (evalParseRWS ParseSDUEnv {..}) $ whileM parseFileSDUs''
+
+fromRightMapLeftM :: Monad monad => (e -> monad t) -> Either e t -> monad t
+fromRightMapLeftM f = \case
+  Left e -> f e
+  Right x -> pure x
+
+ckSDUparseVersions :: FilePath -> IO ()
+ckSDUparseVersions fp = fromRightMapLeftM throwIO =<< Except.runExceptT do
+  m1 :: Map Integer Mux.SDUHeader
+    <- liftIO do drvFileSDUs'' fp
+  m2 :: Map Integer Mux.SDUHeader
+    <- Map.fromList <$> swap <$$> parseFileSDUs fp
+  let mergedAssocs :: [(Integer, These Mux.SDUHeader Mux.SDUHeader)]
+      mergedAssocs = Map.assocs $ m1 `mergeThese` m2
+      renderedSDUs :: [NonEmpty String]
+      renderedSDUs = [off `cmp` sduHdrs | (off, sduHdrs) <- mergedAssocs]
+      renderedLines :: NonEmpty String
+      renderedLines = foldr1 (<>) $ List.intersperse ("" :| []) renderedSDUs
+  liftIO do mapM_ putStrLn renderedLines
+  where
+    cmp :: Integer -> These Mux.SDUHeader Mux.SDUHeader -> NonEmpty String
+    cmp = "drv" `cmpShowSDUs` "parse"
+
+parseFileSDUs'' :: ParseSDUMonad Bool
+parseFileSDUs'' = do
+  ParseSDUEnv {..} <- lift RWS.ask
+  offset <- liftIO do IO.hTell fileHandle
+  "entering parseFileSDUs'' at offset " <> show offset `traceOp` do
+    whenJustM (lift $ RWS.gets (Map.!? offset)) \_ -> do
+      Except.throwE . Mux.SDUDecodeError $ unwords
+        ["parseFileSDUs", "repeated", "offset", show offset]
+  Mux.SDU { msHeader = sduHdr@Mux.SDUHeader {..} } <- join $ liftIO do
+    Except.hoistEither . Mux.decodeSDU <$> LBS.hGet fileHandle 8
+  let newOffset = offset + 8 + fromIntegral mhLength
+  liftIO do IO.hSeek fileHandle RelativeSeek $ fromIntegral mhLength
+  newOffset' <- liftIO do IO.hTell fileHandle
+  let exitMsg = "exiting parseFileSDUs'' at newOffset "
+                    <> show (newOffset, newOffset')
+  exitMsg `trace` assert (newOffset == newOffset') do
+    lift . RWS.modify $ offset `Map.insert` sduHdr
+    pure $ newOffset < fileSize
+
 parseFileSDUs' :: ExceptT Mux.Error (RWST Handle [(Mux.SDUHeader, Integer)] (Set Integer) IO) Bool
 parseFileSDUs' = do
   fileHandle <- lift RWS.ask
@@ -280,7 +362,7 @@ parseFileSDUs filePath = unwords ["parseFileSDUs", filePath] `traceBrackets` do
     maybeSDUH <- fmap eitherToMaybe . Except.tryE $
       Mux.msHeader <$> parseSDUatOffset fileHandle offset 8
     pure $ maybeSDUH <&> \sduH@Mux.SDUHeader {..} ->
-      let newOffset = offset + fromIntegral mhLength
+      let newOffset = offset + 8 + fromIntegral mhLength
        in ((sduH, offset), newOffset)
 
 fileOffsetsSDU :: FilePath -> ExceptT Mux.Error IO [Integer]
@@ -342,7 +424,7 @@ cmpShowSDUs label1 label2 offset = \case
          <> (((label2 <> ": ") <>) <$> rest2)
     | otherwise
     , offsetLine :| rest <- printSDU sdu1 offset
-    -> ("sdu1 == sdu2" <> offsetLine) :| rest
+    -> ("sdu1 == sdu2 " <> offsetLine) :| rest
 
 mapMissing' :: (t -> t') -> SimpleWhenMissing k t t'
 mapMissing' = Map.mapMissing . const
@@ -350,6 +432,7 @@ mapMissing' = Map.mapMissing . const
 zipWithMatched' :: (t -> t' -> t'') -> SimpleWhenMatched k t t' t''
 zipWithMatched' = Map.zipWithMatched . const
 
+infixr 3 `mergeThese`
 mergeThese :: Map Integer t -> Map Integer t' -> Map Integer (These t t')
 mergeThese = Map.merge (mapMissing' This) (mapMissing' That) $ zipWithMatched' These
 
@@ -359,6 +442,11 @@ name `traceBrackets` action = do
   x <- action
   unwords ["finish", name] `trace` pure x
 
+infixr 1 `traceOp`
+traceOp :: String -> t -> t
+s `traceOp` x = s `trace` x
+
+infixr 1 `traceM`
 traceM :: Applicative apply => String -> t -> apply t
 s `traceM` x = s `trace` pure x
 
