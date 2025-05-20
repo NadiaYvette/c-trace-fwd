@@ -64,6 +64,8 @@ program-options
     -Wno-error=unused-matches
     -Wno-error=partial-type-signatures
     -Wno-error=unused-top-binds
+    -- for weeder
+    -fwrite-ide-info
 
 
 test-show-details: direct

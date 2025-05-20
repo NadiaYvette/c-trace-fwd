@@ -14,20 +14,20 @@ build-type:             Simple
 common library-deps
   build-depends:      , base
                       , bytestring
-                      , cborg
-                      , composition-extra
+                      -- , cborg
+                      -- , composition-extra
                       , containers
                       , extra
                       , filepath
-                      , io-classes
-                      , io-classes-mtl
+                      -- , io-classes
+                      -- , io-classes-mtl
                       , network-mux
-                      , ouroboros-network-framework < 0.17.0.0
+                      -- , ouroboros-network-framework < 0.17.0.0
                       , these
-                      , trace-dispatcher
+                      -- , trace-dispatcher
                       , transformers
                       , transformers-except
-                      , typed-protocols
+                      -- , typed-protocols
 
 common project-config
   default-language:     GHC2021
