@@ -66,8 +66,8 @@ type CombinedSDUState = Map Integer (These Mux.SDUHeader Mux.SDUHeader)
 type ParseSDURWS = RWST ParseSDUEnv () ParseSDUState IO
 type ParseSDUMonad = ExceptT Mux.Error ParseSDURWS
 
-cmpFileSDUs' :: FilePath -> FilePath -> ExceptT Mux.Error IO CombinedSDUState
-cmpFileSDUs' = liftA2 mergeThese `on` drvFileSDUs'
+cmpFileSDUs :: FilePath -> FilePath -> ExceptT Mux.Error IO CombinedSDUState
+cmpFileSDUs = liftA2 mergeThese `on` drvFileSDUs
 
 evalParseRWS :: ParseSDUEnv -> ParseSDURWS (Either Mux.Error ()) -> IO (Either Mux.Error ParseSDUState)
 evalParseRWS env monad = do
@@ -76,19 +76,19 @@ evalParseRWS env monad = do
     Left e  -> pure $ Left e
     Right _ -> pure $ Right state
 
-drvFileSDUs' :: FilePath -> ExceptT Mux.Error IO ParseSDUState
-drvFileSDUs' filePath = do
+drvFileSDUs :: FilePath -> ExceptT Mux.Error IO ParseSDUState
+drvFileSDUs filePath = do
   fileHandle <- liftIO do IO.openFile filePath ReadMode
   liftIO do IO.hSeek fileHandle SeekFromEnd 0
   fileSize <- liftIO do IO.hTell fileHandle
   liftIO do IO.hSeek fileHandle AbsoluteSeek 0
-  Except.mapExceptT (evalParseRWS ParseSDUEnv {..}) $ whileM parseFileSDUs''
+  Except.mapExceptT (evalParseRWS ParseSDUEnv {..}) $ whileM parseFileSDUs
 
-parseFileSDUs'' :: ParseSDUMonad Bool
-parseFileSDUs'' = do
+parseFileSDUs :: ParseSDUMonad Bool
+parseFileSDUs = do
   ParseSDUEnv {..} <- lift RWS.ask
   offset <- liftIO do IO.hTell fileHandle
-  "entering parseFileSDUs'' at offset " <> show offset `traceOp` do
+  "entering parseFileSDUs at offset " <> show offset `traceOp` do
     whenJustM (lift $ RWS.gets (Map.!? offset)) \_ -> do
       Except.throwE . Mux.SDUDecodeError $ unwords
         ["parseFileSDUs", "repeated", "offset", show offset]
@@ -97,7 +97,7 @@ parseFileSDUs'' = do
   let newOffset = offset + 8 + fromIntegral mhLength
   liftIO do IO.hSeek fileHandle RelativeSeek $ fromIntegral mhLength
   newOffset' <- liftIO do IO.hTell fileHandle
-  let exitMsg = "exiting parseFileSDUs'' at newOffset "
+  let exitMsg = "exiting parseFileSDUs at newOffset "
                     <> show (newOffset, newOffset')
   exitMsg `trace` assert (newOffset == newOffset') do
     lift . RWS.modify $ offset `Map.insert` sduHdr
@@ -144,20 +144,13 @@ infixr 1 `traceOp`
 traceOp :: String -> t -> t
 s `traceOp` x = s `trace` x
 
-infixr 1 `traceM`
-traceM :: Applicative apply => String -> t -> apply t
-s `traceM` x = s `trace` pure x
-
-traceAct :: Applicative apply => String -> apply ()
-traceAct = (`traceM` ())
-
 diffFileSDUs :: FilePath -> FilePath -> ExceptT Mux.Error IO ()
 diffFileSDUs filePath1 filePath2
   | (_, '.' : label1) <- FilePath.splitExtension filePath1
   , (_, '.' : label2) <- FilePath.splitExtension filePath2
   = unwords ["diffFileSDUs", filePath1, filePath2] `traceBrackets` do
-       diff <- Map.toList <$> (filePath1 `cmpFileSDUs'` filePath2)
-       traceAct "past cmpFileSDUs"
+       diff <- Map.toList <$> (filePath1 `cmpFileSDUs` filePath2)
+       "past cmpFileSDUs" `trace` pure ()
        liftIO do forM_ diff \(off, theseSDUs) -> do
                    flip trace (pure ()) $ "begin SDU at off " <> show off
                    mapM_ putStrLn $ cmpShowSDUs label1 label2 off theseSDUs
