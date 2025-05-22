@@ -4,6 +4,7 @@ import           "base" Prelude hiding (unzip)
 -- This as-of-yet unused import reflects a goal to generalize from
 -- monomorphic use of the IO monad to future monad-polymorphic
 -- potentially pure use in the decoding functions.
+import           "base" Control.Arrow (ArrowChoice (left))
 import           "base" Control.Exception (assert)
 import           "base" Control.Monad (forM_, join)
 import           "base" Control.Monad.IO.Class (MonadIO (liftIO))
@@ -12,11 +13,18 @@ import           "base" Data.List.NonEmpty (NonEmpty ((:|)))
 import           "base" Data.Maybe (fromJust)
 import           "base" Debug.Trace (trace)
 import           "base" Numeric (showHex)
-import           "base" System.IO (Handle, IOMode (..), SeekMode (..))
+import           "base" System.IO (Handle, IOMode (ReadMode), SeekMode (AbsoluteSeek, RelativeSeek, SeekFromEnd))
 import qualified "base" System.IO as IO (hSeek, hTell, openFile)
 
 import qualified "bytestring" Data.ByteString.Lazy as
-  LBS (hGet)
+  LBS (ByteString, hGet)
+
+import           "cborg"      Codec.CBOR.Decoding (Decoder)
+import qualified "cborg"      Codec.CBOR.Decoding as
+  CBOR ()
+import           "cborg"      Codec.CBOR.Read (DeserialiseFailure (..))
+import qualified "cborg"      Codec.CBOR.Read as
+  CBOR (ByteOffset, deserialiseFromBytes, deserialiseFromBytesWithSize)
 
 import           "containers" Data.Map.Strict (Map)
 import qualified "containers" Data.Map.Strict as
@@ -42,9 +50,9 @@ import           "these" Data.These (These (..))
 import qualified "these" Data.These as These ()
 
 import           "transformers" Control.Monad.Trans.Class (MonadTrans (lift))
-import           "transformers" Control.Monad.Trans.Except (ExceptT)
+import           "transformers" Control.Monad.Trans.Except (ExceptT (..))
 import qualified "transformers" Control.Monad.Trans.Except as
-  Except (mapExceptT, throwE)
+  Except (mapExceptT, throwE, withExceptT)
 import           "transformers" Control.Monad.Trans.RWS (RWST)
 import qualified "transformers" Control.Monad.Trans.RWS as
   RWS (ask, gets, modify, runRWST)
@@ -55,6 +63,56 @@ import qualified "transformers-except" Control.Monad.Trans.Except.Extra as
 deriving instance Show Mux.RemoteClockModel
 deriving instance Show Mux.SDUHeader
 deriving instance Show Mux.SDU
+
+data ParseCBOREnv = ParseCBOREnv
+  { fileHandle :: Handle
+  , fileSize   :: Integer
+  } deriving (Eq, Show)
+
+data ParseCBORState t = ParseCBORState
+  { cborSDUs   :: Map Integer (Mux.SDUHeader, t)
+  } deriving (Eq, Show)
+
+type ParseCBORRWS t = RWST ParseCBOREnv () (ParseCBORState t) IO
+type ParseCBORError = Mux.Error `Either` DeserialiseFailure
+type ParseCBORMonad t = ExceptT ParseCBORError (ParseCBORRWS t)
+
+evalParseCBORRWS :: forall t . () => ParseCBOREnv -> ParseCBORRWS t (Either ParseCBORError ()) -> IO (Either ParseCBORError (ParseCBORState t))
+evalParseCBORRWS env monad = do
+  (result, state, _)
+    <- RWS.runRWST monad env ParseCBORState { cborSDUs = Map.empty }
+  case result of
+    Left e  -> pure $ Left e
+    Right _ -> pure $ Right state
+
+drvFileCBOR :: forall t . () => FilePath -> ExceptT ParseCBORError IO (ParseCBORState t)
+drvFileCBOR filePath = do
+  fileHandle <- liftIO do IO.openFile filePath ReadMode
+  liftIO do IO.hSeek fileHandle SeekFromEnd 0
+  fileSize <- liftIO do IO.hTell fileHandle
+  liftIO do IO.hSeek fileHandle AbsoluteSeek 0
+  evalParseCBORRWS ParseCBOREnv {..} `Except.mapExceptT` whileM parseFileCBOR
+
+parseFileCBOR :: forall t . () => ParseCBORMonad t Bool
+parseFileCBOR = do
+  ParseCBOREnv {..} <- lift RWS.ask
+  offset <- liftIO do IO.hTell fileHandle
+  "entering parseFileCBOR at offset " <> show offset `traceOp` do
+    whenJustM (lift $ RWS.gets ((Map.!? offset) . cborSDUs)) \_ -> do
+      Except.throwE . Left . Mux.SDUDecodeError $ unwords
+        ["parseFileSDUs", "repeated", "offset", show offset]
+  Mux.SDU { msHeader = sduHdr@Mux.SDUHeader {..} } <- join $ liftIO do
+    Except.hoistEither . left Left . Mux.decodeSDU <$> LBS.hGet fileHandle 8
+  let newOffset = offset + 8 + fromIntegral mhLength
+      decoderUnknown = undefined
+  (_, _, cbor) :: (LBS.ByteString, CBOR.ByteOffset, t) <- (ExceptT (left Right . CBOR.deserialiseFromBytesWithSize decoderUnknown <$> ((liftIO do LBS.hGet fileHandle (fromIntegral mhLength)) :: ParseCBORRWS t LBS.ByteString)) :: ParseCBORMonad t (LBS.ByteString, CBOR.ByteOffset, t))
+  -- (_, _, cbor) <- (join (Except.hoistEither . left Right . CBOR.deserialiseFromBytesWithSize decoderUnknown <$> ((liftIO do LBS.hGet fileHandle (fromIntegral mhLength)) :: ParseCBORRWS t LBS.ByteString)) :: ParseCBORMonad t (LBS.ByteString, CBOR.ByteOffset, t))
+  newOffset' <- liftIO do IO.hTell fileHandle
+  let exitMsg = "exiting parseFileCBOR at newOffset "
+                    <> show (newOffset, newOffset')
+  exitMsg `trace` assert (newOffset == newOffset') do
+    lift $ RWS.modify \state@ParseCBORState {..} -> state { cborSDUs = offset `Map.insert` (sduHdr, cbor) $ cborSDUs }
+    pure $ newOffset < fileSize
 
 data ParseSDUEnv = ParseSDUEnv
   { fileHandle :: Handle
@@ -69,8 +127,8 @@ type ParseSDUMonad = ExceptT Mux.Error ParseSDURWS
 cmpFileSDUs :: FilePath -> FilePath -> ExceptT Mux.Error IO CombinedSDUState
 cmpFileSDUs = liftA2 mergeThese `on` drvFileSDUs
 
-evalParseRWS :: ParseSDUEnv -> ParseSDURWS (Either Mux.Error ()) -> IO (Either Mux.Error ParseSDUState)
-evalParseRWS env monad = do
+evalParseSDURWS :: ParseSDUEnv -> ParseSDURWS (Either Mux.Error ()) -> IO (Either Mux.Error ParseSDUState)
+evalParseSDURWS env monad = do
   (result, state, _) <- RWS.runRWST monad env Map.empty
   case result of
     Left e  -> pure $ Left e
@@ -82,7 +140,7 @@ drvFileSDUs filePath = do
   liftIO do IO.hSeek fileHandle SeekFromEnd 0
   fileSize <- liftIO do IO.hTell fileHandle
   liftIO do IO.hSeek fileHandle AbsoluteSeek 0
-  Except.mapExceptT (evalParseRWS ParseSDUEnv {..}) $ whileM parseFileSDUs
+  evalParseSDURWS ParseSDUEnv {..} `Except.mapExceptT` whileM parseFileSDUs
 
 parseFileSDUs :: ParseSDUMonad Bool
 parseFileSDUs = do
