@@ -1,4 +1,4 @@
-module Trace.Forward.Test.CCodec (diffFileSDUs) where
+module Trace.Forward.Test.CCodec (diffFileSDUs, drvFileCBOR) where
 
 import           "base" Prelude hiding (unzip)
 -- This as-of-yet unused import reflects a goal to generalize from
@@ -19,12 +19,9 @@ import qualified "base" System.IO as IO (hSeek, hTell, openFile)
 import qualified "bytestring" Data.ByteString.Lazy as
   LBS (ByteString, hGet)
 
-import           "cborg"      Codec.CBOR.Decoding (Decoder)
-import qualified "cborg"      Codec.CBOR.Decoding as
-  CBOR ()
 import           "cborg"      Codec.CBOR.Read (DeserialiseFailure (..))
 import qualified "cborg"      Codec.CBOR.Read as
-  CBOR (ByteOffset, deserialiseFromBytes, deserialiseFromBytesWithSize)
+  CBOR (ByteOffset, deserialiseFromBytesWithSize)
 
 import           "containers" Data.Map.Strict (Map)
 import qualified "containers" Data.Map.Strict as
@@ -52,7 +49,7 @@ import qualified "these" Data.These as These ()
 import           "transformers" Control.Monad.Trans.Class (MonadTrans (lift))
 import           "transformers" Control.Monad.Trans.Except (ExceptT (..))
 import qualified "transformers" Control.Monad.Trans.Except as
-  Except (mapExceptT, throwE, withExceptT)
+  Except (mapExceptT, throwE)
 import           "transformers" Control.Monad.Trans.RWS (RWST)
 import qualified "transformers" Control.Monad.Trans.RWS as
   RWS (ask, gets, modify, runRWST)
@@ -106,7 +103,6 @@ parseFileCBOR = do
   let newOffset = offset + 8 + fromIntegral mhLength
       decoderUnknown = undefined
   (_, _, cbor) :: (LBS.ByteString, CBOR.ByteOffset, t) <- (ExceptT (left Right . CBOR.deserialiseFromBytesWithSize decoderUnknown <$> ((liftIO do LBS.hGet fileHandle (fromIntegral mhLength)) :: ParseCBORRWS t LBS.ByteString)) :: ParseCBORMonad t (LBS.ByteString, CBOR.ByteOffset, t))
-  -- (_, _, cbor) <- (join (Except.hoistEither . left Right . CBOR.deserialiseFromBytesWithSize decoderUnknown <$> ((liftIO do LBS.hGet fileHandle (fromIntegral mhLength)) :: ParseCBORRWS t LBS.ByteString)) :: ParseCBORMonad t (LBS.ByteString, CBOR.ByteOffset, t))
   newOffset' <- liftIO do IO.hTell fileHandle
   let exitMsg = "exiting parseFileCBOR at newOffset "
                     <> show (newOffset, newOffset')
