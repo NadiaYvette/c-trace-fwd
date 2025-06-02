@@ -53,6 +53,7 @@ LIB_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(LIB_SRC),$(OBJDIR)/$(shell realpath
 OBJ:=$(APP_OBJ) $(LIB_OBJ)
 DEP:=$(OBJ:%.o=%.d)
 
+CBOR_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_dissect)
 CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
 CTF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,c_trace_fwd)
 DSC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_cbor_dsc)
@@ -60,6 +61,10 @@ SDU_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_dissect)
 RNC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_reencode)
 TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
 TRY_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_try)
+
+$(CBOR_BIN_EXE): $(OBJDIR)/test/cbor_dissect.o $(CTF_LIB_DSO)
+	@mkdir -p $(dir @)
+	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
 $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 	@mkdir -p $(dir $@)
@@ -133,7 +138,7 @@ ckclean:
 	-rm -f $(wildcard *.plist) $(wildcard $(OBJDIR)/*.plist) \
 		$(OBJDIR)/analysis
 clean:
-	-rm -f $(OBJ) $(CTF_LIB_DSO) \
+	-rm -f $(OBJ) $(CTF_LIB_DSO) $(CBOR_BIN_EXE) \
 		$(CTF_BIN_EXE) $(DSC_BIN_EXE) $(SDU_BIN_EXE) \
 		$(RNC_BIN_EXE) $(TOF_BIN_EXE) $(TRY_BIN_EXE)
 
