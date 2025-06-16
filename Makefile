@@ -1,6 +1,6 @@
 # This should be compatible with either gcc or clang.
-# CC:=clang
-CC:=gcc
+CC:=clang
+# CC:=gcc
 LD:=$(CC)
 
 TOPDIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -35,7 +35,11 @@ LIBS:=$(CBOR_LIBS)
 
 # -Wno-unused-function may sometimes be helpful.
 # Theoretically, these could vary based on clang vs. gcc or other issues.
+ifeq ($(CC),gcc)
 DBGFLAGS:=-g -gdwarf-3 -fvar-tracking-assignments
+else
+DBGFLAGS:=-g -gdwarf-3
+endif
 OPTFLAGS:=-O0
 STDFLAGS:=-std=gnu23
 WARNFLAGS:=-Wall

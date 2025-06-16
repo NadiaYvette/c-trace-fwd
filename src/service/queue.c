@@ -2,6 +2,7 @@
 #include <string.h>
 #include <sys/param.h>
 #include "c_trace_fwd.h"
+#include "ctf_util.h"
 #include "tof.h"
 
 struct trace_object *
@@ -79,10 +80,15 @@ to_enqueue_multi(struct c_trace_fwd_state *state, struct trace_object **to, int 
 {
 	struct trace_object **new_queue;
 
-	if (!(new_queue = reallocarray(state->to_queue, state->nr_to + n, sizeof(struct trace_object *))))
+	ctf_msg(queue, "entering to_enqueue_multi()\n");
+	if (!(new_queue = reallocarray(state->to_queue, state->nr_to + n, sizeof(struct trace_object *)))) {
+		ctf_msg(queue, "reallocarray() failed, n = %d, nmemb = %zd, size = %zd\n",
+				n, (size_t)(state->nr_to + n), sizeof(struct trace_object *));
 		return RETVAL_FAILURE;
+	}
 	memccpy(&new_queue[state->nr_to], to, n, sizeof(struct trace_object *));
 	state->to_queue = new_queue;
 	state->nr_to += n;
+	ctf_msg(queue, "to_enqueue_multi() succeeded\n");
 	return RETVAL_SUCCESS;
 }

@@ -1,7 +1,10 @@
 #include <cbor.h>
+#include <cbor/ints.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include "ctf_util.h"
 #include "handshake.h"
 
 cbor_item_t *
@@ -15,6 +18,34 @@ cbor_build_encode_word(uint64_t value)
 		return cbor_build_uint32(value);
 	else
 		return cbor_build_uint64(value);
+}
+
+bool
+cbor_get_uint(cbor_item_t *item, uintmax_t *value)
+{
+	switch (cbor_typeof(item)) {
+	case CBOR_TYPE_UINT:
+		break;
+	default:
+		return false;
+	}
+	switch (cbor_int_get_width(item)) {
+	case CBOR_INT_8:
+		*value = (uintmax_t)cbor_get_uint8(item);
+		break;
+	case CBOR_INT_16:
+		*value = (uintmax_t)cbor_get_uint16(item);
+		break;
+	case CBOR_INT_32:
+		*value = (uintmax_t)cbor_get_uint32(item);
+		break;
+	case CBOR_INT_64:
+		*value = (uintmax_t)cbor_get_uint64(item);
+		break;
+	default:
+		return false;
+	}
+	return true;
 }
 
 static struct handshake *
@@ -181,7 +212,106 @@ handshake_decode(const cbor_item_t *msg_array)
 static cbor_item_t *
 propose_versions_encode(const struct handshake_propose_versions *propose_versions)
 {
-	cbor_item_t *type_tag, *versions_len, *versions_map, *item, *len;
+	cbor_item_t *proposal_array, *proposal_map, *array_zero_element;
+	struct handshake_propose_version_pair *handshake_propose_versions
+		= propose_versions->handshake_propose_versions;
+	unsigned k, len
+		= (unsigned)propose_versions->handshake_propose_versions_len;
+
+	if (!(proposal_array = cbor_new_definite_array(2)))
+		return NULL;
+	if (!(array_zero_element = cbor_build_encode_word(0)))
+		goto out_free_proposal_array;
+	if (!cbor_array_set(proposal_array, 0, array_zero_element))
+		goto out_free_array_zero_element;
+	ctf_msg(handshake, "about to build proposal map\n");
+	if (!(proposal_map = cbor_new_definite_map(propose_versions->handshake_propose_versions_len))) {
+		ctf_msg(handshake, "allocation of proposal map of length "
+				   "%zd failed!\n",
+				   propose_versions->handshake_propose_versions_len);
+		goto out_free_array_zero_element;
+	}
+	ctf_msg(handshake, "about to check proposal map type\n");
+	if (cbor_typeof(proposal_map) != CBOR_TYPE_MAP) {
+		ctf_msg(handshake, "wrong type of proposal_map\n");
+		goto out_free_proposal_map;
+	}
+	ctf_msg(handshake, "about to check proposal map length\n");
+	if (!len) {
+		ctf_msg(handshake, "zero length proposal_map\n");
+		goto out_free_proposal_map;
+	}
+	ctf_msg(handshake, "about to do proposal map loop\n");
+	for (k = 0; k < len; ++k) {
+		struct cbor_pair pair;
+		uintmax_t key, value;
+
+		ctf_msg(handshake, "doing proposal map loop iter %u\n", k);
+		/* what are these keys? */
+		if (!(pair.key = cbor_build_encode_word(handshake_propose_versions[k].propose_version_key))) {
+			ctf_msg(handshake, "[%u] cbor_build_encode_word() "
+					   "failed!\n", k);
+			goto out_free_proposal_map;
+		}
+		/* validity check? */
+		ctf_msg(handshake, "value NULL check proposal map loop iter %u\n", k);
+		if (!(pair.value = handshake_propose_versions[k].propose_version_value)) {
+			ctf_msg(handshake, "handshake_propose_versions[%u] "
+					   "NULL!\n", k);
+			goto out_free_proposal_map;
+		}
+		ctf_msg(handshake, "getting value proposal map loop iter %u\n", k);
+		if (!cbor_get_uint(pair.value, &value)) {
+			ctf_msg(handshake, "handshake_propose_versions[%u] "
+					   "CBOR uint decoding failed!\n", k);
+			goto out_free_proposal_map;
+		}
+		key = (uintmax_t)
+			handshake_propose_versions[k].propose_version_key;
+		ctf_msg(handshake, "proposal map key = 0x%jx,"
+				   " value = 0x%jx\n", key, value);
+		ctf_msg(handshake, "adding to proposal map loop iter %u\n", k);
+		if (!cbor_map_add(proposal_map, pair)) {
+			ctf_msg(handshake, "cbor_map_add() of pair %u "
+					   "failed!\n", k);
+			goto out_free_proposal_map;
+		}
+		ctf_msg(handshake, "finished proposal map loop iter %u\n", k);
+	}
+	if (!cbor_array_set(proposal_array, 1, proposal_map)) {
+		ctf_msg(handshake, "setting proposal_array[1] to "
+				   "proposal_map failed!\n");
+		goto out_free_proposal_map;
+	}
+	if (cbor_typeof(proposal_map) != CBOR_TYPE_MAP) {
+		ctf_msg(handshake, "proposal_map changed type!\n");
+		goto out_free_proposal_map;
+	}
+	cbor_describe(proposal_array, stderr);
+	fflush(stderr);
+	return proposal_array;
+out_free_proposal_map:
+	ctf_msg(handshake, "out_free_proposal_map "
+			   "propose_versions_encode() goto label\n");
+	cbor_decref(&proposal_map);
+out_free_array_zero_element:
+	ctf_msg(handshake, "out_free_array_zero_element "
+			   "propose_versions_encode() goto label\n");
+	cbor_decref(&array_zero_element);
+out_free_proposal_array:
+	ctf_msg(handshake, "out_free_proposal_array "
+			   "propose_versions_encode() goto label\n");
+	cbor_decref(&proposal_array);
+	ctf_msg(handshake, "propose_versions_encode() failure return!\n");
+	return NULL;
+}
+
+#if defined(PROPOSE_VERSIONS_ENCODE_BAD)
+static cbor_item_t *
+propose_versions_encode_bad(const struct handshake_propose_versions *propose_versions)
+{
+	cbor_item_t *type_tag, *versions_len, *versions_map,
+		    *versions_array, *item, *len;
 	unsigned k;
 
 	if (!(item = cbor_new_definite_array(3)))
@@ -194,9 +324,9 @@ propose_versions_encode(const struct handshake_propose_versions *propose_version
 		goto exit_free_len;
 	if (!cbor_array_set(item, 1, type_tag))
 		goto exit_free_tag;
-	if (!(versions_map = cbor_new_definite_array(propose_versions->handshake_propose_versions_len+1)))
+	if (!(versions_array = cbor_new_definite_array(propose_versions->handshake_propose_versions_len+1)))
 		goto exit_free_tag;
-	if (!cbor_array_set(item, 1, versions_map))
+	if (!cbor_array_set(item, 1, versions_array))
 		goto exit_free_map;
 	versions_len = cbor_build_encode_word(propose_versions->handshake_propose_versions_len);
 	if (!versions_len)
@@ -230,6 +360,7 @@ exit_free_item:
 	cbor_decref(&item);
 	return NULL;
 }
+#endif
 
 static cbor_item_t *
 accept_version_encode(const struct handshake_accept_version *accept_version)
@@ -330,15 +461,35 @@ query_reply_encode(const struct handshake_query_reply *query_reply)
 cbor_item_t *
 handshake_encode(const struct handshake *handshake)
 {
+	cbor_item_t *retval = NULL;
+	ctf_msg(handshake, "entering handshake_encode()\n");
+	/* fprintf(stderr, "entering handshake_encode()\n");
+	exit(EXIT_FAILURE); */
 	switch (handshake->handshake_type) {
 	case handshake_propose_versions:
-		return propose_versions_encode(&handshake->handshake_message.propose_versions);
+		ctf_msg(handshake, "calling propose_versions_encode()\n");
+		fprintf(stderr, "calling propose_versions_encode()\n");
+		retval = propose_versions_encode(&handshake->handshake_message.propose_versions);
+		break;
 	case handshake_accept_version:
-		return accept_version_encode(&handshake->handshake_message.accept_version);
+		ctf_msg(handshake, "calling accept_version_encode()\n");
+		fprintf(stderr, "calling accept_version_encode()\n");
+		retval = accept_version_encode(&handshake->handshake_message.accept_version);
+		break;
 	case handshake_refusal:
-		return refusal_encode(&handshake->handshake_message.refusal);
+		ctf_msg(handshake, "calling refusal_encode()\n");
+		fprintf(stderr, "calling refusal_encode()\n");
+		retval = refusal_encode(&handshake->handshake_message.refusal);
+		break;
 	case handshake_query_reply:
-		return query_reply_encode(&handshake->handshake_message.query_reply);
+		ctf_msg(handshake, "calling query_reply_encode()\n");
+		fprintf(stderr, "calling query_reply_encode()\n");
+		retval = query_reply_encode(&handshake->handshake_message.query_reply);
+		break;
+	default:
+		ctf_msg(handshake, "unrecognized handshake_type %d\n",
+				(int)handshake->handshake_type);
+		break;
 	}
-	return NULL;
+	return retval;
 }

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/param.h>
 #include "c_trace_fwd.h"
+#include "ctf_util.h"
 #include "proto_stk.h"
 #include "sdu.h"
 #include "service.h"
@@ -37,21 +38,29 @@ service_loop_core(struct c_trace_fwd_state *state)
 	int nr_ready, k, retval = RETVAL_FAILURE;
 	struct pollfd *pollfds;
 
-	if (!(pollfds = service_create_pollfds(state)))
+	ctf_msg(service, "entered service_loop_core()\n");
+	if (!(pollfds = service_create_pollfds(state))) {
+		ctf_msg(service, "service_create_pollfds() failed\n");
 		return RETVAL_FAILURE;
+	}
 	nr_ready = poll(pollfds, state->nr_clients + 2, 0);
 	if (nr_ready < 0) {
+		ctf_msg(service, "poll() failed\n");
 		goto exit_free_pollfds;
 	}
 	for (k = 0; k < state->nr_clients + 2; ++k) {
 		if (!pollfds[k].revents)
 			continue;
 		else if (pollfds[k].fd == state->ux_sock_fd) {
-			if (service_ux_sock(state))
+			if (service_ux_sock(state)) {
+				ctf_msg(service, "service_ux_sock() failed\n");
 				goto exit_free_pollfds;
+			}
 		} else if (pollfds[k].fd == state->unix_sock_fd) {
-			if (service_unix_sock(state))
+			if (service_unix_sock(state)) {
+				ctf_msg(service, "service_unix_sock() failed\n");
 				goto exit_free_pollfds;
+			}
 		} else if (service_client_sock(state, &pollfds[k])) {
 			switch (errno) {
 			case EINTR:
@@ -87,10 +96,14 @@ service_loop_core(struct c_trace_fwd_state *state)
 				errno = 0;
 				break;
 			default:
+				ctf_msg(service, "service_client_sock() failed\n");
 				goto exit_free_pollfds;
 			}
+		} else {
+			ctf_msg(service, "fell through if chain, unclear\n");
 		}
 	}
+	ctf_msg(service, "got past for () loop in service_loop_core()\n");
 	retval = RETVAL_SUCCESS;
 exit_free_pollfds:
 	free(pollfds);
@@ -100,9 +113,11 @@ exit_free_pollfds:
 int
 service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 {
+	unsigned failure_count = 0;
 	int retval;
 
 	(void)!conf;
+	ctf_msg(service, "entered service_loop()\n");
 	for (;;) {
 		if (pthread_mutex_lock(&state->state_lock)) {
 			retval = RETVAL_FAILURE;
@@ -119,10 +134,16 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		 * immediate concern after decoding is verified.
 		 */
 		(void)!pthread_mutex_unlock(&state->state_lock);
-		if (retval != RETVAL_SUCCESS)
-			break;
+		if (retval != RETVAL_SUCCESS) {
+			ctf_msg(service, "service_loop_core() failed\n");
+			++failure_count;
+			if (failure_count > 10) {
+				ctf_msg(service, "too many failures, exiting\n");
+			}
+		}
 		(void)!sched_yield();
 	}
+	ctf_msg(service, "fell out of service_loop()\n");
 	/*
 	 * Always abnormally terminating is a sign that some sort of
 	 * control interface is needed.

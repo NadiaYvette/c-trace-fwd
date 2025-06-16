@@ -181,10 +181,16 @@ tof_decode(const cbor_item_t *msg)
 	struct tof_msg *tof = calloc(1, sizeof(struct tof_msg));
 	cbor_item_t *item;
 
-	if (!tof)
+	ctf_msg(tof, "entered tof_decode()\n");
+	cbor_describe(msg, stderr);
+	if (!tof) {
+		ctf_msg(tof, "NULL msg\n");
 		return NULL;
-	if (!(item = cbor_array_get(msg, 0)))
+	}
+	if (!(item = cbor_array_get(msg, 0))) {
+		ctf_msg(tof, "cbor_array_get(msg, 0) failed!\n");
 		goto exit_free_tof;
+	}
 	tof->tof_msg_type = (enum tof_msg_type)cbor_get_int(item);
 	switch (tof->tof_msg_type) {
 	case tof_request:
@@ -196,18 +202,46 @@ tof_decode(const cbor_item_t *msg)
 	case tof_done:
 		break;
 	case tof_reply:
-		int k;
+		unsigned k;
 		struct tof_reply *reply = &tof->tof_msg_body.reply;
 		cbor_item_t *reply_array = cbor_array_get(msg, 1);
 
 		reply->tof_nr_replies = cbor_array_size(reply_array);
 		reply->tof_replies = calloc(reply->tof_nr_replies, sizeof(struct trace_object *));
-		for (k = 0; k < reply->tof_nr_replies; ++k)
-			reply->tof_replies[k] = trace_object_decode(cbor_array_get(reply_array, k));
+		if (!reply_array) {
+			ctf_msg(tof, "reply_array == NULL\n");
+			goto exit_free_tof;
+		}
+		if (reply->tof_nr_replies > (2 << 20)) {
+			ctf_msg(tof, "too many tof_nr_replies %zd\n", reply->tof_nr_replies);
+			goto exit_free_tof;
+		}
+		for (k = 0; k < reply->tof_nr_replies; ++k) {
+			cbor_item_t *array_entry;
+
+			if (!(array_entry = cbor_array_get(reply_array, k))) {
+				ctf_msg(tof,  "reply_array[%u] == NULL\n", k);
+				goto exit_free_tof;
+			}
+			reply->tof_replies[k] = trace_object_decode(array_entry);
+			if (!reply->tof_replies[k]) {
+				ctf_msg(tof, "reply->tof_replies[%u] == NULL\n", k);
+				goto exit_free_tof;
+			}
+		}
 		break;
+	default:
+		ctf_msg(tof, "unrecognized tof_msg_type %d\n", tof->tof_msg_type);
+		goto exit_free_tof;
 	}
+	if (!!tof)
+		ctf_msg(tof, "tof_decode() succeeded\n");
+	else
+		ctf_msg(tof, "tof_decode() returned NULL\n");
 	return tof;
 exit_free_tof:
+	ctf_msg(tof, "error return, describing msg\n");
+	cbor_describe(msg, stderr);
 	tof_free(tof);
 	return NULL;
 }
