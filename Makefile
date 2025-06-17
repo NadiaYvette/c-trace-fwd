@@ -2,6 +2,8 @@
 CC:=clang
 # CC:=gcc
 LD:=$(CC)
+LATEX:=$(shell which xelatex)
+BIBER:=$(shell which biber)
 
 TOPDIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOPBASE:=$(shell basename $(TOPDIR))
@@ -15,6 +17,8 @@ CBOR_LIBS:=$(shell pkg-config --libs libcbor)
 # More libraries may need more variables in this scheme.
 APP_SUBDIRS:=app conf service state util
 LIB_SUBDIRS:=proto util
+DOCDIR:=$(TOPDIR)/doc
+IMGDIR:=$(TOPDIR)/img
 SRCDIR:=$(TOPDIR)/src
 TSTDIR:=$(TOPDIR)/test
 APP_SRCDIRS:=$(addprefix $(SRCDIR)/,$(APP_SUBDIRS))
@@ -45,11 +49,19 @@ STDFLAGS:=-std=gnu23
 WARNFLAGS:=-Wall
 CGENFLAGS:=$(DBGFLAGS) $(OPTFLAGS) $(STDFLAGS) $(WARNFLAGS)
 CFLAGS:=$(CGENFLAGS) $(CBOR_CFLAGS) $(INCFLAGS) -MD
+LATEX_CORE_FLAGS:=-output-directory=$(DOCDIR)
+LATEXFLAGS:=$(LATEX_CORE_FLAGS) --shell-escape
+BIBERFLAGS:=$(addprefix -,$(LATEX_CORE_FLAGS))
+ENVFLAGS:=-S GDM_LANG=en_GB.UTF-8 LANG=en_GB.UTF-8 LANGUAGE=en_GB:en 
 
 vpath %.h $(INCDIR)
 vpath %.c $(APP_SRCDIRS) $(LIB_SRCDIRS) $(TSTDIR)
 
 APP_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(APP_SUBDIRS))))
+BIB_SRC:=$(wildcard $(addsuffix /*.bib,$(DOCDIR)))
+DOC_SRC:=$(wildcard $(addsuffix /*.ltx,$(DOCDIR)))
+DOC_MAIN_SRC:=$(DOCDIR)/cardiff.ltx
+IMG_SRC:=$(wildcard $(addsuffix /*.svg,$(IMGDIR)))
 LIB_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))))
 HDR:=$(wildcard $(HDR)/*.h)
 APP_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(APP_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
@@ -126,7 +138,7 @@ $(OBJDIR)/util/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 
-.PHONY: check clean ckclean depclean trace-compare
+.PHONY: check clean ckclean depclean doc trace-compare
 check:
 	# The per-C source file plist files don't mirror the
 	# filesystem hierarchy as expected; however, they don't appear
@@ -157,3 +169,12 @@ trace-compare: $(shell find $(TSTDIR) -name '*.hs')
 trace-compare-repl: $(shell find $(TSTDIR) -name '*.hs')
 	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
 	cd $(TSTDIR); cabal repl trace-compare:exe:trace-compare
+
+doc: $(BIB_SRC) $(DOC_SRC) $(IMG_SRC)
+	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC) && \
+	env $(ENVFLAGS) $(BIBER) $(BIBERFLAGS) $(patsubst %.ltx,%.bcf,\
+		$(foreach FILE,$(DOC_SRC),\
+		$(DOCDIR)/$(shell realpath --relative-to=$(DOCDIR) $(FILE)))) \
+		&& \
+	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC) && \
+	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC)
