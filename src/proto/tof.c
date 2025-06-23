@@ -144,9 +144,14 @@ tof_encode(const struct tof_msg *msg)
 
 	switch (msg->tof_msg_type) {
 	case tof_done:
-		msg_array = cbor_new_definite_array(1);
-		msg_type = cbor_build_uint32(tof_done);
-		(void)!cbor_array_set(msg_array, 0, msg_type);
+		if (!(msg_array = cbor_new_definite_array(1))) {
+			ctf_msg(tof, "msg_array allocation failed!\n");
+			return NULL;
+		}
+		if (!(msg_type = cbor_build_uint32(tof_done)))
+			goto out_free_msg_array;
+		if (!cbor_array_set(msg_array, 0, msg_type))
+			goto out_free_msg_type;
 		break;
 
 	case tof_request:
@@ -155,22 +160,35 @@ tof_encode(const struct tof_msg *msg)
 
 		if (!(msg_array = cbor_new_definite_array(3))) {
 			ctf_msg(tof, "msg_array allocation failed!\n");
-			break;
+			return NULL;
 		}
-		msg_type = cbor_build_uint32(tof_request);
-		(void)!cbor_array_set(msg_array, 0, msg_type);
-		tof_blocking = cbor_build_bool(request->tof_blocking);
-		(void)!cbor_array_set(msg_array, 1, tof_blocking);
-		tof_nr_obj = cbor_build_uint16(request->tof_nr_obj);
-		(void)!cbor_array_set(msg_array, 2, tof_nr_obj);
+		if (!(msg_type = cbor_build_uint32(tof_request)))
+			goto out_free_msg_array;
+		if (!cbor_array_set(msg_array, 0, msg_type))
+			goto out_free_msg_type;
+		if (!(tof_blocking = cbor_build_bool(request->tof_blocking)))
+			goto out_free_msg_type;
+		if (!cbor_array_set(msg_array, 1, tof_blocking))
+			goto out_free_tof_blocking;
+		if (!(tof_nr_obj = cbor_build_uint16(request->tof_nr_obj)))
+			goto out_free_tof_blocking;
+		if (!cbor_array_set(msg_array, 2, tof_nr_obj))
+			goto out_free_tof_nr_obj;
 		break;
+	out_free_tof_nr_obj:
+		cbor_decref(&tof_nr_obj);
+	out_free_tof_blocking:
+		cbor_decref(&tof_blocking);
+		goto out_free_msg_type;
 
 	case tof_reply:
 		const struct tof_reply *reply = &msg->tof_msg_body.reply;
 		unsigned k;
 
-		if (!(msg_array = cbor_new_definite_array(2)))
+		if (!(msg_array = cbor_new_definite_array(2))) {
+			ctf_msg(tof, "msg_array allocation failed!\n");
 			return NULL;
+		}
 		if (!(msg_type = cbor_build_uint32(tof_reply)))
 			goto out_free_msg_array;
 		if (!cbor_array_set(msg_array, 0, msg_type))
