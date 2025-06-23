@@ -1,9 +1,15 @@
+# So that things are done in English:
+LANG:=en_GB.UTF-8
+GDM_LANG:=en_GB.UTF-8
+LANGUAGE:=en_GB:en
 # This should be compatible with either gcc or clang.
 CC:=clang
 # CC:=gcc
+DBG:=$(shell which gdb)
 LD:=$(CC)
-LATEX:=$(shell which xelatex)
 BIBER:=$(shell which biber)
+LATEX:=$(shell which xelatex)
+SVG2TIKZ:=$(shell which svg2tikz)
 
 TOPDIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOPBASE:=$(shell basename $(TOPDIR))
@@ -54,6 +60,10 @@ LATEXFLAGS:=$(LATEX_CORE_FLAGS) --shell-escape
 BIBERFLAGS:=$(addprefix -,$(LATEX_CORE_FLAGS))
 ENVFLAGS:=-S GDM_LANG=en_GB.UTF-8 LANG=en_GB.UTF-8 LANGUAGE=en_GB:en 
 
+vpath %.ltx $(DOCDIR)
+vpath %.pdf $(DOCDIR)
+vpath %.svg $(IMGDIR)
+vpath %.tikz $(DOCDIR)
 vpath %.h $(INCDIR)
 vpath %.c $(APP_SRCDIRS) $(LIB_SRCDIRS) $(TSTDIR)
 
@@ -65,9 +75,11 @@ IMG_SRC:=$(wildcard $(addsuffix /*.svg,$(IMGDIR)))
 LIB_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))))
 HDR:=$(wildcard $(HDR)/*.h)
 APP_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(APP_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
+IMG_TIKZ:=$(patsubst %.svg,%.tikz,$(foreach FILE,$(IMG_SRC),$(DOCDIR)/$(shell realpath --relative-to=$(IMGDIR) $(FILE))))
 LIB_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(LIB_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
 OBJ:=$(APP_OBJ) $(LIB_OBJ)
 DEP:=$(OBJ:%.o=%.d)
+DOC:=$(DOCDIR)/cardiff.pdf
 
 CBOR_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_dissect)
 CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
@@ -113,6 +125,34 @@ $(TRY_BIN_EXE): $(OBJDIR)/test/cbor_try.o $(CTF_LIB_DSO)
 -include $(DEP)
 
 # %.o: %.c
+$(DOCDIR)/%.pdf: %.ltx
+	@mkdir -p $(dir $@)
+	function biberBCF () { \
+		STATUS=0; \
+		for BCF in $(patsubst %.ltx,%.bcf, \
+				$(foreach FILE,$(DOC_SRC), \
+					$(DOCDIR)/$(shell realpath \
+						--relative-to=$(DOCDIR) \
+							$(FILE)))); do \
+			$(BIBER) $(BIBERFLAGS) $${BCF}; \
+			STATUS=$$?; \
+			@echo STATUS=$${STATUS}; \
+			if [ $${STATUS} -ne 0 ]; then \
+				break; \
+			fi; \
+		done; \
+		return $${STATUS}; \
+	}; \
+	$(LATEX) $(LATEXFLAGS) $< && \
+		biberBCF && \
+		$(LATEX) $(LATEXFLAGS) $< && \
+		$(LATEX) $(LATEXFLAGS) $<
+%.tikz: %.svg
+	@mkdir -p $(dir $@)
+	$(SVG2TIKZ) $< --codeoutput figonly --output $@
+$(DOCDIR)/%.tikz: %.svg
+	@mkdir -p $(dir $@)
+	$(SVG2TIKZ) $< --codeoutput figonly --output $@
 $(OBJDIR)/app/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
@@ -138,7 +178,7 @@ $(OBJDIR)/util/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 
-.PHONY: check clean ckclean depclean doc trace-compare
+.PHONY: check clean ckclean depclean doc dbg-run trace-compare
 check:
 	# The per-C source file plist files don't mirror the
 	# filesystem hierarchy as expected; however, they don't appear
@@ -170,7 +210,7 @@ trace-compare-repl: $(shell find $(TSTDIR) -name '*.hs')
 	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
 	cd $(TSTDIR); cabal repl trace-compare:exe:trace-compare
 
-doc: $(BIB_SRC) $(DOC_SRC) $(IMG_SRC)
+doc: $(DOC) $(BIB_SRC) $(DOC_SRC) $(IMG_TIKZ)
 	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC) && \
 	env $(ENVFLAGS) $(BIBER) $(BIBERFLAGS) $(patsubst %.ltx,%.bcf,\
 		$(foreach FILE,$(DOC_SRC),\
@@ -178,3 +218,9 @@ doc: $(BIB_SRC) $(DOC_SRC) $(IMG_SRC)
 		&& \
 	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC) && \
 	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC)
+
+TRACER_SOCKET:=$(HOME)/src/tracer-repl-mod/mainnetsingle/socket/tracker.socket
+LISTEN_ADDRESS:=127.0.0.1:9191
+dbg-run: $(CTF_BIN_EXE) $(CTF_LIB_DSO)
+	LD_PRELOAD=$(CTF_LIB_DSO) $(DBG) $(CTF_BIN_EXE) \
+		   --eval-command="r -f $(TRACER_SOCKET) -u $(LISTEN_ADDRESS)"

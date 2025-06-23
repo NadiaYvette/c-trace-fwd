@@ -140,6 +140,7 @@ cbor_item_t *
 tof_encode(const struct tof_msg *msg)
 {
 	cbor_item_t *msg_type, *msg_array = NULL;
+	cbor_item_t *reply_array = NULL;
 
 	switch (msg->tof_msg_type) {
 	case tof_done:
@@ -152,7 +153,10 @@ tof_encode(const struct tof_msg *msg)
 		const struct tof_request *request = &msg->tof_msg_body.request;
 		cbor_item_t *tof_nr_obj, *tof_blocking;
 
-		msg_array = cbor_new_definite_array(3);
+		if (!(msg_array = cbor_new_definite_array(3))) {
+			ctf_msg(tof, "msg_array allocation failed!\n");
+			break;
+		}
 		msg_type = cbor_build_uint32(tof_request);
 		(void)!cbor_array_set(msg_array, 0, msg_type);
 		tof_blocking = cbor_build_bool(request->tof_blocking);
@@ -163,16 +167,41 @@ tof_encode(const struct tof_msg *msg)
 
 	case tof_reply:
 		const struct tof_reply *reply = &msg->tof_msg_body.reply;
-		cbor_item_t *reply_array;
+		unsigned k;
 
-		msg_array = cbor_new_definite_array(2);
-		msg_type = cbor_build_uint32(tof_reply);
-		(void)!cbor_array_set(msg_array, 0, msg_type);
+		if (!(msg_array = cbor_new_definite_array(2)))
+			return NULL;
+		if (!(msg_type = cbor_build_uint32(tof_reply)))
+			goto out_free_msg_array;
+		if (!cbor_array_set(msg_array, 0, msg_type))
+			goto out_free_msg_type;
 		reply_array = cbor_new_definite_array(reply->tof_nr_replies);
-		(void)!cbor_array_set(msg_array, 1, reply_array);
+		if (!reply_array)
+			goto out_free_msg_type;
+		for (k = 0; k < reply->tof_nr_replies; ++k) {
+			cbor_item_t *reply_array_entry
+				= trace_object_encode(reply->tof_replies[k]);
+
+			if (!reply_array_entry) {
+				ctf_msg(tof, "trace_object_encode()"
+					     "failed on reply->"
+					     "tof_replies[%u]\n", k);
+				goto out_free_reply_array;
+				break;
+			}
+		}
+		if (!cbor_array_set(msg_array, 1, reply_array))
+			goto out_free_reply_array;
 		break;
 	}
 	return msg_array;
+out_free_reply_array:
+	cbor_decref(&reply_array);
+out_free_msg_type:
+	cbor_decref(&msg_type);
+out_free_msg_array:
+	cbor_decref(&msg_array);
+	return NULL;
 }
 
 struct tof_msg *
@@ -182,7 +211,7 @@ tof_decode(const cbor_item_t *msg)
 	cbor_item_t *item;
 
 	ctf_msg(tof, "entered tof_decode()\n");
-	cbor_describe(msg, stderr);
+	cbor_describe((cbor_item_t *)msg, stderr);
 	if (!tof) {
 		ctf_msg(tof, "NULL msg\n");
 		return NULL;
@@ -241,7 +270,7 @@ tof_decode(const cbor_item_t *msg)
 	return tof;
 exit_free_tof:
 	ctf_msg(tof, "error return, describing msg\n");
-	cbor_describe(msg, stderr);
+	cbor_describe((cbor_item_t *)msg, stderr);
 	tof_free(tof);
 	return NULL;
 }
