@@ -99,41 +99,99 @@ trace_object_encode(const struct trace_object *trace_object)
 	cbor_item_t *human, *machine, *namespace, *severity,
 		    *details, *timestamp, *hostname, *thread_id;
 
-	array = cbor_new_definite_array(8);
-	if (!array)
+	if (!(array = cbor_new_definite_array(8)))
 		return NULL;
-	if (trace_object->to_human)
+	if (!trace_object->to_human)
 		human = cbor_new_null();
 	else
 		human = cbor_build_string(trace_object->to_human);
-	human_array = cbor_new_definite_array(1);
-	(void)!cbor_array_set(human_array, 0, human);
-	(void)!cbor_array_set(array, 1, human_array);
-	machine = cbor_build_string(trace_object->to_machine);
-	(void)!cbor_array_set(array, 1, machine);
+	if (!human)
+		goto out_free_array;
+	if (!(human_array = cbor_new_definite_array(1))) {
+		cbor_decref(&human);
+		goto out_free_array;
+	}
+	if (!cbor_array_set(human_array, 0, human)) {
+		cbor_decref(&human);
+		goto out_free_human_array;
+	}
+	if (!cbor_array_set(array, 1, human_array))
+		goto out_free_human_array;
+	if (!(machine = cbor_build_string(trace_object->to_machine)))
+		goto out_free_array;
+	if (!cbor_array_set(array, 1, machine))
+		goto out_free_machine;
 	namespace = cbor_new_definite_array(trace_object->to_namespace_nr);
+	if (!namespace)
+		goto out_free_array;
 	for (k = 0; k < trace_object->to_namespace_nr; ++k) {
 		cbor_item_t *item;
 
-		item = cbor_build_string(trace_object->to_namespace[k]);
-		if (!item)
-			return NULL;
-		(void)!cbor_array_set(namespace, k, item);
+		if (!(item = cbor_build_string(trace_object->to_namespace[k])))
+			goto out_free_namespace;
+		if (!cbor_array_set(namespace, k, item)) {
+			cbor_decref(&item);
+			goto out_free_namespace;
+		}
 	}
-	(void)!cbor_array_set(array, 2, namespace);
-	severity = cbor_new_int32();
+	if (!cbor_array_set(array, 2, namespace))
+		goto out_free_namespace;
+	if (!(severity = cbor_new_int32()))
+		goto out_free_array;
 	cbor_set_uint32(severity, trace_object->to_severity);
-	(void)!cbor_array_set(array, 3, severity);
-	details = cbor_new_int32();
+	if (!cbor_array_set(array, 3, severity))
+		goto out_free_severity;
+	if (!(details = cbor_new_int32()))
+		goto out_free_array;
 	cbor_set_uint32(details, trace_object->to_details);
-	(void)!cbor_array_set(array, 4, details);
-	timestamp = cbor_build_uint64(trace_object->to_timestamp);
-	(void)!cbor_array_set(array, 5, timestamp);
-	hostname = cbor_build_string(trace_object->to_hostname);
-	(void)!cbor_array_set(array, 6, hostname);
-	thread_id = cbor_build_string(trace_object->to_thread_id);
-	(void)!cbor_array_set(array, 7, thread_id);
+	if (!cbor_array_set(array, 4, details))
+		goto out_free_details;
+	if (!(timestamp = cbor_build_uint64(trace_object->to_timestamp)))
+		goto out_free_array;
+	if (!cbor_array_set(array, 5, timestamp))
+		goto out_free_timestamp;
+	if (!(hostname = cbor_build_string(trace_object->to_hostname)))
+		goto out_free_array;
+	if (!cbor_array_set(array, 6, hostname))
+		goto out_free_hostname;
+	if (!(thread_id = cbor_build_string(trace_object->to_thread_id)))
+		goto out_free_array;
+	if (!cbor_array_set(array, 7, thread_id))
+		goto out_free_thread_id;
 	return array;
+	/*
+	 * array holds the reference counts for all of the array entries.
+	 * Falling through would be a double refcount release. The
+	 * individual components' labels are for failures to link into
+	 * the larger structures holding references to them.
+	 */
+out_free_human_array:
+	cbor_decref(&human_array);
+	goto out_free_array;
+out_free_machine:
+	cbor_decref(&machine);
+	goto out_free_array;
+out_free_namespace:
+	cbor_decref(&namespace);
+	goto out_free_array;
+out_free_severity:
+	cbor_decref(&severity);
+	goto out_free_array;
+out_free_details:
+	cbor_decref(&details);
+	goto out_free_array;
+out_free_timestamp:
+	cbor_decref(&timestamp);
+	goto out_free_array;
+out_free_hostname:
+	cbor_decref(&hostname);
+	goto out_free_array;
+out_free_thread_id:
+	cbor_decref(&thread_id);
+	goto out_free_array;
+out_free_array:
+	cbor_decref(&array);
+	return NULL;
 }
 
 cbor_item_t *
@@ -171,15 +229,16 @@ tof_encode(const struct tof_msg *msg)
 		if (!cbor_array_set(msg_array, 1, tof_blocking))
 			goto out_free_tof_blocking;
 		if (!(tof_nr_obj = cbor_build_uint16(request->tof_nr_obj)))
-			goto out_free_tof_blocking;
+			goto out_free_msg_array;
 		if (!cbor_array_set(msg_array, 2, tof_nr_obj))
 			goto out_free_tof_nr_obj;
 		break;
 	out_free_tof_nr_obj:
 		cbor_decref(&tof_nr_obj);
+		goto out_free_msg_array;
 	out_free_tof_blocking:
 		cbor_decref(&tof_blocking);
-		goto out_free_msg_type;
+		goto out_free_msg_array;
 
 	case tof_reply:
 		const struct tof_reply *reply = &msg->tof_msg_body.reply;
@@ -195,7 +254,7 @@ tof_encode(const struct tof_msg *msg)
 			goto out_free_msg_type;
 		reply_array = cbor_new_definite_array(reply->tof_nr_replies);
 		if (!reply_array)
-			goto out_free_msg_type;
+			goto out_free_msg_array;
 		for (k = 0; k < reply->tof_nr_replies; ++k) {
 			cbor_item_t *reply_array_entry
 				= trace_object_encode(reply->tof_replies[k]);
@@ -207,16 +266,28 @@ tof_encode(const struct tof_msg *msg)
 				goto out_free_reply_array;
 				break;
 			}
+			if (cbor_array_set(reply_array, k, reply_array_entry))
+				continue;
+			cbor_decref(&reply_array_entry);
+			goto out_free_reply_array;
 		}
 		if (!cbor_array_set(msg_array, 1, reply_array))
 			goto out_free_reply_array;
 		break;
 	}
 	return msg_array;
+	/*
+	 * msg_array holds the reference counts for all of the array entries.
+	 * Falling through would be a double refcount release. The
+	 * individual components' labels are for failures to link into
+	 * the larger structures holding references to them.
+	 */
 out_free_reply_array:
 	cbor_decref(&reply_array);
+	goto out_free_msg_array;
 out_free_msg_type:
 	cbor_decref(&msg_type);
+	goto out_free_msg_array;
 out_free_msg_array:
 	cbor_decref(&msg_array);
 	return NULL;
