@@ -25,16 +25,16 @@ enum detail_level {
 
 struct trace_object {
 	/* unclear how Maybe Text is represented */
-	char *to_human;
-	char *to_machine;
-	char **to_namespace;
+	const char *to_human;
+	const char *to_machine;
+	const char **to_namespace;
 	int to_namespace_nr;
 	enum severity_s to_severity;
 	enum detail_level to_details;
 	/* needs to be 64-bit */
 	time_t to_timestamp;
-	char *to_hostname;
-	char *to_thread_id;
+	const char *to_hostname;
+	const char *to_thread_id;
 };
 
 /* Trace Object Forward */

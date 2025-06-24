@@ -6,87 +6,141 @@
 
 /* TODO: error handling */
 
+static bool
+to_uint_array_get(const cbor_item_t *array, unsigned k, uintmax_t *val)
+{
+	bool ret = false;
+	cbor_item_t *item = NULL;
+
+	if (!(item = cbor_array_get(array, k)))
+		return NULL;
+	if (!cbor_is_null(item))
+		goto out_uint_free;
+	if (cbor_get_uint(item, val))
+		ret = true;
+	else if (cbor_isa_array(item)) {
+		cbor_item_t *subarray = item;
+
+		if (!(item = cbor_array_get(subarray, 0))) {
+			cbor_decref(&subarray);
+			goto out_uint_free;
+		}
+		if (cbor_get_uint(item, val))
+			ret = true;
+		cbor_decref(&subarray);
+	}
+out_uint_free:
+	if (!!item)
+		cbor_decref(&item);
+	return ret;
+}
+
+static const char *
+to_strdup_array_get(const cbor_item_t *array, unsigned k)
+{
+	cbor_item_t *item;
+	const char *string, *new_string = NULL;
+
+	if (!(item = cbor_array_get(array, k)))
+		return NULL;
+	if (!cbor_is_null(item))
+		goto out_string_free;
+	if (!cbor_isa_string(item))
+		goto out_string_free;
+	if (!(string = (const char *)cbor_string_handle(item)))
+		goto out_string_free;
+	if (!(new_string = strdup(string)))
+		goto out_string_free;
+out_string_free:
+	cbor_decref(&item);
+	return new_string;
+}
+
 struct trace_object *
 trace_object_decode(const cbor_item_t *array)
 {
 	size_t k, n, nsub;
+	uintmax_t val;
 	struct trace_object *to;
-	cbor_item_t *item, *subarray;
+	cbor_item_t *subarray;
 
-	to = calloc(1, sizeof(struct trace_object));
-	if (!to)
+	if (!(to = calloc(1, sizeof(struct trace_object))))
 		return NULL;
+
 	if (!cbor_isa_array(array))
-		goto exit_free_to;
+		goto out_free_to;
 	if ((n = cbor_array_size(array)) != 9)
 		ctf_msg(tof, "unexpected trace_object array length %d\n", n);
-	subarray = cbor_array_get(array, 1);
-	if (cbor_is_null(subarray))
+	if (!(subarray = cbor_array_get(array, 1)))
+		goto out_free_to;
+	if (cbor_is_null(subarray)) {
 		ctf_msg(tof, "null subarray\n");
-	else if (!cbor_isa_array(subarray))
+		cbor_decref(&subarray);
+		goto out_free_to;
+	}
+	if (!cbor_isa_array(subarray)) {
 		ctf_msg(tof, "subarray not an array\n");
-	else if ((nsub = cbor_array_size(subarray)) < 1)
+		cbor_decref(&subarray);
+		goto out_free_to;
+	}
+	if ((nsub = cbor_array_size(subarray)) < 1) {
 		ctf_msg(tof, "subarray size %d\n", nsub);
-	else if (!(item = cbor_array_get(subarray, 0)))
-		ctf_msg(tof, "subarray item 0 missing\n");
-	else
-		to->to_human = strdup((const char *)cbor_string_handle(item));
-	item = cbor_array_get(array, 2);
-	to->to_machine = strdup((const char *)cbor_string_handle(item));
-	subarray = cbor_array_get(array, 3);
+		cbor_decref(&subarray);
+		goto out_free_to;
+	}
+
+	if (!(to->to_human = to_strdup_array_get(array, 0)))
+		goto out_free_to;
+	if (!(to->to_machine = to_strdup_array_get(array, 2)))
+		goto out_free_human;
+
+	if (!(subarray = cbor_array_get(array, 3)))
+		goto out_free_machine;
+	if (!cbor_isa_array(subarray)) {
+		cbor_decref(&subarray);
+		goto out_free_machine;
+	}
 	/* tags don't get used in this case */
 	to->to_namespace_nr = cbor_array_size(subarray);
-	to->to_namespace = calloc(to->to_namespace_nr, sizeof(char *));
-	for (k = 0; k < to->to_namespace_nr; ++k)
-		to->to_namespace[k] = strdup((const char *)cbor_string_handle(cbor_array_get(subarray, k)));
-	item = cbor_array_get(array, 4);
-	if (cbor_isa_uint(item))
-		to->to_severity = cbor_get_int(item);
-	else if (cbor_isa_array(item) && cbor_array_size(item) >= 1) {
-		if (!!(item = cbor_array_get(item, 0)) && cbor_isa_uint(item))
-			to->to_severity = cbor_get_int(item);
-		else
-			ctf_msg(tof, "severity decode failed at depth\n");
-	} else
-		ctf_msg(tof, "severity type of wrong type\n");
-	item = cbor_array_get(array, 5);
-	if (cbor_isa_uint(item))
-		to->to_details = cbor_get_int(item);
-	else if (cbor_isa_array(item) && cbor_array_size(item) >= 1) {
-		if (!!(item = cbor_array_get(item, 0)) && cbor_isa_uint(item))
-			to->to_details = cbor_get_int(item);
-		else
-			ctf_msg(tof, "details decode failed at depth\n");
-	} else
-		ctf_msg(tof, "details type of wrong type\n");
-	if (!(item = cbor_array_get(array, 6)))
-		ctf_msg(tof, "timestamp array entry NULL\n");
-	else if (cbor_is_null(item))
-		ctf_msg(tof, "timestamp array entry null cbor value\n");
-	else if (!cbor_isa_uint(item))
-		ctf_msg(tof, "timestamp array entry type non-integral\n");
-	else if (cbor_int_get_width(item) != CBOR_INT_64)
-		ctf_msg(tof, "timestamp array entry int width != 64\n");
-	else
-		to->to_timestamp = cbor_get_uint64(item);
-	if (!(item = cbor_array_get(array, 7)))
-		ctf_msg(tof, "hostname array entry NULL\n");
-	else if (cbor_is_null(item))
-		ctf_msg(tof, "hostname array entry null cbor value\n");
-	else if (!cbor_isa_string(item))
-		ctf_msg(tof, "hostname array entry type non-string\n");
-	else
-		to->to_hostname = strdup((const char *)cbor_string_handle(item));
-	if (!(item = cbor_array_get(array, 8)))
-		ctf_msg(tof, "thread_id array entry NULL\n");
-	else if (cbor_is_null(item))
-		ctf_msg(tof, "thread_id array entry null cbor value\n");
-	else if (!cbor_isa_string(item))
-		ctf_msg(tof, "thread_id array entry type non-string\n");
-	else
-		to->to_thread_id = strdup((const char *)cbor_string_handle(item));
+	if (!(to->to_namespace = calloc(to->to_namespace_nr, sizeof(char *)))) {
+		cbor_decref(&subarray);
+		goto out_free_machine;
+	}
+	for (k = 0; k < to->to_namespace_nr; ++k) {
+		if (!!(to->to_namespace[k] = to_strdup_array_get(subarray, k)))
+			continue;
+		cbor_decref(&subarray);
+		goto out_free_namespace_entries;
+	}
+
+	if (!to_uint_array_get(array, 4, &val))
+		goto out_free_namespace_entries;
+	to->to_severity = (enum severity_s)val;
+
+	if (!to_uint_array_get(array, 5, &val))
+		goto out_free_namespace_entries;
+	to->to_details = (enum detail_level)val;
+
+	if (!to_uint_array_get(array, 6, &val))
+		goto out_free_namespace_entries;
+	to->to_timestamp = (time_t)val;
+
+	if (!(to->to_hostname = to_strdup_array_get(array, 7)))
+		goto out_free_namespace_entries;
+	if (!(to->to_thread_id = to_strdup_array_get(array, 8)))
+		goto out_free_hostname;
 	return to;
-exit_free_to:
+out_free_hostname:
+	free((void *)to->to_hostname);
+out_free_namespace_entries:
+	for (k = 0; k < to->to_namespace_nr; ++k)
+		free((void *)to->to_namespace[k]);
+	free(to->to_namespace);
+out_free_machine:
+	free((void *)to->to_machine);
+out_free_human:
+	free((void *)to->to_human);
+out_free_to:
 	free(to);
 	return NULL;
 }
@@ -368,12 +422,13 @@ void trace_object_free(struct trace_object *to)
 {
 	int k;
 
-	free(to->to_human);
-	free(to->to_machine);
+	free((void *)to->to_human);
+	free((void *)to->to_machine);
 	for (k = 0; k < to->to_namespace_nr; ++k)
-		free(to->to_namespace[k]);
-	free(to->to_hostname);
-	free(to->to_thread_id);
+		free((void *)to->to_namespace[k]);
+	free(to->to_namespace);
+	free((void *)to->to_hostname);
+	free((void *)to->to_thread_id);
 }
 
 void tof_free(struct tof_msg *tof)
