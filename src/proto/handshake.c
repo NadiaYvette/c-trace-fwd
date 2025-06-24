@@ -21,7 +21,7 @@ cbor_build_encode_word(uint64_t value)
 }
 
 bool
-cbor_get_uint(cbor_item_t *item, uintmax_t *value)
+cbor_get_uint(const cbor_item_t *item, uintmax_t *value)
 {
 	switch (cbor_typeof(item)) {
 	case CBOR_TYPE_UINT:

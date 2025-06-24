@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cbor.h>
+#include <inttypes.h>
 #include <stdint.h>
 
 /*
@@ -90,3 +91,4 @@ struct handshake {
 struct handshake *handshake_decode(const cbor_item_t *);
 cbor_item_t *handshake_encode(const struct handshake *);
 cbor_item_t *cbor_build_encode_word(uint64_t);
+bool cbor_get_uint(const cbor_item_t *, uintmax_t *);
