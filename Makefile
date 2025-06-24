@@ -219,7 +219,7 @@ doc: $(DOC) $(BIB_SRC) $(DOC_SRC) $(IMG_TIKZ)
 	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC) && \
 	env $(ENVFLAGS) $(LATEX) $(LATEXFLAGS) $(DOC_MAIN_SRC)
 
-TRACER_SOCKET:=$(HOME)/src/tracer-repl-mod/mainnetsingle/socket/tracker.socket
+TRACER_SOCKET:=$(HOME)/src/tracer-repl-mod/mainnetsingle/socket/tracer.socket
 LISTEN_ADDRESS:=127.0.0.1:9191
 dbg-run: $(CTF_BIN_EXE) $(CTF_LIB_DSO)
 	LD_PRELOAD=$(CTF_LIB_DSO) $(DBG) $(CTF_BIN_EXE) \
