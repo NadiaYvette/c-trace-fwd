@@ -39,7 +39,16 @@ __pycache__
 /.cache
 /db
 /db-[0-9]
-/doc*
+/doc/*.aux
+/doc/*.bbl
+/doc/*.bcf
+/doc/*.blg
+/doc/*.nav
+/doc/*.out
+/doc/*.run.xml
+/doc/*.snm
+/doc/*.toc
+/doc/*.vrb
 /obj*
 /profile
 /launch_*
