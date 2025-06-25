@@ -1,0 +1,29 @@
+{
+  "ekgRequestFreq": 1000,
+  "logging": [
+    {
+      "logFormat": "ForMachine",
+      "logMode": "FileMode",
+      "logRoot": "tracer_data"
+    },
+    {
+      "logFormat": "ForHuman",
+      "logMode": "FileMode",
+      "logRoot": "data_human"
+    }
+  ],
+  "network": {
+    "contents": "/home/nyc/src/tracer-repl-mod/mainnetsingle/socket/tracer.socket",
+    "tag": "AcceptAt"
+  },
+  "networkMagic": 764824073,
+  "resourceFreq": null,
+  "rotation": {
+    "rpFrequencySecs": 15,
+    "rpKeepFilesNum": 10,
+    "rpLogLimitBytes": 1000000000,
+    "rpMaxAgeHours": 24
+  },
+  "tracerConfigDebug": true,
+  "verbosity": "Maximum"
+}
