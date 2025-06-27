@@ -347,60 +347,234 @@ out_free_msg_array:
 	return NULL;
 }
 
+bool
+tof_valid_msg_type(const enum tof_msg_type type)
+{
+	switch (type) {
+	case tof_request /* == 1 */:
+	case tof_done    /* == 2 */:
+	case tof_reply   /* == 3 */:
+		return true;
+	default:
+		if (type == 0)
+			ctf_msg(tof, "tof_msg_type 0 seen!\n");
+		else
+			ctf_msg(tof, "unrecognized tof_msg_type %d "
+					"seen!\n", type);
+		return false;
+	}
+}
+
+static bool
+tof_nr_obj_decode_uint(const cbor_item_t *nr_obj_item, uint16_t *val)
+{
+	if (!nr_obj_item || !val)
+		return false;
+	switch (cbor_int_get_width(nr_obj_item)) {
+	case CBOR_INT_8:
+		*val = cbor_get_uint8(nr_obj_item);
+		return true;
+	case CBOR_INT_16:
+		*val = cbor_get_uint16(nr_obj_item);
+		return true;
+	case CBOR_INT_32:
+		if (cbor_get_uint32(nr_obj_item) <= UINT16_MAX) {
+			*val = cbor_get_uint32(nr_obj_item);
+			return true;
+		}
+		ctf_msg(tof, "nr_obj too large (32-bit)!\n");
+		return false;
+	case CBOR_INT_64:
+		if (cbor_get_uint64(nr_obj_item) <= UINT16_MAX) {
+			*val = cbor_get_uint64(nr_obj_item);
+			return true;
+		}
+		ctf_msg(tof, "nr_obj too large (64-bit)!\n");
+		return false;
+	default:
+		ctf_msg(tof, "unrecognized nr_obj integer width\n");
+		return false;
+	}
+}
+
+static bool
+tof_nr_obj_decode_array(const cbor_item_t *nr_obj_item, uint16_t *val)
+{
+	cbor_item_t *lower, *upper;
+	uint16_t lower_val;
+	bool ret = true;
+
+	if (!nr_obj_item || !val)
+		return false;
+	if (cbor_array_size(nr_obj_item) != 2) {
+		ctf_msg(tof, "nr_obj array size = %zd != 2!\n",
+				cbor_array_size(nr_obj_item));
+		return false;
+	}
+	if (!(lower = cbor_array_get(nr_obj_item, 0))) {
+		ctf_msg(tof, "cbor_array_get(nr_obj_item, 0) failed!\n");
+		return false;
+	}
+	if (!(upper = cbor_array_get(nr_obj_item, 1))) {
+		ctf_msg(tof, "cbor_array_get(nr_obj_item, 1) failed!\n");
+		cbor_decref(&lower);
+		return false;
+	}
+	ret = ret && tof_nr_obj_decode_uint(lower, &lower_val);
+	ret = ret && tof_nr_obj_decode_uint(upper, val);
+	ret = ret && !!(lower_val == 0);
+	cbor_decref(&lower);
+	cbor_decref(&upper);
+	return ret;
+}
+
+static bool
+tof_nr_obj_decode(const cbor_item_t *nr_obj_item, uint16_t *val)
+{
+	if (!nr_obj_item)
+		return false;
+	switch (cbor_typeof(nr_obj_item)) {
+	case CBOR_TYPE_UINT:
+		return tof_nr_obj_decode_uint(nr_obj_item, val);
+		break;
+	case CBOR_TYPE_ARRAY:
+		return tof_nr_obj_decode_array(nr_obj_item, val);
+		break;
+	case CBOR_TYPE_NEGINT:
+		ctf_msg(tof, "nr_obj of negint type!\n");
+		return false;
+	case CBOR_TYPE_BYTESTRING:
+		ctf_msg(tof, "nr_obj of bytestring type!\n");
+		return false;
+	case CBOR_TYPE_STRING:
+		ctf_msg(tof, "nr_obj of string type!\n");
+		return false;
+	case CBOR_TYPE_MAP:
+		ctf_msg(tof, "nr_obj of map type!\n");
+		return false;
+	case CBOR_TYPE_TAG:
+		ctf_msg(tof, "nr_obj of tag type!\n");
+		return false;
+	case CBOR_TYPE_FLOAT_CTRL:
+		ctf_msg(tof, "nr_obj of float_ctrl type!\n");
+		return false;
+	default:
+		ctf_msg(tof, "nr_obj of unrecognized type!\n");
+		return false;
+	}
+}
+
 struct tof_msg *
 tof_decode(const cbor_item_t *msg)
 {
 	struct tof_msg *tof = calloc(1, sizeof(struct tof_msg));
-	cbor_item_t *item;
+	cbor_item_t *item, *reply_array = NULL;
 
 	ctf_msg(tof, "entered tof_decode()\n");
+	if (!msg) {
+		ctf_msg(tof, "NULL msg!\n");
+		return NULL;
+	}
 	cbor_describe((cbor_item_t *)msg, stderr);
 	if (!tof) {
-		ctf_msg(tof, "NULL msg\n");
+		ctf_msg(tof, "tof allocation failed!\n");
 		return NULL;
+	}
+	if (!cbor_isa_array(msg)) {
+		ctf_msg(tof, "cbor msg not an array!\n");
+		goto exit_free_tof;
+	}
+	if (cbor_array_size(msg) < 1) {
+		ctf_msg(tof, "cbor msg is an empty array, no type!\n");
+		goto exit_free_tof;
 	}
 	if (!(item = cbor_array_get(msg, 0))) {
 		ctf_msg(tof, "cbor_array_get(msg, 0) failed!\n");
 		goto exit_free_tof;
 	}
+	if (!cbor_isa_uint(item)) {
+		ctf_msg(tof, "tof_msg_type cbor not a uint!\n");
+		goto exit_free_tof;
+	}
 	tof->tof_msg_type = (enum tof_msg_type)cbor_get_int(item);
+	if (!tof_valid_msg_type(tof->tof_msg_type)) {
+		ctf_msg(tof, "invalid msg type %d\n", tof->tof_msg_type);
+		goto exit_free_tof;
+	}
 	switch (tof->tof_msg_type) {
 	case tof_request:
 		struct tof_request *request = &tof->tof_msg_body.request;
+		cbor_item_t *blocking_cbor, *nr_obj_cbor;
 
-		request->tof_blocking = cbor_get_bool(cbor_array_get(msg, 1));
-		request->tof_nr_obj = cbor_get_uint16(cbor_array_get(msg, 2));
+		if (cbor_array_size(msg) < 2) {
+			ctf_msg(tof, "cbor_array_size(msg) = %zd "
+				     "too small\n", cbor_array_size(msg));
+			goto exit_free_tof;
+		}
+		if (!(blocking_cbor = cbor_array_get(msg, 1))) {
+			ctf_msg(tof, "blocking_cbor = "
+				     "cbor_array_get(msg, 1) failed!\n");
+			goto exit_free_tof;
+		}
+		if (!cbor_is_bool(blocking_cbor)) {
+			ctf_msg(tof, "blocking_cbor not a bool!\n");
+			goto exit_free_tof;
+		}
+		if (!(nr_obj_cbor = cbor_array_get(msg, 2))) {
+			ctf_msg(tof, "nr_obj_cbor = "
+				     "cbor_array_get(msg, 2) failed!\n");
+			goto exit_free_tof;
+		}
+		if (!tof_nr_obj_decode(nr_obj_cbor, &request->tof_nr_obj))
+			goto exit_free_tof;
+		request->tof_blocking = cbor_get_bool(blocking_cbor);
 		break;
 	case tof_done:
+		/* This trace object type has no content apart from its
+		 * existence and its type. */
 		break;
 	case tof_reply:
 		unsigned k;
 		struct tof_reply *reply = &tof->tof_msg_body.reply;
-		cbor_item_t *reply_array = cbor_array_get(msg, 1);
 
-		reply->tof_nr_replies = cbor_array_size(reply_array);
-		reply->tof_replies = calloc(reply->tof_nr_replies, sizeof(struct trace_object *));
-		if (!reply_array) {
-			ctf_msg(tof, "reply_array == NULL\n");
+		if (cbor_array_size(msg) < 2) {
+			ctf_msg(tof, "reply msg array too small!\n");
 			goto exit_free_tof;
 		}
-		if (reply->tof_nr_replies > (2 << 20)) {
-			ctf_msg(tof, "too many tof_nr_replies %zd\n", reply->tof_nr_replies);
+		if (!(reply_array = cbor_array_get(msg, 1))) {
+			ctf_msg(tof, "cbor_array_get() reply array failed!\n");
 			goto exit_free_tof;
+		}
+		if (!cbor_isa_array(reply_array)) {
+			ctf_msg(tof, "reply array not of array type!\n");
+			goto exit_free_reply;
+		}
+		reply->tof_nr_replies = cbor_array_size(reply_array);
+		reply->tof_replies
+			= calloc(reply->tof_nr_replies,
+					sizeof(struct trace_object *));
+		if (reply->tof_nr_replies > UINT16_MAX) {
+			ctf_msg(tof, "too many tof_nr_replies %zd\n",
+					reply->tof_nr_replies);
+			goto exit_free_reply;
 		}
 		for (k = 0; k < reply->tof_nr_replies; ++k) {
 			cbor_item_t *array_entry;
 
 			if (!(array_entry = cbor_array_get(reply_array, k))) {
 				ctf_msg(tof,  "reply_array[%u] == NULL\n", k);
-				goto exit_free_tof;
+				goto exit_free_reply;
 			}
-			reply->tof_replies[k] = trace_object_decode(array_entry);
+			reply->tof_replies[k]
+				= trace_object_decode(array_entry);
+			cbor_decref(&array_entry);
 			if (!reply->tof_replies[k]) {
-				ctf_msg(tof, "reply->tof_replies[%u] == NULL\n", k);
-				goto exit_free_tof;
+				ctf_msg(tof, "reply->tof_replies[%u] "
+						"decode failed!\n", k);
+				goto exit_free_reply;
 			}
 		}
+		cbor_decref(&reply_array);
 		break;
 	default:
 		ctf_msg(tof, "unrecognized tof_msg_type %d\n", tof->tof_msg_type);
@@ -410,10 +584,17 @@ tof_decode(const cbor_item_t *msg)
 		ctf_msg(tof, "tof_decode() succeeded\n");
 	else
 		ctf_msg(tof, "tof_decode() returned NULL\n");
+	cbor_decref((cbor_item_t **)&msg);
 	return tof;
+exit_free_reply:
+	if (!!reply_array)
+		cbor_decref(&reply_array);
 exit_free_tof:
-	ctf_msg(tof, "error return, describing msg\n");
-	cbor_describe((cbor_item_t *)msg, stderr);
+	ctf_msg(tof, "error return, describing msg if non-NULL\n");
+	if (!!msg) {
+		cbor_describe((cbor_item_t *)msg, stderr);
+		cbor_decref((cbor_item_t **)&msg);
+	}
 	tof_free(tof);
 	return NULL;
 }
