@@ -3,6 +3,7 @@
 #include <sys/param.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
+#include "service.h"
 #include "tof.h"
 
 struct trace_object *
@@ -91,4 +92,35 @@ to_enqueue_multi(struct c_trace_fwd_state *state, struct trace_object **to, int 
 	state->nr_to += n;
 	ctf_msg(queue, "to_enqueue_multi() succeeded\n");
 	return RETVAL_SUCCESS;
+}
+
+enum svc_req_result
+to_queue_answer_request( struct c_trace_fwd_state *state
+		       , const struct tof_request *request
+		       , struct tof_msg **reply_msg)
+{
+	struct tof_msg *msg;
+	struct trace_object ***to;
+	int *n;
+
+	if (!reply_msg)
+		return svc_req_failure;
+	if (request->tof_blocking && state->nr_to < request->tof_nr_obj)
+		return svc_req_must_block;
+	if (!(msg = calloc(1, sizeof(struct tof_msg))))
+		return svc_req_failure;
+	msg->tof_msg_type = tof_reply;
+	to = &msg->tof_msg_body.reply.tof_replies;
+	n = &msg->tof_msg_body.reply.tof_nr_replies;
+	if (to_dequeue_multi(state, to, n) != RETVAL_SUCCESS) {
+		ctf_msg(queue, "to_dequeue_multi() failed!\n");
+		goto out_free_replies;
+	}
+	*reply_msg = msg;
+	return svc_req_success;
+out_free_replies:
+	free(msg->tof_msg_body.reply.tof_replies);
+/* out_free_msg: */
+	free(msg);
+	return svc_req_failure;
 }
