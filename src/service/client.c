@@ -5,6 +5,7 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include "c_trace_fwd.h"
+#include "ctf_util.h"
 #include "proto_stk.h"
 #include "sdu.h"
 #include "service.h"
@@ -52,20 +53,10 @@ exit_free_buf:
 static struct tof_msg *
 service_build_reply(struct c_trace_fwd_state *state, struct tof_request *req)
 {
-	struct tof_msg *tof;
-	struct tof_reply *reply;
+	struct tof_msg *msg = NULL;
 
-	if (!(tof = calloc(1, sizeof(struct tof_msg))))
-		return NULL;
-	tof->tof_msg_type = tof_reply;
-	reply = &tof->tof_msg_body.reply;
-	reply->tof_nr_replies = req->tof_nr_obj;
-	if (!(reply->tof_replies = calloc(req->tof_nr_obj, sizeof(struct trace_object *))))
-		goto exit_tof_free;
-	if (!to_dequeue_multi(state, &reply->tof_replies, &reply->tof_nr_replies))
-		return tof;
-exit_tof_free:
-	tof_free(tof);
+	if (to_queue_answer_request(state, req, &msg) == svc_req_success)
+		return msg;
 	return NULL;
 }
 
@@ -92,15 +83,28 @@ service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 		return RETVAL_SUCCESS;
 	if (!(tof = service_recv_tof(state, pollfd->fd)))
 		return RETVAL_FAILURE;
-	if (tof->tof_msg_type != tof_request)
+	switch (tof->tof_msg_type) {
+	case tof_done:
+		break;
+	case tof_reply:
+		/* do something with reply */
+		break;
+	case tof_request:
+		struct tof_request *req = &tof->tof_msg_body.request;
+
+		tof_reply_msg = service_build_reply(state, req);
+		if (!tof_reply_msg)
+			goto exit_free_tof;
+		if (service_send_tof(state, tof_reply_msg, pollfd->fd))
+			goto exit_free_reply_msg;
+		retval = RETVAL_SUCCESS;
+	exit_free_reply_msg:
+		tof_free(tof_reply_msg);
+		break;
+	default:
+		ctf_msg(client, "bad tof_msg_type %d\n", tof->tof_msg_type);
 		goto exit_free_tof;
-	tof_reply_msg = service_build_reply(state, &tof->tof_msg_body.request);
-	if (!tof_reply_msg)
-		goto exit_free_tof;
-	if (service_send_tof(state, tof_reply_msg, pollfd->fd))
-		goto exit_free_reply_msg;
-exit_free_reply_msg:
-	tof_free(tof_reply_msg);
+	}
 exit_free_tof:
 	tof_free(tof);
 	return retval;
