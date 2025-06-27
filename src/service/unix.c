@@ -47,7 +47,7 @@ retry_read:
 		struct tof_msg *reply_msg = NULL;
 		int ret;
 
-		ctf_msg(service_unix, "tof_request case to"
+		ctf_msg(service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
 		switch (ret = to_queue_answer_request(state, req, &reply_msg)) {
 		case svc_req_must_block:
