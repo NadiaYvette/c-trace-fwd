@@ -33,17 +33,9 @@ static cbor_item_t *handshake_proposal_cbor = NULL;
 static void
 sig_action(int sig, siginfo_t *info, void *data)
 {
-	struct sigaction sigact = {
-		.sa_sigaction = sig_action,
-		.sa_flags = SA_SIGINFO,
-		.sa_restorer = NULL,
-	};
 	(void)!info;
 	(void)!data;
 	ctf_msg(state, "received signal %d\n", sig);
-	memset(&sigact.sa_mask, 0, sizeof(sigset_t));
-	if (!!sigaction(SIGALRM, &sigact, NULL))
-		ctf_msg(state, "sigaction failed\n");
 }
 
 static int
@@ -58,6 +50,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	struct sigaction old_sigact, new_sigact;
 	struct sdu sdu, reply_sdu;
 	struct cbor_load_result cbor_load_result;
+	sigset_t sig_mask, old_sig_mask;
 
 	ctf_msg(state, "entering\n");
 	ctf_msg(state, "different message\n");
@@ -128,14 +121,25 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		ctf_msg(state, "buffer successfully reallocated\n");
 	}
 	ctf_msg(state, "about to try to read for handshake reply\n");
+	sigemptyset(&sig_mask);
+	sigemptyset(&old_sig_mask);
+	sigaddset(&sig_mask, SIGALRM);
+	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
+		ctf_msg(state, "sigprocmask failed\n");
 	new_sigact.sa_sigaction = sig_action;
-	memset(&new_sigact.sa_mask, 0, sizeof(sigset_t));
+	sigemptyset(&new_sigact.sa_mask);
+	sigaddset(&new_sigact.sa_mask, SIGALRM);
 	new_sigact.sa_flags = SA_SIGINFO;
 	new_sigact.sa_restorer = NULL;
 	if (!!sigaction(SIGALRM, &new_sigact, &old_sigact))
 		ctf_msg(state, "sigaction failed\n");
-	/* alarm(1); */
+	/* The alarm is to interrupt stalled reads to restart them. */
+	alarm(1);
+	if (!!sigprocmask(SIG_UNBLOCK, &sig_mask, &old_sig_mask))
+		ctf_msg(state, "sigprocmask failed\n");
 	while ((reply_len = read(state->unix_sock_fd, buf, buf_sz)) <= 0) {
+		/* Cancel any pending alarms. */
+		alarm(0);
 		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
 			ctf_msg(state, "handshake read got errno %d\n", errno);
 			break;
@@ -143,9 +147,11 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		errno = 0;
 		ctf_msg(state, "read zero data, looping\n");
 		sleep(1);
-		/* alarm(0); */
-		/* alarm(1); */
+		alarm(1);
 	}
+	alarm(0);
+	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
+		ctf_msg(state, "sigprocmask failed\n");
 	if (!!sigaction(SIGALRM, &old_sigact, NULL))
 		ctf_msg(state, "sigaction cleanup failed\n");
 	if (!errno)
@@ -209,10 +215,12 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	ctf_msg(state, "got past handshake_decode(), checking reply type\n");
 	if (handshake_reply->handshake_type != handshake_accept_version) {
 		ctf_msg(state, "reply type not acceptance, decref(&reply_cbor)\n");
-		goto out_decref_reply;
+		goto out_handshake_free;
 	}
 	ctf_msg(state, "state_handshake() succeeded, returning RETVAL_SUCCESS\n");
 	retval = RETVAL_SUCCESS;
+out_handshake_free:
+	handshake_free(handshake_reply);
 out_decref_reply:
 	if (!!retval)
 		ctf_msg(state, "out_decref_reply: label of state_handshake()\n");

@@ -191,11 +191,15 @@ query_reply_decode(const cbor_item_t *msg_array, struct handshake *handshake)
 struct handshake *
 handshake_decode(const cbor_item_t *msg_array)
 {
+	cbor_item_t *type_cbor;
 	struct handshake *handshake = NULL;
 
-	handshake = calloc(1, sizeof(struct handshake));
-	handshake->handshake_type
-		= cbor_get_int(cbor_array_get(msg_array, 0));
+	if (!(handshake = calloc(1, sizeof(struct handshake))))
+		return NULL;
+	if (!(type_cbor = cbor_array_get(msg_array, 0)))
+		goto out_free_handshake;
+	handshake->handshake_type = cbor_get_int(type_cbor);
+	cbor_decref(&type_cbor);
 	switch (handshake->handshake_type) {
 	case handshake_propose_versions:
 		return propose_versions_decode(msg_array, handshake);
@@ -205,8 +209,59 @@ handshake_decode(const cbor_item_t *msg_array)
 		return refusal_decode(msg_array, handshake);
 	case handshake_query_reply:
 		return query_reply_decode(msg_array, handshake);
+	default:
+		goto out_free_handshake;
 	}
 	return handshake;
+out_free_handshake:
+	free(handshake);
+	return NULL;
+}
+
+void
+handshake_free(struct handshake *handshake)
+{
+	union handshake_message *msg = &handshake->handshake_message;
+
+	switch (handshake->handshake_type) {
+	case handshake_propose_versions:
+		struct handshake_propose_versions *hpv;
+
+		hpv = &msg->propose_versions;
+		free(hpv->handshake_propose_versions);
+		break;
+	case handshake_accept_version:
+		struct handshake_accept_version *hav;
+
+		hav = &msg->accept_version;
+		cbor_decref(&hav->handshake_accept_version_params);
+		break;
+	case handshake_query_reply:
+		struct handshake_query_reply *hqr = &msg->query_reply;
+
+		free(hqr->handshake_query_reply);
+		break;
+	case handshake_refusal:
+		struct handshake_refusal *hr = &msg->refusal;
+
+		switch (hr->reason_type) {
+		case handshake_refusal_version_mismatch:
+			free(hr->refusal_message.version_mismatch.handshake_refusal_version_mismatch_versions);
+			break;
+		case handshake_refusal_decode_error:
+			free(hr->refusal_message.decode_error.handshake_refusal_decode_error_string);
+			break;
+		case handshake_refusal_refused:
+			free(hr->refusal_message.refused.handshake_refusal_refused_string);
+			break;
+		default:
+			ctf_msg(handshake, "unrecognized handshake refusal\n");
+		}
+		break;
+	default:
+		ctf_msg(handshake, "freeing handshake of unrecognized type\n");
+	}
+	free(handshake);
 }
 
 static cbor_item_t *

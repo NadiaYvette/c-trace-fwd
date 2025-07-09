@@ -77,17 +77,20 @@ enum handshake_type {
 	handshake_query_reply = 3
 };
 
-struct handshake {
-	enum handshake_type handshake_type;
-	union {
-		struct handshake_propose_versions propose_versions;
-		/* struct handshake_reply_versions reply_versions; */
-		struct handshake_accept_version accept_version;
-		struct handshake_refusal refusal;
-		struct handshake_query_reply query_reply;
-	} handshake_message;
+union handshake_message {
+	struct handshake_propose_versions propose_versions;
+	/* struct handshake_reply_versions reply_versions; */
+	struct handshake_accept_version accept_version;
+	struct handshake_refusal refusal;
+	struct handshake_query_reply query_reply;
 };
 
+struct handshake {
+	enum handshake_type handshake_type;
+	union handshake_message handshake_message;
+};
+
+void handshake_free(struct handshake *);
 struct handshake *handshake_decode(const cbor_item_t *);
 cbor_item_t *handshake_encode(const struct handshake *);
 cbor_item_t *cbor_build_encode_word(uint64_t);
