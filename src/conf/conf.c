@@ -71,6 +71,7 @@ exit_failure:
 
 void teardown_conf(struct c_trace_fwd_conf **conf)
 {
+	free((*conf)->ux_addr);
 	free(*conf);
 	*conf = NULL;
 }
