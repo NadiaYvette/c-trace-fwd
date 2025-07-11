@@ -98,7 +98,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	}
 	sdu.sdu_xmit = (uint32_t)time(NULL);
 	sdu.sdu_init_or_resp = false;
-	sdu.sdu_proto_num = 19;
+	sdu.sdu_proto_un.sdu_proto_word16 = 19;
 	sdu.sdu_len = buf_sz;
 	sdu.sdu_data = (char *)&sdu_buf[sizeof(struct sdu)];
 	memcpy(&sdu_buf[2*sizeof(uint32_t)], buf, buf_sz);

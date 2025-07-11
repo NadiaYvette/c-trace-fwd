@@ -15,7 +15,8 @@ sdu_decode(const uint32_t hdr[2], struct sdu *sdu)
 	sdu->sdu_xmit = ntohl(hdr[0]);
 	sdu->sdu_chunk2 = ntohl(hdr[1]);
 	sdu->sdu_init_or_resp = !!(non_timestamp_network_words[0] & 1UL);
-	sdu->sdu_proto_num = ntohs(non_timestamp_network_words[0] >> 1);
+	sdu->sdu_proto_un.sdu_proto_num
+		= ntohs(non_timestamp_network_words[0] >> 1);
 	sdu->sdu_len = ntohs(non_timestamp_network_words[1]);
 	/*
 	 * It may look tempting to do something akin to:
@@ -34,7 +35,7 @@ sdu_encode(const struct sdu *sdu, uint32_t hdr [2])
 	uint16_t non_timestamp_network_words[2];
 
 	non_timestamp_network_words[0]
-		= (htons(sdu->sdu_proto_num) << 1)
+		= (htons(sdu->sdu_proto_un.sdu_proto_word16) << 1)
 		| (sdu->sdu_init_or_resp ? 1UL : 0UL);
 	non_timestamp_network_words[1] = htons(sdu->sdu_len);
 	hdr[0] = htonl(sdu->sdu_xmit);
@@ -56,8 +57,8 @@ sdu_print(const struct sdu *sdu)
 		htonl(sdu->sdu_chunk2));
 	printf(	"	uint16_t sdu_proto_num = %"PRIu16
 		                             " (0x%"PRIx16");\n",
-		sdu->sdu_proto_num,
-		sdu->sdu_proto_num);
+		sdu->sdu_proto_un.sdu_proto_word16,
+		sdu->sdu_proto_un.sdu_proto_word16);
 	printf(	"	uint16_t sdu_len = %"PRIu16
 		                       " (0x%"PRIx16");\n",
 		sdu->sdu_len,

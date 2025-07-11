@@ -14,6 +14,7 @@ service_unix_sock(struct c_trace_fwd_state *state)
 	int retval = RETVAL_FAILURE;
 	unsigned char *buf;
 	ssize_t ret_sz;
+	struct ctf_proto_stk_decode_result *cpsdr;
 	struct tof_msg *tof;
 	struct tof_reply *reply;
 
@@ -28,15 +29,35 @@ retry_read:
 	if (ret_sz <= 0) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK) {
 			ctf_msg(service_unix, "fatal read error!\n");
-			goto exit_free_buf;
+			goto out_free_buf;
 		}
 		errno = 0;
 		goto retry_read;
 	}
-	if (!(tof = ctf_proto_stk_decode(buf))) {
+	if (!(cpsdr = ctf_proto_stk_decode(buf))) {
 		ctf_msg(service_unix, "tof decode failed!\n");
-		goto exit_free_buf;
+		goto out_free_buf;
 	}
+	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
+	case mpn_trace_objects:
+		tof = cpsdr->proto_stk_decode_result_body.tof_msg;
+		/* It could be break, but the label's name is descriptive. */
+		goto tof_msg_type_switch;
+	default:
+		ctf_msg(client, "bad sdu_proto_num %d\n",
+				cpsdr->sdu.sdu_proto_un.sdu_proto_num);
+		/* Deliberate fall-through; more properly, the other
+		 * cases are skipping over the log message from the
+		 * default case. */
+	case mpn_EKG_metrics:
+	case mpn_data_points:
+		/* These protocols' CBOR contents aren't decoded. */
+		tof = NULL;
+		if (!!cpsdr->proto_stk_decode_result_body.undecoded)
+			cbor_decref(&cpsdr->proto_stk_decode_result_body.undecoded);
+		goto out_free_cpsdr;
+	}
+tof_msg_type_switch:
 	switch (tof->tof_msg_type) {
 	case tof_reply:
 		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
@@ -112,8 +133,10 @@ retry_read:
 	}
 	if (retval != RETVAL_SUCCESS)
 		ctf_msg(service_unix, "to_enqueue_multi() failed\n");
-exit_free_buf:
-	ctf_msg(service_unix, "reached exit_free_buf label\n");
+out_free_cpsdr:
+	free(cpsdr);
+out_free_buf:
+	ctf_msg(service_unix, "reached out_free_buf label\n");
 	free(buf);
 	if (!!retval)
 		ctf_msg(service_unix, "service_unix_core() failed!\n");

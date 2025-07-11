@@ -11,23 +11,31 @@
 #include "service.h"
 #include "tof.h"
 
-static struct tof_msg *
+static struct ctf_proto_stk_decode_result *
 service_recv_tof(struct c_trace_fwd_state *state, int fd)
 {
-	struct tof_msg *tof = NULL;
-	char *buf;
+	struct ctf_proto_stk_decode_result *cpsdr = NULL;
+	char *buf, *cur_buf;
+	size_t sz, cur_sz;
 	ssize_t ret_sz;
 
 	if (!(buf = calloc(1024, 1024)))
 		return NULL;
+	sz = 1024 * 1024;
+	cur_buf = buf;
+	cur_sz = sz;
 retry_read:
-	ret_sz = read(fd, buf, 1024*1024);
-	if (ret_sz > 0)
-		tof = ctf_proto_stk_decode(buf);
-	else if (!ret_sz && errno == EAGAIN && errno == EWOULDBLOCK)
+	if ((ret_sz = read(fd, cur_buf, cur_sz)) == cur_sz)
+		cpsdr = ctf_proto_stk_decode(buf);
+	else if (!ret_sz && (errno == EAGAIN || errno == EWOULDBLOCK))
 		goto retry_read;
+	else if (ret_sz > 0) {
+		cur_buf = &cur_buf[ret_sz];
+		cur_sz -= ret_sz;
+		goto retry_read;
+	}
 	free(buf);
-	return tof;
+	return cpsdr;
 }
 
 static int
@@ -43,9 +51,9 @@ service_send_tof(struct c_trace_fwd_state *state, struct tof_msg *tof, int fd)
 	/* This is an awkward enough pattern that the API should change. */
 	ret_sz = write(fd, buf, buf_len);
 	if (ret_sz != (ssize_t)buf_len)
-		goto exit_free_buf;
+		goto out_free_buf;
 	retval = RETVAL_SUCCESS;
-exit_free_buf:
+out_free_buf:
 	free(buf);
 	return retval;
 }
@@ -73,7 +81,8 @@ int
 service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 {
 	int retval = RETVAL_FAILURE;
-	struct tof_msg *tof, *tof_reply_msg;
+	struct ctf_proto_stk_decode_result *cpsdr;
+	struct tof_msg *tof;
 
 	if (!!(pollfd->revents & (POLLERR|POLLHUP))) {
 		service_client_destroy(state, pollfd->fd);
@@ -81,31 +90,53 @@ service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 	}
 	if (!(pollfd->revents & (POLLIN|POLLPRI)))
 		return RETVAL_SUCCESS;
-	if (!(tof = service_recv_tof(state, pollfd->fd)))
+	if (!(cpsdr = service_recv_tof(state, pollfd->fd)))
 		return RETVAL_FAILURE;
+	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
+	case mpn_trace_objects:
+		tof = cpsdr->proto_stk_decode_result_body.tof_msg;
+		/* It could be break, but the label's name is descriptive. */
+		goto tof_msg_type_switch;
+	default:
+		ctf_msg(client, "bad sdu_proto_num %d\n",
+				cpsdr->sdu.sdu_proto_un.sdu_proto_num);
+		/* Deliberate fall-through; more properly, the other
+		 * cases are skipping over the log message from the
+		 * default case. */
+	case mpn_EKG_metrics:
+	case mpn_data_points:
+		/* These protocols' CBOR contents aren't decoded. */
+		tof = NULL;
+		if (!!cpsdr->proto_stk_decode_result_body.undecoded)
+			cbor_decref(&cpsdr->proto_stk_decode_result_body.undecoded);
+		goto out_free_cpsdr;
+	}
+tof_msg_type_switch:
 	switch (tof->tof_msg_type) {
 	case tof_done:
 		break;
 	case tof_reply:
-		/* do something with reply */
+		/* Replies themselves don't need answering, but the
+		 * contents they're delivering may need handling
+		 * e.g. insertion of returned data into queues. */
 		break;
 	case tof_request:
+		struct tof_msg *tof_reply_msg;
 		struct tof_request *req = &tof->tof_msg_body.request;
 
-		tof_reply_msg = service_build_reply(state, req);
-		if (!tof_reply_msg)
-			goto exit_free_tof;
-		if (service_send_tof(state, tof_reply_msg, pollfd->fd))
-			goto exit_free_reply_msg;
-		retval = RETVAL_SUCCESS;
-	exit_free_reply_msg:
+		if (!(tof_reply_msg = service_build_reply(state, req)))
+			goto out_free_cpsdr;
+		if (service_send_tof(state, tof_reply_msg, pollfd->fd) == RETVAL_SUCCESS)
+			retval = RETVAL_SUCCESS;
 		tof_free(tof_reply_msg);
 		break;
 	default:
 		ctf_msg(client, "bad tof_msg_type %d\n", tof->tof_msg_type);
-		goto exit_free_tof;
+		goto out_free_tof;
 	}
-exit_free_tof:
+out_free_cpsdr:
+	free(cpsdr);
+out_free_tof:
 	tof_free(tof);
 	return retval;
 }
