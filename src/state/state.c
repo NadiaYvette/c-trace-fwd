@@ -236,6 +236,27 @@ out_free_buf:
 	return retval;
 }
 
+static bool
+setup_unix_sock(int *fd, struct sockaddr *sockaddr)
+{
+	*fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (*fd < 0) {
+		ctf_msg(state, "socket creation for Unix sock failed\n");
+		return false;
+	}
+	if (connect(*fd, sockaddr, sizeof(struct sockaddr_un))) {
+		struct sockaddr_un *sa_un = (struct sockaddr_un *)sockaddr;
+
+		ctf_msg(state, "connect() to Unix sock failed\n");
+		ctf_msg(state, "Unix sock path = \"%s\"\n",
+				sa_un->sun_path);
+		ctf_msg(state, "errno = %d, errmsg = \"%s\"\n", errno,
+				strerror(errno));
+		return false;
+	}
+	return true;
+}
+
 /* This may be worth separating the components of for readability's sake. */
 int
 setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
@@ -244,7 +265,7 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	struct addrinfo *ux_addr;
 	struct sockaddr *unix_sock;
 	socklen_t ai_addrlen;
-	int ai_family, ai_socktype, ai_protocol, unix_sock_fd, page_size,
+	int ai_family, ai_socktype, ai_protocol, page_size,
 		retval = RETVAL_FAILURE;
 
 	*state = calloc(1, sizeof(struct c_trace_fwd_state));
@@ -264,23 +285,15 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	}
 	(*state)->stack_sz = 1024;
 	(*state)->stack_top = -1;
-	(*state)->unix_sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	if ((*state)->unix_sock_fd == -1) {
-		ctf_msg(state, "socket creation for Unix sock failed\n");
+	unix_sock = (struct sockaddr *)&conf->unix_sock;
+	if (!setup_unix_sock(&(*state)->unix_sock_fd, unix_sock)) {
+		ctf_msg(state, "setup_unix_sock() failed\n");
 		goto exit_free_stack;
 	}
 	FD_SET((*state)->unix_sock_fd, &(*state)->state_fds);
 	page_size = getpagesize();
 	if (page_size < 0) {
 		ctf_msg(state, "page size detection failed\n");
-		goto exit_shutdown_unix;
-	}
-	unix_sock_fd = (*state)->unix_sock_fd;
-	unix_sock = (struct sockaddr *)&conf->unix_sock;
-	if (connect(unix_sock_fd, unix_sock, sizeof(struct sockaddr_un))) {
-		ctf_msg(state, "connect() to Unix sock failed\n");
-		ctf_msg(state, "Unix sock path = \"%s\"\n", conf->unix_sock.sun_path);
-		ctf_msg(state, "errno = %d, errmsg = \"%s\"\n", errno, strerror(errno));
 		goto exit_shutdown_unix;
 	}
 	ux_addr = conf->ux_addr;
