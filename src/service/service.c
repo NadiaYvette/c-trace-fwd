@@ -48,18 +48,25 @@ service_issue_request(struct c_trace_fwd_state *state)
 			},
 		},
 	};
-	if (!(buf = ctf_proto_stk_encode(&tof_msg, &sz)))
+	if (!(buf = ctf_proto_stk_encode(&tof_msg, &sz))) {
+		ctf_msg(service, "ctf_proto_stk_encode() failed\n");
 		return false;
+	}
 	cur_buf = buf;
 	cur_sz = sz;
 restart_write:
 	if ((ret = write(state->unix_sock_fd, cur_buf, cur_sz)) == cur_sz)
 		goto out_free_buf;
-	if (ret < 0)
+	if (ret < 0) {
+		ctf_msg(service, "write() failed, errno = %d\n", errno);
 		status = false;
-	else {
+	} else {
 		cur_buf = &cur_buf[ret];
 		cur_sz -= ret;
+		ctf_msg(service, "wrote %zd, looping to write another "
+				"%zu, errno = %d\n",
+				ret, cur_sz, errno);
+		errno = 0;
 		goto restart_write;
 	}
 out_free_buf:
@@ -175,6 +182,7 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			retval = RETVAL_FAILURE;
 			break;
 		}
+		ctf_msg(service, "about to service_issue_request()\n");
 		status = service_issue_request(state);
 		(void)!pthread_mutex_unlock(&state->state_lock);
 		if (!status) {
@@ -190,6 +198,7 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			retval = RETVAL_FAILURE;
 			break;
 		}
+		ctf_msg(service, "about to service_loop_core()\n");
 		retval = service_loop_core(state);
 		/*
 		 * This is to give other threads a chance to acquire the
