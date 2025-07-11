@@ -14,6 +14,8 @@ SOCK_FILE=${SOCK_FILE:-${SOCK_DIR}/tracer.socket}
 
 # The verbatim writing of this was:
 # mv mainnetsingle/socket/tracer.socket mainnetsingle/socket/tracer.socket.orig
+echo rm -f ${SOCK_FILE}.orig
+rm -f ${SOCK_FILE}.orig
 echo mv ${SOCK_FILE} ${SOCK_FILE}.orig
 mv ${SOCK_FILE} ${SOCK_FILE}.orig
 
