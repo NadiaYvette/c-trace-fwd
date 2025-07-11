@@ -23,6 +23,7 @@ service_unix_sock(struct c_trace_fwd_state *state)
 		return RETVAL_FAILURE;
 	}
 retry_read:
+	ctf_msg(service_unix, "service_unix_sock() about to read()\n");
 	ret_sz = read(state->unix_sock_fd, buf, 1024 * 1024);
 	if (ret_sz <= 0) {
 		if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -112,6 +113,7 @@ retry_read:
 	if (retval != RETVAL_SUCCESS)
 		ctf_msg(service_unix, "to_enqueue_multi() failed\n");
 exit_free_buf:
+	ctf_msg(service_unix, "reached exit_free_buf label\n");
 	free(buf);
 	if (!!retval)
 		ctf_msg(service_unix, "service_unix_core() failed!\n");
