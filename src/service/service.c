@@ -106,8 +106,18 @@ service_loop_core(struct c_trace_fwd_state *state)
 			}
 		} else if (pollfds[k].fd == state->unix_sock_fd) {
 			ctf_msg(service, "unix_sock_fd ready\n");
-			if (service_unix_sock(state)) {
-				ctf_msg(service, "service_unix_sock() failed\n");
+			if (service_unix_sock(state) != RETVAL_SUCCESS) {
+				ctf_msg(service, "service_unix_sock() "
+						"failed, continuing\n");
+				ctf_msg(service, "need to reconnect or "
+						"otherwise propagate "
+						"the error upward()\n");
+				continue;
+			}
+			if (!!(pollfds[k].revents & POLLHUP)) {
+				ctf_msg(service, "big trouble! lost "
+						"upstream socket "
+						"connection!\n");
 				goto exit_free_pollfds;
 			}
 		} else if (service_client_sock(state, &pollfds[k])) {
@@ -168,7 +178,7 @@ exit_free_pollfds:
 int
 service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 {
-	unsigned failure_count = 0;
+	unsigned failure_count = 64;
 	bool status;
 	int retval;
 
@@ -187,9 +197,10 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		(void)!pthread_mutex_unlock(&state->state_lock);
 		if (!status) {
 			ctf_msg(service, "service_issue_request() failed\n");
-			++failure_count;
-			if (failure_count > 10) {
-				ctf_msg(service, "too many failures, exiting\n");
+			if (!--failure_count) {
+				ctf_msg(service, "too many failures, "
+						"exiting\n");
+				break;
 			}
 		}
 
@@ -212,9 +223,10 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		(void)!pthread_mutex_unlock(&state->state_lock);
 		if (retval != RETVAL_SUCCESS) {
 			ctf_msg(service, "service_loop_core() failed\n");
-			++failure_count;
-			if (failure_count > 10) {
-				ctf_msg(service, "too many failures, exiting\n");
+			if (!--failure_count) {
+				ctf_msg(service, "too many failures, "
+						"exiting\n");
+				break;
 			}
 		}
 		(void)!sched_yield();

@@ -12,13 +12,13 @@ ctf_proto_stk_decode(const void *buf)
 	struct ctf_proto_stk_decode_result *cpsdr;
 	struct cbor_load_result cbor_load_result;
 	cbor_item_t *tof_cbor;
-	const uint32_t *hdr = (uint32_t *)buf;
+	const union sdu_ptr hdr = { .sdu8 = (uint8_t *)buf, };
 
 	if (!(cpsdr = calloc(1, sizeof(struct ctf_proto_stk_decode_result))))
 		return NULL;
 	if (sdu_decode(hdr, &cpsdr->sdu))
 		goto out_free_cpsdr;
-	cpsdr->sdu.sdu_data = (const char *)&hdr[2];
+	cpsdr->sdu.sdu_data = (const char *)&hdr.sdu32[2];
 	tof_cbor = cbor_load((cbor_data)cpsdr->sdu.sdu_data, cpsdr->sdu.sdu_len, &cbor_load_result);
 	switch (cbor_load_result.error.code) {
 	case CBOR_ERR_NONE:
@@ -49,7 +49,7 @@ ctf_proto_stk_decode(const void *buf)
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_trace_objects:
 		if (!(cpsdr->proto_stk_decode_result_body.tof_msg = tof_decode(tof_cbor)))
-			goto out_free_cpsdr;
+			goto out_free_tof_cbor;
 		/* This case translates the CBOR to C trace object data
 		 * structures and discards the intermediate CBOR results. */
 		cbor_decref(&tof_cbor);
@@ -78,6 +78,7 @@ ctf_proto_stk_encode(const struct tof_msg *msg, size_t *ret_sz)
 	size_t buf_sz, cbor_sz;
 	cbor_item_t *tof_cbor;
 	struct sdu sdu;
+	union sdu_ptr sdu_ptr;
 
 	if (!(tof_cbor = tof_encode(msg)))
 		return NULL;
@@ -96,7 +97,8 @@ ctf_proto_stk_encode(const struct tof_msg *msg, size_t *ret_sz)
 	sdu.sdu_len = cbor_sz;
 	sdu.sdu_data = &buf[2*sizeof(uint32_t)];
 	*ret_sz = buf_sz;
-	if (sdu_encode(&sdu, (uint32_t *)buf))
+	sdu_ptr.sdu8 = (uint8_t *)buf;
+	if (sdu_encode(&sdu, sdu_ptr))
 		goto out_free_buf;
 	cbor_decref(&tof_cbor);
 	return buf;

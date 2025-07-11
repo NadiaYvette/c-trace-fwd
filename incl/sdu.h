@@ -28,6 +28,12 @@ struct sdu {
 	const char *sdu_data;
 };
 
-int sdu_encode(const struct sdu *, uint32_t [2]);
-int sdu_decode(const uint32_t [2], struct sdu *);
+union sdu_ptr {
+	uint32_t *sdu32;
+	uint16_t *sdu16;
+	uint8_t  *sdu8;
+} __attribute__((packed,aligned(8)));
+
+int sdu_encode(const struct sdu *, union sdu_ptr);
+int sdu_decode(const union sdu_ptr, struct sdu *);
 int sdu_print(const struct sdu *);

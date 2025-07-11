@@ -12,10 +12,7 @@ int
 main(void)
 {
 	struct sdu sdu;
-	union {
-		char chars[8];
-		uint32_t ints[2];
-	} sdu_buf;
+	union sdu_ptr sdu_buf;
 	ssize_t ret;
 	off_t cur_off, dst_off;
 	struct stat stat_buf;
@@ -65,7 +62,7 @@ restart_loop_from_tell:
 		goto exit_free_buf;
 	}
 restart_loop:
-	if ((ret = read(STDIN_FILENO, sdu_buf.chars, 8)) != 8) {
+	if ((ret = read(STDIN_FILENO, sdu_buf.sdu8, 8)) != 8) {
 		if (!ret && !errno)
 			/* This is the EOF condition. */
 			retval = EXIT_SUCCESS;
@@ -75,7 +72,7 @@ restart_loop:
 					  ret, errno);
 		goto exit_free_buf;
 	}
-	if (sdu_decode(sdu_buf.ints, &sdu) != RETVAL_SUCCESS) {
+	if (sdu_decode(sdu_buf, &sdu) != RETVAL_SUCCESS) {
 		ctf_msg(sdu_dissect, "SDU header sdu_decode() failure\n");
 		goto exit_free_buf;
 	}

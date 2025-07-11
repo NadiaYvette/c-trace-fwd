@@ -1,47 +1,120 @@
+#include <endian.h>
 #include <inttypes.h>
 #include <stdio.h>
-#include "sdu.h"
+#include <arpa/inet.h>
 #include "c_trace_fwd.h"
+#include "ctf_util.h"
+#include "sdu.h"
 
 int
-sdu_decode(const uint32_t hdr[2], struct sdu *sdu)
+sdu_decode(const union sdu_ptr hdr, struct sdu *sdu)
 {
-	uint16_t non_timestamp_network_words[2];
-
-	non_timestamp_network_words[0]
-		= hdr[1] & ((((uint32_t)1UL) << 16) - 1);
-	non_timestamp_network_words[1]
-		= (hdr[1] >> 16) & ((((uint32_t)1UL) << 16) - 1);
-	sdu->sdu_xmit = ntohl(hdr[0]);
-	sdu->sdu_chunk2 = ntohl(hdr[1]);
-	sdu->sdu_init_or_resp = !!(non_timestamp_network_words[0] & 1UL);
+	sdu->sdu_xmit = be32toh(hdr.sdu32[0]);
+	sdu->sdu_xmit
+		= (uint32_t)hdr.sdu8[0] << (3*8)
+		| (uint32_t)hdr.sdu8[1] << (2*8)
+		| (uint32_t)hdr.sdu8[2] << (1*8)
+		| (uint32_t)hdr.sdu8[3] << (0*8);
+	if (sdu->sdu_xmit != be32toh(hdr.sdu32[0])) {
+		ctf_msg(sdu, "->sdu_xmit failed to reassemble!\n");
+		ctf_msg(sdu, "->sdu_xmit = 0x%"PRIx32"\n", sdu->sdu_xmit);
+		ctf_msg(sdu, "be32toh(hdr.sdu32[0]) = 0x%"PRIx32"\n",
+			       be32toh(hdr.sdu32[0]));
+		for (unsigned k = 0; k < 4; ++k) {
+			ctf_msg(sdu, "hdr.sdu8[%u] (n) = 0x%"PRIx8"\n", k, hdr.sdu8[k]);
+		}
+	}
+	sdu->sdu_chunk2 = be32toh(hdr.sdu32[1]);
+	sdu->sdu_init_or_resp
+		= !!(be16toh(hdr.sdu16[2]) & 0x8000U);
 	sdu->sdu_proto_un.sdu_proto_num
-		= ntohs(non_timestamp_network_words[0] >> 1);
-	sdu->sdu_len = ntohs(non_timestamp_network_words[1]);
+		= ( (uint16_t)hdr.sdu8[4+0] << (1*8)
+		  | (uint16_t)hdr.sdu8[4+1] << (0*8)) & ~0x8000U;
+	/* BE bytes decrease in numerical significance within a word.
+	 * It's not clear which notion of a word is used where. */
+	sdu->sdu_len
+		= (uint16_t)hdr.sdu8[4+2] << (1*8)
+		| (uint16_t)hdr.sdu8[4+3] << (0*8);
+	ctf_msg(sdu, "sdu->sdu_len = 0x%"PRIx16"\n", sdu->sdu_len);
+	ctf_msg(sdu, "hdr.sdu16[3] = 0x%"PRIx16"\n", hdr.sdu16[3]);
+	ctf_msg(sdu, "hdr.sdu8[6]  = 0x%"PRIx8"\n",  hdr.sdu8[6]);
+	ctf_msg(sdu, "hdr.sdu8[7]  = 0x%"PRIx8"\n",  hdr.sdu8[7]);
 	/*
 	 * It may look tempting to do something akin to:
-	 * sdu->sdu_data = (const char *)&hdr[2];
+	 * sdu->sdu_data = (const char *)&hdr.sdu8[0];
 	 * however, this has the significant issue that it can very
 	 * much make sense to maintain a fixed-size buffer for the SDU
 	 * headers and then to dynamically size the CBOR buffers
 	 * according to the header's payload length field.
 	 */
-	return RETVAL_SUCCESS;
+	switch (sdu->sdu_proto_un.sdu_proto_num) {
+	case mpn_trace_objects:
+		ctf_msg(sdu, "->sdu_proto_num = mpn_trace_objects 0x%"
+				PRIx16"\n",
+				sdu->sdu_proto_un.sdu_proto_word16);
+		return RETVAL_SUCCESS;
+	case mpn_EKG_metrics:
+		ctf_msg(sdu, "->sdu_proto_num = mpn_EKG_metrics 0x%"
+				PRIx16"\n",
+				sdu->sdu_proto_un.sdu_proto_word16);
+		return RETVAL_SUCCESS;
+	case mpn_data_points:
+		ctf_msg(sdu, "->sdu_proto_num = mpn_data_points 0x%"
+				PRIx16"\n",
+				sdu->sdu_proto_un.sdu_proto_word16);
+		return RETVAL_SUCCESS;
+	default:
+		ctf_msg(sdu, "unrecognized SDU mini_protocol_num 0x%"
+				PRIx16" decoded\n",
+				sdu->sdu_proto_un.sdu_proto_word16);
+		ctf_msg(sdu, "32-bit endianness dump:\n");
+		ctf_msg(sdu, "->sdu_xmit   (h) = 0x%"PRIx32"\n", sdu->sdu_xmit);
+		ctf_msg(sdu, "->sdu_chunk2 (h) = 0x%"PRIx32"\n", sdu->sdu_chunk2);
+		ctf_msg(sdu, "hdr.sdu32[0] (n) = 0x%"PRIx32"\n", hdr.sdu32[0]);
+		ctf_msg(sdu, "hdr.sdu32[1] (n) = 0x%"PRIx32"\n", hdr.sdu32[1]);
+		for (unsigned k = 0; k < 8; ++k)
+			ctf_msg(sdu, "hdr.sdu8[%u] (n) = 0x%"PRIx8"\n",
+					k, hdr.sdu8[k]);
+		for (unsigned k = 0; k < 4; ++k) {
+			ctf_msg(sdu, "hdr.sdu16[%u] (n) = 0x%"PRIx16
+					"\n", k, hdr.sdu16[k]);
+			ctf_msg(sdu, "hdr.sdu16[%u] (h) = 0x%"PRIx16
+					"\n", k, be16toh(hdr.sdu16[k]));
+		}
+		return RETVAL_SUCCESS;
+	}
 }
 
 int
-sdu_encode(const struct sdu *sdu, uint32_t hdr [2])
+sdu_encode(const struct sdu *sdu, union sdu_ptr hdr)
 {
-	uint16_t non_timestamp_network_words[2];
-
-	non_timestamp_network_words[0]
-		= (htons(sdu->sdu_proto_un.sdu_proto_word16) << 1)
-		| (sdu->sdu_init_or_resp ? 1UL : 0UL);
-	non_timestamp_network_words[1] = htons(sdu->sdu_len);
-	hdr[0] = htonl(sdu->sdu_xmit);
-	hdr[1] = non_timestamp_network_words[0]
-		| (uint32_t)non_timestamp_network_words[1] << 16;
-	/* assert(hdr[1] == sdu->sdu_chunk2); */
+	hdr.sdu32[0] = htobe32(sdu->sdu_xmit);
+	hdr.sdu16[2] = htobe16(((uint16_t)mpn_trace_objects << 1)
+			       | (sdu->sdu_init_or_resp ? 1U : 0U));
+	hdr.sdu16[3] = htobe16(sdu->sdu_len);
+	hdr.sdu8[4+0] = (sdu->sdu_init_or_resp ? 0x80U : 0U)
+		| (sdu->sdu_proto_un.sdu_proto_word16 >> 8);
+	switch (sdu->sdu_proto_un.sdu_proto_num) {
+	case mpn_trace_objects:
+	case mpn_EKG_metrics:
+	case mpn_data_points:
+		hdr.sdu8[4+1] = sdu->sdu_proto_un.sdu_proto_word16
+				& ((1U << 8) - 1);
+		break;
+	default:
+		ctf_msg(sdu, "unrecognized mini_protocol_num!\n");
+		ctf_msg(sdu, "sdu->sdu_proto_un.sdu_proto_word16 = 0x%"
+				PRIx16"!\n",
+				sdu->sdu_proto_un.sdu_proto_word16);
+		ctf_msg(sdu, "overriding with mpn_data_points "
+				"because it's best not to try to "
+				"interpret the data, because it will "
+				"fail.\n");
+		hdr.sdu8[4+1] = mpn_trace_objects;
+		break;
+	}
+	hdr.sdu8[4+2] = (sdu->sdu_len >> 8) & ((1U << 8) - 1);
+	hdr.sdu8[4+3] = sdu->sdu_len & ((1U << 8) - 1);
 	return RETVAL_SUCCESS;
 }
 

@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -11,9 +12,10 @@
 int
 service_unix_sock(struct c_trace_fwd_state *state)
 {
+	unsigned retry_counter = 64;
 	int retval = RETVAL_FAILURE;
-	unsigned char *buf;
-	ssize_t ret_sz;
+	unsigned char *buf, *cur_buf;
+	ssize_t ret_sz, sz, cur_sz;
 	struct ctf_proto_stk_decode_result *cpsdr;
 	struct tof_msg *tof;
 	struct tof_reply *reply;
@@ -25,15 +27,35 @@ service_unix_sock(struct c_trace_fwd_state *state)
 	}
 retry_read:
 	ctf_msg(service_unix, "service_unix_sock() about to read()\n");
-	ret_sz = read(state->unix_sock_fd, buf, 1024 * 1024);
+	sz = 1024 * 1024;
+	cur_sz = sz;
+	cur_buf = buf;
+	if ((ret_sz = read(state->unix_sock_fd, buf, sz)) == cur_sz)
+		goto got_past_read;
 	if (ret_sz <= 0) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK) {
-			ctf_msg(service_unix, "fatal read error!\n");
+		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
+			ctf_msg(service_unix, "fatal read error! "
+					"errno = %d (%s)!\n",
+					errno, strerror(errno));
 			goto out_free_buf;
 		}
 		errno = 0;
-		goto retry_read;
 	}
+	if (!!sched_yield()) {
+		ctf_msg(service_unix, "sched_yield() error! "
+				"errno = %d (%s)!\n",
+				errno, strerror(errno));
+		errno = 0;
+		/* There isn't really anything to do. It just
+		 * theoretically cedes the CPU to programs that
+		 * might need it more. */
+	}
+	cur_buf = &cur_buf[ret_sz];
+	cur_sz -= ret_sz;
+	if (!--retry_counter)
+		goto out_free_buf;
+	goto retry_read;
+got_past_read:
 	if (!(cpsdr = ctf_proto_stk_decode(buf))) {
 		ctf_msg(service_unix, "tof decode failed!\n");
 		goto out_free_buf;
@@ -63,6 +85,8 @@ tof_msg_type_switch:
 		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
 		reply = &tof->tof_msg_body.reply;
 		retval = to_enqueue_multi(state, reply->tof_replies, reply->tof_nr_replies);
+		if (retval != RETVAL_SUCCESS)
+			ctf_msg(service_unix, "to_enqueue_multi() failed\n");
 		break;
 	case tof_request:
 		struct tof_request *req = &tof->tof_msg_body.request;
@@ -131,8 +155,6 @@ tof_msg_type_switch:
 				      tof->tof_msg_type);
 		break;
 	}
-	if (retval != RETVAL_SUCCESS)
-		ctf_msg(service_unix, "to_enqueue_multi() failed\n");
 out_free_cpsdr:
 	free(cpsdr);
 out_free_buf:

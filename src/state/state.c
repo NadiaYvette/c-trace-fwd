@@ -50,6 +50,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	struct sigaction old_sigact, new_sigact;
 	struct sdu sdu, reply_sdu;
 	struct cbor_load_result cbor_load_result;
+	union sdu_ptr sdu_ptr;
 	sigset_t sig_mask, old_sig_mask;
 
 	ctf_msg(state, "entering\n");
@@ -102,7 +103,8 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	sdu.sdu_len = buf_sz;
 	sdu.sdu_data = (char *)&sdu_buf[sizeof(struct sdu)];
 	memcpy(&sdu_buf[2*sizeof(uint32_t)], buf, buf_sz);
-	if (sdu_encode(&sdu, (uint32_t *)sdu_buf) != RETVAL_SUCCESS) {
+	sdu_ptr.sdu8 = (uint8_t *)sdu_buf;
+	if (sdu_encode(&sdu, sdu_ptr) != RETVAL_SUCCESS) {
 		ctf_msg(state, "sdu_encode failed\n");
 		goto out_free_sdu;
 	}
@@ -124,17 +126,21 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	sigemptyset(&sig_mask);
 	sigemptyset(&old_sig_mask);
 	sigaddset(&sig_mask, SIGALRM);
+	sigaddset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
 		ctf_msg(state, "sigprocmask failed\n");
+	sigaddset(&old_sig_mask, SIGPIPE);
 	new_sigact.sa_sigaction = sig_action;
 	sigemptyset(&new_sigact.sa_mask);
 	sigaddset(&new_sigact.sa_mask, SIGALRM);
+	sigaddset(&new_sigact.sa_mask, SIGPIPE);
 	new_sigact.sa_flags = SA_SIGINFO;
 	new_sigact.sa_restorer = NULL;
 	if (!!sigaction(SIGALRM, &new_sigact, &old_sigact))
 		ctf_msg(state, "sigaction failed\n");
 	/* The alarm is to interrupt stalled reads to restart them. */
 	alarm(1);
+	sigdelset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_UNBLOCK, &sig_mask, &old_sig_mask))
 		ctf_msg(state, "sigprocmask failed\n");
 	while ((reply_len = read(state->unix_sock_fd, buf, buf_sz)) <= 0) {
@@ -150,6 +156,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		alarm(1);
 	}
 	alarm(0);
+	sigaddset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
 		ctf_msg(state, "sigprocmask failed\n");
 	if (!!sigaction(SIGALRM, &old_sigact, NULL))
@@ -163,12 +170,17 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		goto out_free_buf;
 	}
 	ctf_msg(state, "attempting sdu_decode()\n");
-	if (sdu_decode((uint32_t *)buf, &reply_sdu) != RETVAL_SUCCESS)
+	sdu_ptr.sdu8 = (uint8_t *)buf;
+	if (sdu_decode(sdu_ptr, &reply_sdu) != RETVAL_SUCCESS) {
+		ctf_msg(state, "saw sdu_decode() failure, now goto "
+				"out_free_buf\n");
 		goto out_free_buf;
+	}
 	ctf_msg(state, "got past sdu_decode(), checking reply_sdu.sdu_len\n");
 	if (reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t)) {
-		ctf_msg(state, "SDU length unexpected was 0x%x expected %zx\n",
-				reply_sdu.sdu_len, (size_t)reply_len);
+		ctf_msg(state, "SDU length unexpected was 0x%x expected"
+			       " 0x%zx\n", reply_sdu.sdu_len,
+			       (size_t)reply_len);
 		reply_sdu.sdu_len = reply_len - 2*sizeof(uint32_t);
 	}
 	ctf_msg(state, "got past reply_sdu.sdu_len check trying cbor_load()\n");

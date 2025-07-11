@@ -13,10 +13,7 @@ int
 main(void)
 {
 	struct sdu sdu;
-	union {
-		char chars[8];
-		uint32_t ints[2];
-	} __attribute__((packed)) __attribute__((__aligned__(8))) sdu_buf;
+	union sdu_ptr sdu_buf;
 	ssize_t ret;
 	off_t cur_off, dst_off;
 	struct stat stat_buf;
@@ -25,27 +22,34 @@ main(void)
 	cbor_item_t *item;
 	struct cbor_load_result result;
 
-	if (sizeof(sdu_buf) != 8)
+	if (sizeof(sdu_buf) != 8) {
 		ctf_msg(cbor_dissect, "SDU header structure size %z "
 				     "unexpected\n", sizeof(sdu_buf));
-	if (!!fstat(STDIN_FILENO, &stat_buf))
+		return EXIT_FAILURE;
+	}
+	if (!!fstat(STDIN_FILENO, &stat_buf)) {
 		ctf_msg(cbor_dissect, "fstat(2) failed, errno = %d\n",
 				     errno);
+		return EXIT_FAILURE;
+	}
 	if (!(buf = calloc((size_t)1U << 8, (size_t)1U << 8))) {
+		ctf_msg(cbor_dissect, "calloc(3) failed, errno = %d\n",
+				errno);
+		return EXIT_FAILURE;
 	}
 	switch (stat_buf.st_mode & S_IFMT) {
 	case S_IFBLK:
-		ctf_msg(cbor_dissect, "block device unexpected as "
-				     "input file\n");
-		break;
+		ctf_msg(cbor_dissect, "fatal: block device unexpected "
+				"as input file\n");
+		return EXIT_FAILURE;
 	case S_IFCHR:
-		ctf_msg(cbor_dissect, "character device unexpected as "
-				     "input file\n");
-		break;
+		ctf_msg(cbor_dissect, "fatal: character device "
+				"unexpected as input file\n");
+		return EXIT_FAILURE;
 	case S_IFDIR:
-		ctf_msg(cbor_dissect, "directory unexpected as "
+		ctf_msg(cbor_dissect, "fatal: directory unexpected as "
 				     "input file\n");
-		break;
+		return EXIT_FAILURE;
 	case S_IFIFO:
 		ctf_msg(cbor_dissect, "FIFO unexpected as "
 				     "input file\n");
@@ -58,12 +62,13 @@ main(void)
 		/* This is the expected file type. */
 		break;
 	case S_IFSOCK:
-		ctf_msg(cbor_dissect, "symlink unexpected as "
+		ctf_msg(cbor_dissect, "socket unexpected as "
 				     "input file\n");
 		break;
 	default:
-		ctf_msg(cbor_dissect, "undocumented input file type\n");
-		break;
+		ctf_msg(cbor_dissect, "fatal: undocumented input file "
+				"type\n");
+		return EXIT_FAILURE;
 	}
 restart_loop_from_tell:
 	if ((cur_off = lseek(STDIN_FILENO, 0, SEEK_CUR)) < 0) {
@@ -71,7 +76,7 @@ restart_loop_from_tell:
 		goto exit_free_buf;
 	}
 restart_loop:
-	if ((ret = read(STDIN_FILENO, sdu_buf.chars, 8)) != 8) {
+	if ((ret = read(STDIN_FILENO, sdu_buf.sdu8, 8)) != 8) {
 		if (!ret && !errno)
 			/* This is the EOF condition. */
 			retval = EXIT_SUCCESS;
@@ -81,7 +86,7 @@ restart_loop:
 					  ret, errno);
 		goto exit_free_buf;
 	}
-	if (sdu_decode(sdu_buf.ints, &sdu) != RETVAL_SUCCESS) {
+	if (sdu_decode(sdu_buf, &sdu) != RETVAL_SUCCESS) {
 		ctf_msg(cbor_dissect, "SDU header sdu_decode() failure\n");
 		goto exit_free_buf;
 	}
