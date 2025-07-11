@@ -180,7 +180,11 @@ $(OBJDIR)/util/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -fPIC -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
 
-.PHONY: check clean ckclean depclean doc dbg-run trace-compare
+.PHONY: all allclean check clean ckclean depclean doc dbg-run trace-compare
+
+all: $(CBOR_BIN_EXE) $(CTF_BIN_EXE) $(CTF_LIB_DSO) $(DSC_BIN_EXE) \
+	$(SDU_BIN_EXE) $(RNC_BIN_EXE) $(TOF_BIN_EXE) $(TRY_BIN_EXE)
+
 check:
 	# The per-C source file plist files don't mirror the
 	# filesystem hierarchy as expected; however, they don't appear
@@ -192,6 +196,9 @@ check:
 		-- \
 		-std=gnu23 -I./incl -isystem /usr/include \
 		-isystem /usr/lib/clang/19/include
+
+allclean: ckclean clean depclean
+
 ckclean:
 	-rm -f $(wildcard *.plist) $(wildcard $(OBJDIR)/*.plist) \
 		$(OBJDIR)/analysis
