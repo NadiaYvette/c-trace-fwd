@@ -73,11 +73,13 @@ DOC_SRC:=$(wildcard $(addsuffix /*.ltx,$(DOCDIR)))
 DOC_MAIN_SRC:=$(DOCDIR)/cardiff.ltx
 IMG_SRC:=$(wildcard $(addsuffix /*.svg,$(IMGDIR)))
 LIB_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))))
+TST_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(TSTDIR)/,$(LIB_SUBDIRS))))
 HDR:=$(wildcard $(HDR)/*.h)
 APP_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(APP_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
 IMG_TIKZ:=$(patsubst %.svg,%.tikz,$(foreach FILE,$(IMG_SRC),$(DOCDIR)/$(shell realpath --relative-to=$(IMGDIR) $(FILE))))
 LIB_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(LIB_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
-OBJ:=$(APP_OBJ) $(LIB_OBJ)
+TST_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(TST_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
+OBJ:=$(APP_OBJ) $(LIB_OBJ) $(TST_OBJ)
 DEP:=$(OBJ:%.o=%.d)
 DOC:=$(DOCDIR)/cardiff.pdf
 
