@@ -13,7 +13,7 @@ int
 service_unix_sock(struct c_trace_fwd_state *state)
 {
 	unsigned retry_counter = 64;
-	int retval = RETVAL_FAILURE;
+	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
 	unsigned char *buf, *cur_buf;
 	ssize_t ret_sz, sz, cur_sz;
 	struct ctf_proto_stk_decode_result *cpsdr;
@@ -30,7 +30,7 @@ retry_read:
 	sz = 1024 * 1024;
 	cur_sz = sz;
 	cur_buf = buf;
-	if ((ret_sz = read(state->unix_sock_fd, buf, sz)) == cur_sz)
+	if ((ret_sz = recv(state->unix_sock_fd, buf, sz, 0)) == cur_sz)
 		goto got_past_read;
 	if (ret_sz <= 0) {
 		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
@@ -124,7 +124,7 @@ tof_msg_type_switch:
 				retval = RETVAL_FAILURE;
 				break;
 			}
-			if (write(state->unix_sock_fd, msg_buf, msg_size)
+			if (send(state->unix_sock_fd, msg_buf, msg_size, flg)
 						!= (ssize_t)msg_size) {
 				/* connection left in bad state, lost
 				 * trace_objects, leaked memory

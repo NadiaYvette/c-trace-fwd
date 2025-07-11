@@ -48,6 +48,8 @@ service_issue_request(struct c_trace_fwd_state *state)
 			},
 		},
 	};
+	int flg = MSG_CONFIRM | MSG_NOSIGNAL;
+
 	if (!(buf = ctf_proto_stk_encode(&tof_msg, &sz))) {
 		ctf_msg(service, "ctf_proto_stk_encode() failed\n");
 		return false;
@@ -55,10 +57,10 @@ service_issue_request(struct c_trace_fwd_state *state)
 	cur_buf = buf;
 	cur_sz = sz;
 restart_write:
-	if ((ret = write(state->unix_sock_fd, cur_buf, cur_sz)) == cur_sz)
+	if ((ret = send(state->unix_sock_fd, cur_buf, cur_sz, flg)) == cur_sz)
 		goto out_free_buf;
 	if (ret < 0) {
-		ctf_msg(service, "write() failed, errno = %d\n", errno);
+		ctf_msg(service, "send() failed, errno = %d\n", errno);
 		status = false;
 	} else {
 		cur_buf = &cur_buf[ret];

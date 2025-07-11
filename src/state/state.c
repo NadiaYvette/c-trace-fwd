@@ -46,7 +46,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	unsigned char *sdu_buf, *buf = NULL;
 	size_t buf_sz, sdu_buf_sz;
 	ssize_t reply_len;
-	int retval = RETVAL_FAILURE;
+	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
 	struct sigaction old_sigact, new_sigact;
 	struct sdu sdu, reply_sdu;
 	struct cbor_load_result cbor_load_result;
@@ -108,7 +108,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		ctf_msg(state, "sdu_encode failed\n");
 		goto out_free_sdu;
 	}
-	if (write(state->unix_sock_fd, sdu_buf, buf_sz + 2*sizeof(uint32_t)) <= 0 && errno != 0) {
+	if (send(state->unix_sock_fd, sdu_buf, buf_sz + 2*sizeof(uint32_t), flg) <= 0 && errno != 0) {
 		ctf_msg(state, "write error in handshake\n");
 		goto out_free_buf;
 	}
@@ -143,7 +143,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	sigdelset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_UNBLOCK, &sig_mask, &old_sig_mask))
 		ctf_msg(state, "sigprocmask failed\n");
-	while ((reply_len = read(state->unix_sock_fd, buf, buf_sz)) <= 0) {
+	while ((reply_len = recv(state->unix_sock_fd, buf, buf_sz, 0)) <= 0) {
 		/* Cancel any pending alarms. */
 		alarm(0);
 		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
