@@ -5,14 +5,6 @@
 #include "tof.h"
 
 static void
-print_tof_request(struct tof_request *request)
-{
-	printf("tof_request\n");
-	printf("\ttof_blocking = %s\n", request->tof_blocking ? "true" : "false");
-	printf("\ttof_nr_obj = %u\n", (unsigned)request->tof_nr_obj);
-}
-
-static void
 print_severity(enum severity_s sev)
 {
 	switch (sev) {
@@ -80,39 +72,11 @@ print_trace_object(struct trace_object *to)
 	printf("\t\tto_thread_id = \"%s\"\n", to->to_thread_id ? to->to_thread_id : "");
 }
 
-static void
-print_tof_reply(struct tof_reply *reply)
-{
-	int k;
-
-	printf("tof_reply\n");
-	printf("\ttof_nr_replies = %d\n", reply->tof_nr_replies);
-	for (k = 0; k < reply->tof_nr_replies; ++k)
-		print_trace_object(reply->tof_replies[k]);
-}
-
-static void
-print_tof(struct tof_msg *tof)
-{
-	switch (tof->tof_msg_type) {
-	case tof_request:
-		print_tof_request(&tof->tof_msg_body.request);
-		break;
-	case tof_done:
-		printf("tof_done\n");
-		break;
-	case tof_reply:
-		print_tof_reply(&tof->tof_msg_body.reply);
-		break;
-	}
-}
-
 int
 main(void)
 {
 	cbor_item_t *item;
 	struct cbor_load_result cbor_load_result;
-	struct tof_msg *tof;
 	struct trace_object *to;
 	unsigned char *buf;
 	ssize_t ret;
