@@ -32,6 +32,41 @@ service_create_pollfds(struct c_trace_fwd_state *state)
 	return pollfds;
 }
 
+static bool
+service_issue_request(struct c_trace_fwd_state *state)
+{
+	bool status = true;
+	char *buf, *cur_buf;
+	size_t sz, cur_sz;
+	ssize_t ret;
+	struct tof_msg tof_msg = {
+		.tof_msg_type = tof_request,
+		.tof_msg_body = {
+			.request = {
+				.tof_blocking = true,
+				.tof_nr_obj = 1,
+			},
+		},
+	};
+	if (!(buf = ctf_proto_stk_encode(&tof_msg, &sz)))
+		return false;
+	cur_buf = buf;
+	cur_sz = sz;
+restart_write:
+	if ((ret = write(state->unix_sock_fd, cur_buf, cur_sz)) == cur_sz)
+		goto out_free_buf;
+	if (ret < 0)
+		status = false;
+	else {
+		cur_buf = &cur_buf[ret];
+		cur_sz -= ret;
+		goto restart_write;
+	}
+out_free_buf:
+	free(buf);
+	return status;
+}
+
 static int
 service_loop_core(struct c_trace_fwd_state *state)
 {
@@ -43,30 +78,40 @@ service_loop_core(struct c_trace_fwd_state *state)
 		ctf_msg(service, "service_create_pollfds() failed\n");
 		return RETVAL_FAILURE;
 	}
+	ctf_msg(service, "service_loop_core() about to poll()\n");
 	nr_ready = poll(pollfds, state->nr_clients + 2, 0);
 	if (nr_ready < 0) {
 		ctf_msg(service, "poll() failed\n");
+		goto exit_free_pollfds;
+	}
+	if (!nr_ready) {
+		ctf_msg(service, "poll() returned zero ready fds\n");
 		goto exit_free_pollfds;
 	}
 	for (k = 0; k < state->nr_clients + 2; ++k) {
 		if (!pollfds[k].revents)
 			continue;
 		else if (pollfds[k].fd == state->ux_sock_fd) {
+			ctf_msg(service, "ux_sock_fd ready\n");
 			if (service_ux_sock(state)) {
 				ctf_msg(service, "service_ux_sock() failed\n");
 				goto exit_free_pollfds;
 			}
 		} else if (pollfds[k].fd == state->unix_sock_fd) {
+			ctf_msg(service, "unix_sock_fd ready\n");
 			if (service_unix_sock(state)) {
 				ctf_msg(service, "service_unix_sock() failed\n");
 				goto exit_free_pollfds;
 			}
 		} else if (service_client_sock(state, &pollfds[k])) {
+			ctf_msg(service, "other socket (TCP?) ready\n");
 			switch (errno) {
 			case EINTR:
 			case ERESTART:
 			case EWOULDBLOCK:
 				/* transient error; continue */
+				ctf_msg(service, "transient network "
+						"error\n");
 				errno = 0;
 				break;
 			case ECOMM:
@@ -92,11 +137,14 @@ service_loop_core(struct c_trace_fwd_state *state)
 				 * error has happened, so close the
 				 * connection, update state, reset errno.
 				 */
+				ctf_msg(service, "unrecoverable network "
+						"error\n");
 				service_client_destroy(state, pollfds[k].fd);
 				errno = 0;
 				break;
 			default:
-				ctf_msg(service, "service_client_sock() failed\n");
+				ctf_msg(service, "service_client_sock() "
+						"failed errno = %d\n", errno);
 				goto exit_free_pollfds;
 			}
 		} else {
@@ -114,11 +162,30 @@ int
 service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 {
 	unsigned failure_count = 0;
+	bool status;
 	int retval;
 
 	(void)!conf;
 	ctf_msg(service, "entered service_loop()\n");
 	for (;;) {
+		/* The request-issuing half of the service loop.
+		 * We always keep requests in flight.
+		 */
+		if (pthread_mutex_lock(&state->state_lock)) {
+			retval = RETVAL_FAILURE;
+			break;
+		}
+		status = service_issue_request(state);
+		(void)!pthread_mutex_unlock(&state->state_lock);
+		if (!status) {
+			ctf_msg(service, "service_issue_request() failed\n");
+			++failure_count;
+			if (failure_count > 10) {
+				ctf_msg(service, "too many failures, exiting\n");
+			}
+		}
+
+		/* The reply-awaiting half of the service loop. */
 		if (pthread_mutex_lock(&state->state_lock)) {
 			retval = RETVAL_FAILURE;
 			break;
