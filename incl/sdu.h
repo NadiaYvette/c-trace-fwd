@@ -4,9 +4,15 @@
 #include <stdint.h>
 
 enum mini_protocol_num {
-	mpn_EKG_metrics = 1,
-	mpn_trace_objects = 2,
-	mpn_data_points = 3,
+	mpn_handshake        = 0,
+	mpn_EKG_metrics      = 1,
+	mpn_trace_objects    = 2,
+	mpn_data_points      = 3,
+	mpn_node_tx_submit   = 4,
+	mpn_chain_sync       = 5,
+	mpn_client_tx_submit = 6,
+	mpn_state_query      = 7,
+	mpn_keepalive        = 8, /* also called TxMonitor */
 };
 
 /* this needs conversion to big-endian to serve as a header */
