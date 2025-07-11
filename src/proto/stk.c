@@ -43,8 +43,8 @@ ctf_proto_stk_encode(const struct tof_msg *msg, size_t *ret_sz)
 	sdu.sdu_proto_num = 0;
 	/* false = initiator, true = responder */
 	sdu.sdu_init_or_resp = false;
-	sdu.sdu_len = buf_sz;
-	sdu.sdu_data = buf;
+	sdu.sdu_len = cbor_sz;
+	sdu.sdu_data = &buf[2*sizeof(uint32_t)];
 	*ret_sz = buf_sz;
 	if (sdu_encode(&sdu, (uint32_t *)buf))
 		goto exit_free_buf;
