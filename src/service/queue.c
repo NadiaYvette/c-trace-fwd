@@ -25,12 +25,11 @@ to_dequeue(struct c_trace_fwd_state *state)
 }
 
 int
-to_dequeue_multi(struct c_trace_fwd_state *state, struct trace_object ***to, int *n)
+to_dequeue_multi(struct c_trace_fwd_state *state, struct trace_object ***to, int orig_len, int *n)
 {
-	int nr_to, orig_len;
+	int nr_to;
 	struct trace_object **new_q;
 
-	orig_len = *n;
 	nr_to = MIN(orig_len, state->nr_to);
 	if (!nr_to) {
 		free(*to);
@@ -105,14 +104,18 @@ to_queue_answer_request( struct c_trace_fwd_state *state
 
 	if (!reply_msg)
 		return svc_req_failure;
-	if (request->tof_blocking && state->nr_to < request->tof_nr_obj)
+	if (request->tof_blocking && !state->nr_to)
 		return svc_req_must_block;
 	if (!(msg = calloc(1, sizeof(struct tof_msg))))
 		return svc_req_failure;
 	msg->tof_msg_type = tof_reply;
 	to = &msg->tof_msg_body.reply.tof_replies;
+	if (!(*to = calloc(64, sizeof(struct trace_object **)))) {
+		free(msg);
+		return svc_req_failure;
+	}
 	n = &msg->tof_msg_body.reply.tof_nr_replies;
-	if (to_dequeue_multi(state, to, n) != RETVAL_SUCCESS) {
+	if (to_dequeue_multi(state, to, 64, n) != RETVAL_SUCCESS) {
 		ctf_msg(queue, "to_dequeue_multi() failed!\n");
 		goto out_free_replies;
 	}

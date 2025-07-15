@@ -9,7 +9,7 @@ struct tof_request;
 struct trace_object;
 
 struct trace_object *to_dequeue(struct c_trace_fwd_state *);
-int to_dequeue_multi(struct c_trace_fwd_state *, struct trace_object ***, int *);
+int to_dequeue_multi(struct c_trace_fwd_state *, struct trace_object ***, int, int *);
 int to_enqueue(struct c_trace_fwd_state *, struct trace_object *);
 int to_enqueue_multi(struct c_trace_fwd_state *, struct trace_object **, int);
 
