@@ -39,10 +39,16 @@ int setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 	*conf = calloc(1, sizeof(struct c_trace_fwd_conf));
 	if (*conf == NULL)
 		goto exit_failure;
-	while ((opt = getopt(argc, argv, "f:u:")) != -1) {
+	while ((opt = getopt(argc, argv, "f:q:u:")) != -1) {
 		switch (opt) {
 		case 'f':
 			copy_optarg(&(*conf)->unix_sock, optarg);
+			break;
+		case 'q':
+			if (!((*conf)->preload_queue = strdup(optarg))) {
+				ctf_msg(conf, "strcpy() failed\n");
+				goto exit_cleanup;
+			}
 			break;
 		case 'u':
 			if (split_addrinfo(&(*conf)->ux_addr, optarg))

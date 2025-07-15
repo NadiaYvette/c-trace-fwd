@@ -21,6 +21,7 @@ struct c_trace_fwd_conf {
 	/* The path length is limited by this structure. */
 	struct addrinfo *ux_addr;
 	struct sockaddr_un unix_sock;
+	char *preload_queue;
 };
 struct c_trace_fwd_state {
 	int ux_sock_fd;

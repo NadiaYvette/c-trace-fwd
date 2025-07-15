@@ -23,10 +23,9 @@ cbor_build_encode_word(uint64_t value)
 bool
 cbor_get_uint(const cbor_item_t *item, uintmax_t *value)
 {
-	switch (cbor_typeof(item)) {
-	case CBOR_TYPE_UINT:
-		break;
-	default:
+	if (cbor_typeof(item) != CBOR_TYPE_UINT) {
+		ctf_msg(handshake, "item %d not UINT\n", cbor_typeof(item));
+		cbor_describe(item, stderr);
 		return false;
 	}
 	switch (cbor_int_get_width(item)) {
@@ -43,6 +42,8 @@ cbor_get_uint(const cbor_item_t *item, uintmax_t *value)
 		*value = (uintmax_t)cbor_get_uint64(item);
 		break;
 	default:
+		ctf_msg(handshake, "unrecognized uint width\n");
+		cbor_describe(item, stderr);
 		return false;
 	}
 	return true;

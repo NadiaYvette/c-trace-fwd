@@ -5,6 +5,7 @@
 #include "tof.h"
 
 struct ctf_proto_stk_decode_result {
+	struct cbor_load_result load_result;
 	struct sdu sdu;
 	union {
 		cbor_item_t *undecoded;

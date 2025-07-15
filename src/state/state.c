@@ -1,5 +1,6 @@
 #include <cbor.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -9,6 +10,7 @@
 #include "ctf_util.h"
 #include "handshake.h"
 #include "proto_stk.h"
+#include "service.h"
 #include "sdu.h"
 
 static struct handshake_propose_version_pair handshake_versions[] = {
@@ -249,6 +251,82 @@ out_free_buf:
 }
 
 static bool
+setup_queue(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
+{
+	int fd;
+	char *buf;
+
+	/* nop returning success w/no preload queue given */
+	if (!conf->preload_queue)
+		return true;
+	if ((fd = open(conf->preload_queue, O_RDONLY)) < 0)
+		return false;
+	if (!(buf = calloc(1024, 1024)))
+		goto out_close_fd;
+
+	for (;;) {
+		int ret;
+		unsigned k;
+		struct sdu sdu;
+		union sdu_ptr sdu_ptr;
+		struct ctf_proto_stk_decode_result *result;
+
+		if ((ret = read(fd, buf, 8)) < 0) {
+			ctf_msg(state, "read() failed\n");
+			goto out_free_buf;
+		}
+		if (!ret) /* EOF */
+			break;
+		sdu_ptr.sdu8 = (uint8_t *)buf;
+		if (sdu_decode(sdu_ptr, &sdu) != RETVAL_SUCCESS) {
+			ctf_msg(state, "sdu decode failed\n");
+			goto out_free_buf;
+		}
+		if ((ret = read(fd, &buf[8], sdu.sdu_len)) != sdu.sdu_len) {
+			ctf_msg(state, "read() failed\n");
+			/* gracefully ignore truncated captures at EOF */
+			if (!ret)
+				break;
+			else
+				goto out_free_buf;
+		}
+		if (!(result = ctf_proto_stk_decode(buf))) {
+			ctf_msg(state, "decode failed\n");
+			goto out_free_buf;
+		}
+		if (result->load_result.error.code == CBOR_ERR_NOTENOUGHDATA)
+			break;
+		if (result->sdu.sdu_proto_un.sdu_proto_num != mpn_trace_objects) {
+			if (result->proto_stk_decode_result_body.undecoded)
+				cbor_decref(&result->proto_stk_decode_result_body.undecoded);
+			free(result);
+			continue;
+		}
+		if (result->proto_stk_decode_result_body.tof_msg->tof_msg_type != tof_reply) {
+			tof_free(result->proto_stk_decode_result_body.tof_msg);
+			free(result);
+			continue;
+		}
+		for (k = 0; k < result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_nr_replies; ++k) {
+			if (to_enqueue(state, result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_replies[k]) == RETVAL_SUCCESS)
+				continue;
+			ctf_msg(state, "enqueue failed\n");
+			tof_free(result->proto_stk_decode_result_body.tof_msg);
+			free(result);
+			goto out_free_buf;
+		}
+	}
+	free(buf);
+	close(fd);
+	return true;
+out_free_buf:
+	free(buf);
+out_close_fd:
+	close(fd);
+	return false;
+}
+
+static bool
 setup_unix_sock(int *fd, struct sockaddr *sockaddr)
 {
 	*fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -323,6 +401,8 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 		ctf_msg(state, "binding ux socket failed\n");
 		goto exit_shutdown_ux;
 	}
+	if (!setup_queue(*state, conf))
+		goto exit_shutdown_ux;
 	retval = state_handshake(*state, conf);
 	ctf_msg(state, "state_handshake() returned %d\n", retval);
 	return retval;

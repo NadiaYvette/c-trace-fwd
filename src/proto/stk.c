@@ -20,24 +20,30 @@ ctf_proto_stk_decode(const void *buf)
 		goto out_free_cpsdr;
 	cpsdr->sdu.sdu_data = (const char *)&hdr.sdu32[2];
 	tof_cbor = cbor_load((cbor_data)cpsdr->sdu.sdu_data, cpsdr->sdu.sdu_len, &cbor_load_result);
+	cpsdr->load_result = cbor_load_result;
 	switch (cbor_load_result.error.code) {
 	case CBOR_ERR_NONE:
 		break;
 	case CBOR_ERR_NOTENOUGHDATA:
 		ctf_msg(stk, "CBOR_NOTENOUGHDATA returned by cbor_load()\n");
-		goto out_free_tof_cbor;
+		cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor;
+		return cpsdr;
 	case CBOR_ERR_NODATA:
 		ctf_msg(stk, "CBOR_ERR_NODATA returned by cbor_load()\n");
-		goto out_free_tof_cbor;
+		cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor;
+		return cpsdr;
 	case CBOR_ERR_MALFORMATED:
 		ctf_msg(stk, "CBOR_ERR_MALFORMATED returned by cbor_load()\n");
-		goto out_free_tof_cbor;
+		cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor;
+		return cpsdr;
 	case CBOR_ERR_MEMERROR:
 		ctf_msg(stk, "CBOR_ERR_MEMERROR returned by cbor_load()\n");
-		goto out_free_tof_cbor;
+		cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor;
+		return cpsdr;
 	case CBOR_ERR_SYNTAXERROR:
 		ctf_msg(stk, "CBOR_ERR_SYNTAXERROR returned by cbor_load()\n");
-		goto out_free_tof_cbor;
+		cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor;
+		return cpsdr;
 	default:
 		ctf_msg(stk, "unrecognized error code %d returned"
 			       " by cbor_load()\n",

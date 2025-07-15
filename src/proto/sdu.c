@@ -35,10 +35,12 @@ sdu_decode(const union sdu_ptr hdr, struct sdu *sdu)
 	sdu->sdu_len
 		= (uint16_t)hdr.sdu8[4+2] << (1*8)
 		| (uint16_t)hdr.sdu8[4+3] << (0*8);
-	ctf_msg(sdu, "sdu->sdu_len = 0x%"PRIx16"\n", sdu->sdu_len);
-	ctf_msg(sdu, "hdr.sdu16[3] = 0x%"PRIx16"\n", hdr.sdu16[3]);
-	ctf_msg(sdu, "hdr.sdu8[6]  = 0x%"PRIx8"\n",  hdr.sdu8[6]);
-	ctf_msg(sdu, "hdr.sdu8[7]  = 0x%"PRIx8"\n",  hdr.sdu8[7]);
+	if (0) {
+		ctf_msg(sdu, "sdu->sdu_len = 0x%"PRIx16"\n", sdu->sdu_len);
+		ctf_msg(sdu, "hdr.sdu16[3] = 0x%"PRIx16"\n", hdr.sdu16[3]);
+		ctf_msg(sdu, "hdr.sdu8[6]  = 0x%"PRIx8"\n",  hdr.sdu8[6]);
+		ctf_msg(sdu, "hdr.sdu8[7]  = 0x%"PRIx8"\n",  hdr.sdu8[7]);
+	}
 	/*
 	 * It may look tempting to do something akin to:
 	 * sdu->sdu_data = (const char *)&hdr.sdu8[0];
@@ -48,20 +50,29 @@ sdu_decode(const union sdu_ptr hdr, struct sdu *sdu)
 	 * according to the header's payload length field.
 	 */
 	switch (sdu->sdu_proto_un.sdu_proto_num) {
+	case mpn_handshake:
+		if (0)
+			ctf_msg(sdu, "->sdu_proto_num = mpn_handshake 0x%"
+					PRIx16"\n",
+					sdu->sdu_proto_un.sdu_proto_word16);
+		return RETVAL_SUCCESS;
 	case mpn_trace_objects:
-		ctf_msg(sdu, "->sdu_proto_num = mpn_trace_objects 0x%"
-				PRIx16"\n",
-				sdu->sdu_proto_un.sdu_proto_word16);
+		if (0)
+			ctf_msg(sdu, "->sdu_proto_num = mpn_trace_objects 0x%"
+					PRIx16"\n",
+					sdu->sdu_proto_un.sdu_proto_word16);
 		return RETVAL_SUCCESS;
 	case mpn_EKG_metrics:
-		ctf_msg(sdu, "->sdu_proto_num = mpn_EKG_metrics 0x%"
-				PRIx16"\n",
-				sdu->sdu_proto_un.sdu_proto_word16);
+		if (0)
+			ctf_msg(sdu, "->sdu_proto_num = mpn_EKG_metrics 0x%"
+					PRIx16"\n",
+					sdu->sdu_proto_un.sdu_proto_word16);
 		return RETVAL_SUCCESS;
 	case mpn_data_points:
-		ctf_msg(sdu, "->sdu_proto_num = mpn_data_points 0x%"
-				PRIx16"\n",
-				sdu->sdu_proto_un.sdu_proto_word16);
+		if (0)
+			ctf_msg(sdu, "->sdu_proto_num = mpn_data_points 0x%"
+					PRIx16"\n",
+					sdu->sdu_proto_un.sdu_proto_word16);
 		return RETVAL_SUCCESS;
 	default:
 		ctf_msg(sdu, "unrecognized SDU mini_protocol_num 0x%"
