@@ -30,7 +30,7 @@ retry_read:
 	sz = 1024 * 1024;
 	cur_sz = sz;
 	cur_buf = buf;
-	if ((ret_sz = recv(state->unix_sock_fd, buf, sz, 0)) == cur_sz)
+	if ((ret_sz = recv(state->unix_sock_fd, cur_buf, cur_sz, 0)) == cur_sz)
 		goto got_past_read;
 	if (ret_sz <= 0) {
 		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
