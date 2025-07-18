@@ -106,6 +106,7 @@ sdu_encode(const struct sdu *sdu, union sdu_ptr hdr)
 	hdr.sdu8[4+0] = (sdu->sdu_init_or_resp ? 0x80U : 0U)
 		| (sdu->sdu_proto_un.sdu_proto_word16 >> 8);
 	switch (sdu->sdu_proto_un.sdu_proto_num) {
+	case mpn_handshake:
 	case mpn_trace_objects:
 	case mpn_EKG_metrics:
 	case mpn_data_points:
