@@ -1,8 +1,10 @@
 #include <errno.h>
 #include <poll.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/param.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
@@ -11,7 +13,7 @@
 #include "service.h"
 #include "tof.h"
 
-static struct ctf_proto_stk_decode_result *
+struct ctf_proto_stk_decode_result *
 service_recv_tof(struct c_trace_fwd_state *state, int fd)
 {
 	struct ctf_proto_stk_decode_result *cpsdr = NULL;
@@ -25,34 +27,49 @@ service_recv_tof(struct c_trace_fwd_state *state, int fd)
 	cur_buf = buf;
 	cur_sz = sz;
 retry_read:
-	if ((ret_sz = read(fd, cur_buf, cur_sz)) == cur_sz)
+	if ((ret_sz = recv(fd, cur_buf, cur_sz, 0)) == cur_sz)
 		cpsdr = ctf_proto_stk_decode(buf);
-	else if (!ret_sz && (errno == EAGAIN || errno == EWOULDBLOCK))
-		goto retry_read;
-	else if (ret_sz > 0) {
-		cur_buf = &cur_buf[ret_sz];
-		cur_sz -= ret_sz;
+	else if (!ret_sz && errno != EAGAIN && errno != EWOULDBLOCK)
+		goto out_free_buf;
+	else if (ret_sz >= 0) {
+		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
+		cur_sz -= MIN(cur_sz, ret_sz);
+		(void)!sched_yield();
 		goto retry_read;
 	}
+out_free_buf:
 	free(buf);
 	return cpsdr;
 }
 
-static int
+int
 service_send_tof(struct c_trace_fwd_state *state, struct tof_msg *tof, int fd)
 {
 	int retval = RETVAL_FAILURE;
-	unsigned char *buf;
-	size_t buf_len;
+	unsigned char *buf, *cur_buf;
+	size_t sz, cur_sz;
 	ssize_t ret_sz;
 
-	if (!(buf = ctf_proto_stk_encode(tof, &buf_len)))
+	if (!(buf = ctf_proto_stk_encode(tof, &sz)))
 		return RETVAL_FAILURE;
 	/* This is an awkward enough pattern that the API should change. */
-	ret_sz = write(fd, buf, buf_len);
-	if (ret_sz != (ssize_t)buf_len)
+	cur_buf = buf;
+	cur_sz = sz;
+retry_send:
+	ret_sz = send(fd, cur_buf, cur_sz, MSG_CONFIRM | MSG_NOSIGNAL);
+	if (ret_sz == (ssize_t)cur_sz)
+		retval = RETVAL_SUCCESS;
+	else if (!ret_sz && !errno) { /* EOF */
+		retval = RETVAL_SUCCESS;
 		goto out_free_buf;
-	retval = RETVAL_SUCCESS;
+	} else if (!ret_sz && errno != EAGAIN && errno != EWOULDBLOCK)
+		goto out_free_buf;
+	else if (ret_sz >= 0) {
+		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
+		cur_sz -= MIN(cur_sz, ret_sz);
+		(void)!sched_yield();
+		goto retry_send;
+	}
 out_free_buf:
 	free(buf);
 	return retval;

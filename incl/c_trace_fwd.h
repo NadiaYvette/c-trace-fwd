@@ -17,6 +17,12 @@
 struct cbor_item_t;
 struct tof_msg;
 
+enum agency {
+	agency_local  = 0,
+	agency_remote = 1,
+	agency_nobody = 2,
+};
+
 struct c_trace_fwd_conf {
 	/* The path length is limited by this structure. */
 	struct addrinfo *ux_addr;
@@ -25,6 +31,7 @@ struct c_trace_fwd_conf {
 };
 struct c_trace_fwd_state {
 	int ux_sock_fd;
+	enum agency agency;
 	int unix_sock_fd;
 	int nr_clients;
 	fd_set state_fds;

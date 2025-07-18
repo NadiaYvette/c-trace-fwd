@@ -98,34 +98,60 @@ out_uint_free:
 static bool
 to_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
 {
+	bool retval;
 	cbor_item_t *item;
 	char *new_string = NULL;
 
 	if (!(item = cbor_array_get(array, k))) {
 		ctf_msg(tof, "cbor_array_get() failed\n");
-		return NULL;
+		return false;
 	}
 	if (cbor_is_null(item)) {
 		ctf_msg(tof, "null item\n");
 		*string = NULL;
-		return true;
+		return false;
 	}
 	if (!cbor_isa_string(item)) {
 		ctf_msg(tof, "item not a string\n");
 		cbor_describe((cbor_item_t *)array, stderr);
+		retval = false;
 		goto out_string_free;
 	}
-	if (!(new_string = (char *)cbor_string_handle(item))) {
-		ctf_msg(tof, "string handle NULL\n");
-		goto out_string_free;
-	}
-	if (!(*string = strdup(new_string))) {
-		ctf_msg(tof, "strdup() failed\n");
-		goto out_string_free;
-	}
+	if (cbor_string_is_definite(item)) {
+		if (!(new_string = (char *)cbor_string_handle(item))) {
+			ctf_msg(tof, "string handle NULL\n");
+			retval = false;
+			goto out_string_free;
+		}
+		if (!(*string = strdup(new_string))) {
+			ctf_msg(tof, "strdup() failed\n");
+			retval = false;
+			goto out_string_free;
+		}
+		retval = true;
+	} else if (cbor_string_is_indefinite(item)) {
+		cbor_item_t **chunks;
+		size_t k, nr_chunks;
+		char *cur;
+
+		if (!(chunks = cbor_string_chunks_handle(item))) {
+			ctf_msg(tof, "cbor_string_chunks_handle() failed\n");
+			retval = false;
+			goto out_string_free;
+		}
+		nr_chunks = cbor_string_chunk_count(item);
+		if (!(new_string = calloc(cbor_string_length(item), sizeof(char)))) {
+			retval = false;
+			goto out_string_free;
+		}
+		for (k = 0, cur = new_string; k < nr_chunks; ++k)
+			cur = stpcpy(cur, (const char *)cbor_string_handle(chunks[k]));
+		retval = true;
+	} else
+		retval = false;
 out_string_free:
 	cbor_decref(&item);
-	return new_string;
+	return retval;
 }
 
 struct trace_object *
@@ -236,7 +262,7 @@ out_free_namespace_entries:
 	free(to->to_namespace);
 out_free_machine:
 	free((void *)to->to_machine);
-out_free_human:
+/* out_free_human: */
 	free((void *)to->to_human);
 out_free_to:
 	free(to);

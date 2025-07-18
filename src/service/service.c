@@ -108,7 +108,7 @@ service_loop_core(struct c_trace_fwd_state *state)
 			}
 		} else if (pollfds[k].fd == state->unix_sock_fd) {
 			ctf_msg(service, "unix_sock_fd ready\n");
-			if (service_unix_sock(state) != RETVAL_SUCCESS) {
+			if (service_unix_sock(state, &pollfds[k]) == svc_progress_fail) {
 				ctf_msg(service, "service_unix_sock() "
 						"failed, continuing\n");
 				ctf_msg(service, "need to reconnect or "

@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
 #include "handshake.h"
@@ -354,6 +356,7 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	pthread_mutexattr_t state_lock_attr;
 	struct addrinfo *ux_addr;
 	struct sockaddr *unix_sock;
+	struct timeval timeval;
 	socklen_t ai_addrlen;
 	int ai_family, ai_socktype, ai_protocol, page_size,
 		retval = RETVAL_FAILURE;
@@ -398,7 +401,17 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	}
 	FD_SET((*state)->ux_sock_fd, &(*state)->state_fds);
 	if (bind((*state)->ux_sock_fd, ux_addr->ai_addr, ai_addrlen)) {
-		ctf_msg(state, "binding ux socket failed\n");
+		ctf_msg(state, "bind() ux socket failed\n");
+		goto exit_shutdown_ux;
+	}
+	if (listen((*state)->ux_sock_fd, 64)) {
+		ctf_msg(state, "listen() ux socket failed\n");
+		goto exit_shutdown_ux;
+	}
+	timeval.tv_sec = 0;
+	timeval.tv_usec = 10 * 1000; /* 10 ms */
+	if (setsockopt((*state)->ux_sock_fd, SOL_SOCKET, SO_RCVTIMEO, &timeval, sizeof(struct timeval))) {
+		ctf_msg(state, "setsockopt() ux socket failed\n");
 		goto exit_shutdown_ux;
 	}
 	if (!setup_queue(*state, conf))
