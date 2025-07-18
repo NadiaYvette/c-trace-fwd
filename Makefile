@@ -92,13 +92,13 @@ RNC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_reencode)
 TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
 TRY_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_try)
 
-$(CBOR_BIN_EXE): $(OBJDIR)/test/cbor_dissect.o $(CTF_LIB_DSO)
-	@mkdir -p $(dir @)
-	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
-
 $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $(DBGFLAGS) $(APP_OBJ) $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
+
+$(CBOR_BIN_EXE): $(OBJDIR)/test/cbor_dissect.o $(CTF_LIB_DSO)
+	@mkdir -p $(dir @)
+	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
 $(CTF_LIB_DSO): $(LIB_OBJ)
 	@mkdir -p $(dir $@)
