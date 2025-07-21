@@ -25,25 +25,29 @@ to_dequeue(struct c_trace_fwd_state *state)
 }
 
 int
-to_dequeue_multi(struct c_trace_fwd_state *state, struct trace_object ***to, int orig_len, int *n)
+to_dequeue_multi(struct c_trace_fwd_state *state, struct trace_object ***to, int req_len, int *n)
 {
 	int nr_to, nr_q;
 	struct trace_object **new_q;
 
-	ctf_msg(queue, "orig_len = %d, *n = %d, state->nr_to = %d\n",
-			orig_len, *n, state->nr_to);
-	nr_to = MIN(orig_len, state->nr_to);
+	ctf_msg(queue, "req_len = %d, *n = %d, state->nr_to = %d\n",
+			req_len, *n, state->nr_to);
+	nr_to = MIN(req_len, state->nr_to);
 	nr_q  = state->nr_to - nr_to;
 	if (!nr_to) {
 		free(*to);
 		*to = NULL;
 		*n = 0;
 		return RETVAL_SUCCESS;
-	} else if (nr_to < orig_len) {
+	} else if (nr_to < req_len) {
 		struct trace_object **new_to;
 
-		if (!(new_to = reallocarray(*to, nr_to, sizeof(struct trace_object *)))) {
-			ctf_msg(queue, "reallocarray() failed!\n");
+		if (!!state->to_queue)
+			new_to = reallocarray(*to, nr_to, sizeof(struct trace_object *));
+		else
+			new_to = calloc(nr_to, sizeof(struct trace_object *));
+		if (!new_to) {
+			ctf_msg(queue, "reallocarray()/calloc() failed!\n");
 			return RETVAL_FAILURE;
 		}
 		*to = new_to;
@@ -58,8 +62,13 @@ to_dequeue_multi(struct c_trace_fwd_state *state, struct trace_object ***to, int
 	}
 	memmove(&state->to_queue[0], &state->to_queue[nr_to],
 		nr_q * sizeof(struct trace_object *));
-	new_q = reallocarray(state->to_queue, nr_q,
-				sizeof(struct trace_object *));
+	if (!!nr_q)
+		new_q = reallocarray(state->to_queue, nr_q,
+					sizeof(struct trace_object *));
+	else {
+		free(state->to_queue);
+		new_q = NULL;
+	}
 	if (!!new_q || (!nr_q && !new_q)) {
 		state->to_queue = new_q;
 		state->nr_to -= nr_to;
@@ -121,7 +130,7 @@ to_queue_answer_request( struct c_trace_fwd_state *state
 		return svc_req_must_block;
 	if (!(msg = calloc(1, sizeof(struct tof_msg))))
 		return svc_req_failure;
-	req_obj = MIN(64, request->tof_nr_obj);
+	req_obj = request->tof_nr_obj;
 	msg->tof_msg_type = tof_reply;
 	to = &msg->tof_msg_body.reply.tof_replies;
 	if (!(*to = calloc(req_obj, sizeof(struct trace_object **)))) {
