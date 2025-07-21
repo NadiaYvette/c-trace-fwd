@@ -21,23 +21,26 @@ service_recv_tof(struct c_trace_fwd_state *state, int fd)
 	size_t sz, cur_sz;
 	ssize_t ret_sz;
 
-	if (!(buf = calloc(1024, 1024)))
+	if (!(buf = calloc(64, 1024)))
 		return NULL;
-	sz = 1024 * 1024;
+	sz = 64 * 1024;
 	cur_buf = buf;
 	cur_sz = sz;
 retry_read:
-	if ((ret_sz = recv(fd, cur_buf, cur_sz, 0)) == cur_sz)
+	if ((ret_sz = recv(fd, cur_buf, cur_sz, MSG_DONTWAIT)) == cur_sz)
 		cpsdr = ctf_proto_stk_decode(buf);
-	else if (!ret_sz && errno != EAGAIN && errno != EWOULDBLOCK)
-		goto out_free_buf;
-	else if (ret_sz >= 0) {
+	else if (!ret_sz) {
+		if (!errno) /* all ready data consumed */
+			cpsdr = ctf_proto_stk_decode(buf);
+		else if (errno == EAGAIN || errno == EWOULDBLOCK)
+			goto retry_read;
+	} else if (ret_sz > 0) {
 		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
 		cur_sz -= MIN(cur_sz, ret_sz);
 		(void)!sched_yield();
 		goto retry_read;
 	}
-out_free_buf:
+/* out_free_buf: */
 	free(buf);
 	return cpsdr;
 }
