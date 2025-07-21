@@ -51,12 +51,17 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 		else
 			retval = svc_progress_send;
 		tof_free(msg);
+		/* will this work? */
+		if (state->agency == agency_nobody)
+			(void)!service_unix_sock_send_done(state, fd);
 		/* change agency to remote */
 		state->agency = agency_remote;
 		break;
 	case svc_req_must_block:
 	case svc_req_none_available:
 		retval = svc_progress_none;
+		if (state->agency != agency_nobody)
+			break;
 		if (service_unix_sock_send_done(state, fd) == svc_progress_fail)
 			retval = svc_progress_fail;
 		break;
@@ -180,25 +185,28 @@ service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 	switch (state->agency) {
 	case agency_nobody:
 		if (!!(pollfd->revents & POLLIN)) {
-			ctf_msg(unix, "calling service_unix_sock_recv()\n");
+			ctf_msg(unix, "agency_nobody service_unix_sock_recv()\n");
 			return service_unix_sock_recv(state, pollfd->fd);
 		}
 		if (!!(pollfd->revents & POLLOUT)) {
-			ctf_msg(unix, "calling service_unix_sock_send()\n");
+			ctf_msg(unix, "agency_nobody service_unix_sock_send()\n");
 			return service_unix_sock_send(state, pollfd->fd);
 		}
+		ctf_msg(unix, "agency_nobody no events\n");
 		return svc_progress_none;
 	case agency_local:
 		if (!!(pollfd->revents & POLLOUT)) {
-			ctf_msg(unix, "calling service_unix_sock_send()\n");
+			ctf_msg(unix, "agency_local service_unix_sock_send()\n");
 			return service_unix_sock_send(state, pollfd->fd);
 		}
+		ctf_msg(unix, "agency_local no events\n");
 		return svc_progress_none;
 	case agency_remote:
 		if (!!(pollfd->revents & POLLIN)) {
-			ctf_msg(unix, "calling service_unix_sock_recv()\n");
+			ctf_msg(unix, "agency_remote service_unix_sock_recv()\n");
 			return service_unix_sock_recv(state, pollfd->fd);
 		}
+		ctf_msg(unix, "agency_remote no events\n");
 		return svc_progress_none;
 	default:
 		ctf_msg(service, "unrecognized agency %d\n", state->agency);
@@ -218,13 +226,13 @@ service_unix_sock2(struct c_trace_fwd_state *state)
 	struct tof_reply *reply;
 
 	ctf_msg(service_unix, "entered service_unix_sock()\n");
-	if (!(buf = calloc(1024, 1024))) {
+	if (!(buf = calloc(64, 1024))) {
 		ctf_msg(service_unix, "calloc() failed!\n");
 		return RETVAL_FAILURE;
 	}
 retry_read:
 	ctf_msg(service_unix, "service_unix_sock() about to read()\n");
-	sz = 1024 * 1024;
+	sz = 64 * 1024;
 	cur_sz = sz;
 	cur_buf = buf;
 	if ((ret_sz = recv(state->unix_sock_fd, cur_buf, cur_sz, 0)) == cur_sz)
