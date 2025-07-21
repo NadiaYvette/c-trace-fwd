@@ -107,7 +107,11 @@ service_loop_core(struct c_trace_fwd_state *state)
 				goto exit_free_pollfds;
 			}
 		} else if (pollfds[k].fd == state->unix_sock_fd) {
-			ctf_msg(service, "unix_sock_fd ready\n");
+			ctf_msg(service, "unix_sock_fd ready "
+					"revents = 0x%x "
+					"state->nr_to = %d\n",
+					pollfds[k].revents,
+					state->nr_to);
 			if (service_unix_sock(state, &pollfds[k]) == svc_progress_fail) {
 				ctf_msg(service, "service_unix_sock() "
 						"failed, continuing\n");
@@ -194,8 +198,14 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			retval = RETVAL_FAILURE;
 			break;
 		}
-		ctf_msg(service, "about to service_issue_request()\n");
-		status = service_issue_request(state);
+		if (state->nr_to > 0)
+			ctf_msg(service, "%d in queue\n", state->nr_to);
+		if (state->agency == agency_remote)
+			status = !usleep(10 * 1000);
+		else if (state->agency == agency_nobody) {
+			ctf_msg(service, "about to service_issue_request()\n");
+			status = service_issue_request(state);
+		}
 		(void)!pthread_mutex_unlock(&state->state_lock);
 		if (!status) {
 			ctf_msg(service, "service_issue_request() failed\n");
