@@ -116,13 +116,13 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		ctf_msg(state, "write error in handshake\n");
 		goto out_free_buf;
 	}
-	if (buf_sz < 1024 * 1024) {
+	if (buf_sz < 64 * 1024) {
 		unsigned char *new_buf;
 
 		ctf_msg(state, "reallocating buffer\n");
-		if (!(new_buf = realloc(buf, 1024 * 1024)))
+		if (!(new_buf = realloc(buf, 64 * 1024)))
 			goto out_free_buf;
-		buf_sz = 1024 * 1024;
+		buf_sz = 64 * 1024;
 		buf = new_buf;
 		ctf_msg(state, "buffer successfully reallocated\n");
 	}
@@ -263,7 +263,7 @@ setup_queue(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		return true;
 	if ((fd = open(conf->preload_queue, O_RDONLY)) < 0)
 		return false;
-	if (!(buf = calloc(1024, 1024)))
+	if (!(buf = calloc(64, 1024)))
 		goto out_close_fd;
 
 	for (;;) {
@@ -417,6 +417,7 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	if (!setup_queue(*state, conf))
 		goto exit_shutdown_ux;
 	retval = state_handshake(*state, conf);
+	(*state)->agency = agency_local;
 	ctf_msg(state, "state_handshake() returned %d\n", retval);
 	return retval;
 exit_shutdown_ux:
