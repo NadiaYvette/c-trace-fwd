@@ -25,7 +25,7 @@ cbor_get_uint(const cbor_item_t *item, uintmax_t *value)
 {
 	if (cbor_typeof(item) != CBOR_TYPE_UINT) {
 		ctf_msg(handshake, "item %d not UINT\n", cbor_typeof(item));
-		cbor_describe(item, stderr);
+		cbor_describe((cbor_item_t *)item, stderr);
 		return false;
 	}
 	switch (cbor_int_get_width(item)) {
@@ -43,7 +43,7 @@ cbor_get_uint(const cbor_item_t *item, uintmax_t *value)
 		break;
 	default:
 		ctf_msg(handshake, "unrecognized uint width\n");
-		cbor_describe(item, stderr);
+		cbor_describe((cbor_item_t *)item, stderr);
 		return false;
 	}
 	return true;
