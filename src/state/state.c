@@ -417,7 +417,8 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	if (!setup_queue(*state, conf))
 		goto exit_shutdown_ux;
 	retval = state_handshake(*state, conf);
-	(*state)->agency = agency_local;
+	/* (*state)->agency = agency_local; */
+	ctf_set_agency(state, *state, agency_local);
 	ctf_msg(state, "state_handshake() returned %d\n", retval);
 	return retval;
 exit_shutdown_ux:

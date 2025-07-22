@@ -26,7 +26,8 @@ service_unix_sock_send_done(struct c_trace_fwd_state *state, int fd)
 		ctf_msg(unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
-	state->agency = agency_remote;
+	/* state->agency = agency_remote; */
+	ctf_set_agency(unix, state, agency_remote);
 	return svc_progress_send;
 }
 
@@ -55,7 +56,8 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 		if (state->agency == agency_nobody)
 			(void)!service_unix_sock_send_done(state, fd);
 		/* change agency to remote */
-		state->agency = agency_remote;
+		/* state->agency = agency_remote; */
+		ctf_set_agency(unix, state, agency_remote);
 		break;
 	case svc_req_must_block:
 	case svc_req_none_available:
@@ -88,7 +90,8 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 		ctf_msg(service_unix, "service_recv_tof() failed!\n");
 		goto out_msg;
 	}
-	state->agency = agency_local;
+	/* state->agency = agency_local; */
+	ctf_set_agency(unix, state, agency_local);
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_trace_objects:
 		tof = cpsdr->proto_stk_decode_result_body.tof_msg;
@@ -126,7 +129,8 @@ tof_msg_type_switch:
 
 		ctf_msg(service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
-		state->agency = agency_local;
+		/* state->agency = agency_local; */
+		ctf_set_agency(unix, state, agency_local);
 		switch (ret = to_queue_answer_request(state, req, &reply_msg)) {
 		case svc_req_must_block:
 			ctf_msg(service_unix, "returning "
@@ -147,7 +151,8 @@ tof_msg_type_switch:
 			if (service_send_tof(state, reply_msg, fd) != RETVAL_SUCCESS)
 				retval = svc_progress_fail;
 			else {
-				state->agency = agency_remote;
+				/* state->agency = agency_remote; */
+				ctf_set_agency(unix, state, agency_remote);
 				retval = svc_progress_send;
 			}
 			break;
@@ -162,7 +167,8 @@ tof_msg_type_switch:
 		break;
 	case tof_done:
 		ctf_msg(service_unix, "tof_done case no-op\n");
-		state->agency = agency_local;
+		/* state->agency = agency_local; */
+		ctf_set_agency(unix, state, agency_local);
 		retval = svc_progress_recv;
 		break;
 	default:
