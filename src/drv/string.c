@@ -12,7 +12,7 @@ void ctf_string_start(void *ctx)
 	if (!(item = cbor_new_indefinite_string()))
 		return;
 	if (ctf_stk_push(state, item))
-		cbor_decref(&item);
+		ctf_cbor_decref(string, &item);
 }
 
 void ctf_string(void *ctx, cbor_data buf, uint64_t len)
@@ -29,7 +29,7 @@ void ctf_string(void *ctx, cbor_data buf, uint64_t len)
 	if (cbor_string_add_chunk(stack_top, chunk))
 		return;
 	ctf_msg(drv, "failed adding cbor bytestring chunk \"%s\"\n", buf);
-	cbor_decref(&chunk);
+	ctf_cbor_decref(string, &chunk);
 }
 
 void ctf_byte_string_start(void *ctx)
@@ -41,7 +41,7 @@ void ctf_byte_string_start(void *ctx)
 	if (!(item = cbor_new_indefinite_bytestring()))
 		return;
 	if (ctf_stk_push(state, item))
-		cbor_decref(&item);
+		ctf_cbor_decref(string, &item);
 }
 
 void ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
@@ -58,5 +58,5 @@ void ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
 	if (cbor_bytestring_add_chunk(stack_top, chunk))
 		return;
 	ctf_msg(drv, "failed adding cbor bytestring chunk \"%s\"\n", buf);
-	cbor_decref(&chunk);
+	ctf_cbor_decref(string, &chunk);
 }

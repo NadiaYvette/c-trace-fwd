@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 			continue;
 		printf("success at off 0x%jx, len 0x%zx\n", off, len);
 		cbor_describe(item, stdout);
-		cbor_decref(&item);
+		ctf_cbor_decref(cbor_try, &item);
 	}
 	return EXIT_SUCCESS;
 }

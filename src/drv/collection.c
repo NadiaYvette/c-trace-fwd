@@ -1,6 +1,7 @@
 #include <cbor.h>
 #include "c_trace_fwd.h"
 #include "ctf_cbor_drv.h"
+#include "ctf_util.h"
 
 void ctf_indef_array_start(void *ctx)
 {
@@ -11,7 +12,7 @@ void ctf_indef_array_start(void *ctx)
 	if (!(array = cbor_new_indefinite_array()))
 		return;
 	if (ctf_stk_push(state, array))
-		cbor_decref(&array);
+		ctf_cbor_decref(collection, &array);
 }
 
 void ctf_array_start(void *ctx, uint16_t len)
@@ -23,7 +24,7 @@ void ctf_array_start(void *ctx, uint16_t len)
 	if (!(array = cbor_new_definite_array(len)))
 		return;
 	if (ctf_stk_push(state, array))
-		cbor_decref(&array);
+		ctf_cbor_decref(collection, &array);
 }
 
 void ctf_indef_map_start(void *ctx)

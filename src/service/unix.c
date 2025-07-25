@@ -42,10 +42,12 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 	};
 	struct tof_msg *msg = NULL;
 	enum svc_result retval;
+	enum svc_req_result svc_req_ret;
 
 	ctf_msg(unix, "calling to_queue_answer_request()\n");
-	switch (to_queue_answer_request(state, &request, &msg)) {
+	switch (svc_req_ret = to_queue_answer_request(state, &request, &msg)) {
 	case svc_req_success:
+		ctf_msg(unix, "svc_req_success\n");
 		/* send */
 		if (service_send_tof(state, msg, fd) != RETVAL_SUCCESS)
 			retval = svc_progress_fail;
@@ -53,22 +55,32 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 			retval = svc_progress_send;
 		tof_free(msg);
 		/* will this work? */
-		if (state->agency == agency_nobody)
+		if (state->agency == agency_nobody) {
+			ctf_msg(unix, "sending done\n");
 			(void)!service_unix_sock_send_done(state, fd);
+		}
 		/* change agency to remote */
 		/* state->agency = agency_remote; */
 		ctf_set_agency(unix, state, agency_remote);
 		break;
 	case svc_req_must_block:
 	case svc_req_none_available:
+		ctf_msg(unix, "svc_req_%s\n",
+			svc_req_ret == svc_req_must_block ? "must_block"
+							: "none_available");
 		retval = svc_progress_none;
 		if (state->agency != agency_nobody)
 			break;
+		ctf_msg(unix, "sending done\n");
 		if (service_unix_sock_send_done(state, fd) == svc_progress_fail)
 			retval = svc_progress_fail;
 		break;
 	case svc_req_failure:
 	default:
+		if (svc_req_ret == svc_req_failure)
+			ctf_msg(unix, "svc_req_failure\n");
+		else
+			ctf_msg(unix, "svc_req_ret value unknown\n");
 		retval = svc_progress_fail;
 		break;
 	}
@@ -109,7 +121,7 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 		/* Is a reply needed? */
 		tof = NULL;
 		if (!!cpsdr->proto_stk_decode_result_body.undecoded)
-			cbor_decref(&cpsdr->proto_stk_decode_result_body.undecoded);
+			ctf_cbor_decref(unix, &cpsdr->proto_stk_decode_result_body.undecoded);
 		goto out_free_cpsdr;
 	}
 tof_msg_type_switch:
@@ -287,7 +299,7 @@ got_past_read:
 		/* These protocols' CBOR contents aren't decoded. */
 		tof = NULL;
 		if (!!cpsdr->proto_stk_decode_result_body.undecoded)
-			cbor_decref(&cpsdr->proto_stk_decode_result_body.undecoded);
+			ctf_cbor_decref(unix, &cpsdr->proto_stk_decode_result_body.undecoded);
 		goto out_free_cpsdr;
 	}
 tof_msg_type_switch:

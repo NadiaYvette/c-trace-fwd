@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "tof.h"
+#include "ctf_util.h"
 
 static void
 print_severity(enum severity_s sev)
@@ -94,7 +95,7 @@ main(void)
 	retval = EXIT_SUCCESS;
 	trace_object_free(to);
 exit_cbor_decref:
-	cbor_decref(&item);
+	ctf_cbor_decref(tof_stdin, &item);
 exit_free_buf:
 	free(buf);
 	return retval;

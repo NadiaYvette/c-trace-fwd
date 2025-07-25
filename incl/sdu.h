@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/param.h>
 
 enum mini_protocol_num {
 	mpn_handshake        = 0,
@@ -14,6 +15,17 @@ enum mini_protocol_num {
 	mpn_state_query      = 7,
 	mpn_keepalive        = 8, /* also called TxMonitor */
 };
+
+#define MPN_MAX MAX(MPN_MAX_0_to_4, MPN_MAX_5_to_8)
+
+#define MPN_MAX_0_to_4 MAX(MPN_MAX_0_to_2, MPN_MAX_3_to_4)
+#define MPN_MAX_0_to_2 MAX(mpn_handshake, MPN_MAX_1_to_2)
+#define MPN_MAX_1_to_2 MAX(mpn_EKG_metrics, mpn_trace_objects)
+#define MPN_MAX_3_to_4 MAX(mpn_data_points, mpn_node_tx_submit)
+
+#define MPN_MAX_5_to_8 MAX(MPN_MAX_5_to_6, MPN_MAX_7_to_8)
+#define MPN_MAX_5_to_6 MAX(mpn_chain_sync, mpn_client_tx_submit)
+#define MPN_MAX_7_to_8 MAX(mpn_state_query, mpn_keepalive)
 
 /* this needs conversion to big-endian to serve as a header */
 struct sdu {
@@ -43,3 +55,4 @@ union sdu_ptr {
 int sdu_encode(const struct sdu *, union sdu_ptr);
 int sdu_decode(const union sdu_ptr, struct sdu *);
 int sdu_print(const struct sdu *);
+const char *mini_protocol_string(enum mini_protocol_num);

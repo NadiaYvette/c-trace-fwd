@@ -1,6 +1,7 @@
 #include <cbor.h>
 #include "c_trace_fwd.h"
 #include "ctf_cbor_drv.h"
+#include "ctf_util.h"
 
 void ctf_undefined(void *ctx)
 {
@@ -25,7 +26,7 @@ void ctf_boolean(void *ctx, bool val)
 	return;
 	ctf_stk_pop(state);
 out_decref:
-	cbor_decref(&item);
+	ctf_cbor_decref(misc, &item);
 }
 
 void ctf_indef_break(void *ctx)
@@ -61,5 +62,5 @@ void ctf_tag(void *ctx, uint64_t val)
 	return;
 	ctf_stk_pop(state);
 out_decref:
-	cbor_decref(&item);
+	ctf_cbor_decref(misc, &item);
 }

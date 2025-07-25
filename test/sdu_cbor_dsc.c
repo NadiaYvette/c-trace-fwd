@@ -63,7 +63,7 @@ restart_loop:
 		goto exit_free_buf;
 	}
 	cbor_describe(item, stdout);
-	cbor_decref(&item);
+	ctf_cbor_decref(sdu_cbor_dsc, &item);
 	goto restart_loop;
 exit_free_buf:
 	free(cbor_buf);

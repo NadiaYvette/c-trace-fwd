@@ -128,7 +128,7 @@ service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 		/* These protocols' CBOR contents aren't decoded. */
 		tof = NULL;
 		if (!!cpsdr->proto_stk_decode_result_body.undecoded)
-			cbor_decref(&cpsdr->proto_stk_decode_result_body.undecoded);
+			ctf_cbor_decref(client, &cpsdr->proto_stk_decode_result_body.undecoded);
 		goto out_free_cpsdr;
 	}
 tof_msg_type_switch:

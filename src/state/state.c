@@ -240,7 +240,7 @@ out_handshake_free:
 out_decref_reply:
 	if (!!retval)
 		ctf_msg(state, "out_decref_reply: label of state_handshake()\n");
-	cbor_decref(&reply_cbor);
+	ctf_cbor_decref(state, &reply_cbor);
 out_free_sdu:
 	if (!!retval)
 		ctf_msg(state, "out_free_sdu: label of state_handshake()\n");
@@ -272,13 +272,15 @@ setup_queue(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		struct sdu sdu;
 		union sdu_ptr sdu_ptr;
 		struct ctf_proto_stk_decode_result *result;
+		enum mini_protocol_num mpn;
 
+continue_for_loop:
 		if ((ret = read(fd, buf, 8)) < 0) {
 			ctf_msg(state, "read() failed\n");
 			goto out_free_buf;
 		}
 		if (!ret) /* EOF */
-			break;
+			goto out_exit_for_loop;
 		sdu_ptr.sdu8 = (uint8_t *)buf;
 		if (sdu_decode(sdu_ptr, &sdu) != RETVAL_SUCCESS) {
 			ctf_msg(state, "sdu decode failed\n");
@@ -293,14 +295,58 @@ setup_queue(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 				goto out_free_buf;
 		}
 		if (!(result = ctf_proto_stk_decode(buf))) {
-			ctf_msg(state, "decode failed\n");
-			goto out_free_buf;
+			ctf_msg(state, "decode failed, "
+					"ctf_proto_stk_decode() "
+					"returned NULL\n");
+			continue;
 		}
 		if (result->load_result.error.code == CBOR_ERR_NOTENOUGHDATA)
 			break;
-		if (result->sdu.sdu_proto_un.sdu_proto_num != mpn_trace_objects) {
-			if (result->proto_stk_decode_result_body.undecoded)
-				cbor_decref(&result->proto_stk_decode_result_body.undecoded);
+		switch (result->load_result.error.code) {
+		case CBOR_ERR_NONE:
+			break;
+		case CBOR_ERR_NOTENOUGHDATA:
+			ctf_msg(state, "got CBOR_ERR_NOTENOUGHDATA, "
+					"but continuing until EOF "
+					"anyway\n");
+			goto continue_for_loop;
+		case CBOR_ERR_NODATA:
+			ctf_msg(state, "got CBOR_ERR_NODATA, "
+					"but continuing until EOF "
+					"anyway\n");
+			goto continue_for_loop;
+		case CBOR_ERR_MALFORMATED:
+			ctf_msg(state, "got CBOR_ERR_MALFORMATED, "
+					"but continuing until EOF "
+					"anyway\n");
+			goto continue_for_loop;
+		case CBOR_ERR_MEMERROR:
+			ctf_msg(state, "got CBOR_ERR_MEMERR, "
+					"but continuing until EOF "
+					"anyway\n");
+			goto continue_for_loop;
+		case CBOR_ERR_SYNTAXERROR:
+			ctf_msg(state, "got CBOR_ERR_SYNTAXERR, "
+					"but continuing until EOF "
+					"anyway\n");
+			goto continue_for_loop;
+		default:
+			ctf_msg(state, "got unknown error %d, "
+					"but continuing until EOF "
+					"anyway\n",
+					result->load_result.error.code);
+			goto continue_for_loop;
+		}
+		mpn = result->sdu.sdu_proto_un.sdu_proto_num;
+		if (mpn != mpn_trace_objects) {
+			ctf_msg(state, "skipping trace object for "
+					"protocol %s\n",
+					mini_protocol_string(mpn));
+			if (!!result->proto_stk_decode_result_body.undecoded) {
+
+				ctf_msg(state, "undecoded %p not NULL? should we cbor_decref() it?\n", result->proto_stk_decode_result_body.undecoded);
+				ctf_cbor_decref(state, &result->proto_stk_decode_result_body.undecoded);
+			}
 			free(result);
 			continue;
 		}
@@ -318,6 +364,7 @@ setup_queue(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			goto out_free_buf;
 		}
 	}
+out_exit_for_loop:
 	free(buf);
 	close(fd);
 	return true;

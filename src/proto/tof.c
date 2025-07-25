@@ -29,7 +29,7 @@ to_uint_array_get(const cbor_item_t *array, unsigned k, uintmax_t *val)
 		if (!(tagged = cbor_tag_item(item))) {
 			ctf_msg(tof, "cbor_tag_item() failed!\n");
 			ret = false;
-			cbor_decref(&tagged);
+			ctf_cbor_decref(tof, &tagged);
 			goto out_uint_free;
 		}
 		ret = to_uint_array_get(tagged, 1, val);
@@ -45,7 +45,7 @@ to_uint_array_get(const cbor_item_t *array, unsigned k, uintmax_t *val)
 			ret = false;
 			ctf_msg(tof, "cbor_array_get() failed\n");
 			cbor_describe(subarray, stderr);
-			cbor_decref(&subarray);
+			ctf_cbor_decref(tof, &subarray);
 			goto out_uint_free;
 		}
 		ret = cbor_get_uint(item, val);
@@ -53,7 +53,7 @@ to_uint_array_get(const cbor_item_t *array, unsigned k, uintmax_t *val)
 			ctf_msg(tof, "cbor_get_uint() failed\n");
 			cbor_describe(subarray, stderr);
 		}
-		cbor_decref(&subarray);
+		ctf_cbor_decref(tof, &subarray);
 		break;
 	case CBOR_TYPE_MAP:
 		cbor_item_t *map = item;
@@ -76,14 +76,14 @@ to_uint_array_get(const cbor_item_t *array, unsigned k, uintmax_t *val)
 			if (cbor_get_uint8(pairs[k].key) != 1U)
 				continue;
 			if (!!(ret = cbor_get_uint(pairs[k].value, val))) {
-				cbor_decref(&map);
+				ctf_cbor_decref(tof, &map);
 				goto out_uint_free;
 			}
 		}
 		ret = false;
 		ctf_msg(tof, "no map entry for 1 found\n");
 		cbor_describe(map, stderr);
-		cbor_decref(&map);
+		ctf_cbor_decref(tof, &map);
 	default:
 		ctf_msg(tof, "unrecognised item type\n");
 		cbor_describe(item, stderr);
@@ -91,7 +91,9 @@ to_uint_array_get(const cbor_item_t *array, unsigned k, uintmax_t *val)
 	}
 out_uint_free:
 	if (!!item)
-		cbor_decref(&item);
+		ctf_cbor_decref(tof, &item);
+	else
+		ctf_msg(tof, "item NULL at out_uint_free\n");
 	return ret;
 }
 
@@ -152,7 +154,7 @@ to_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
 	} else
 		retval = false;
 out_string_free:
-	cbor_decref(&item);
+	ctf_cbor_decref(tof, &item);
 	return retval;
 }
 
@@ -181,12 +183,12 @@ trace_object_decode(const cbor_item_t *array)
 	}
 	if (cbor_is_null(subarray)) {
 		ctf_msg(tof, "null subarray\n");
-		cbor_decref(&subarray);
+		ctf_cbor_decref(tof, &subarray);
 		goto out_free_to;
 	}
 	if (!cbor_isa_array(subarray)) {
 		ctf_msg(tof, "subarray not an array\n");
-		cbor_decref(&subarray);
+		ctf_cbor_decref(tof, &subarray);
 		goto out_free_to;
 	}
 	if (cbor_is_null(subarray) || !cbor_isa_array(subarray) || (nsub = cbor_array_size(subarray)) < 1)
@@ -209,21 +211,21 @@ trace_object_decode(const cbor_item_t *array)
 	}
 	if (!cbor_isa_array(subarray)) {
 		ctf_msg(tof, "namespace not an array\n");
-		cbor_decref(&subarray);
+		ctf_cbor_decref(tof, &subarray);
 		goto out_free_machine;
 	}
 	/* tags don't get used in this case */
 	to->to_namespace_nr = cbor_array_size(subarray);
 	if (!(to->to_namespace = calloc(to->to_namespace_nr, sizeof(char *)))) {
 		ctf_msg(tof, "namespace calloc() failed\n");
-		cbor_decref(&subarray);
+		ctf_cbor_decref(tof, &subarray);
 		goto out_free_machine;
 	}
 	for (k = 0; k < to->to_namespace_nr; ++k) {
 		if (to_strdup_array_get(&to->to_namespace[k], subarray, k))
 			continue;
 		ctf_msg(tof, "namespace strdup() failed\n");
-		cbor_decref(&subarray);
+		ctf_cbor_decref(tof, &subarray);
 		goto out_free_namespace_entries;
 	}
 
@@ -290,11 +292,11 @@ trace_object_encode(const struct trace_object *trace_object)
 	if (!human)
 		goto out_free_array;
 	if (!(human_array = cbor_new_definite_array(1))) {
-		cbor_decref(&human);
+		ctf_cbor_decref(tof, &human);
 		goto out_free_array;
 	}
 	if (!cbor_array_set(human_array, 0, human)) {
-		cbor_decref(&human);
+		ctf_cbor_decref(tof, &human);
 		goto out_free_human_array;
 	}
 	if (!cbor_array_set(array, 1, human_array))
@@ -312,7 +314,7 @@ trace_object_encode(const struct trace_object *trace_object)
 		if (!(item = cbor_build_string(trace_object->to_namespace[k])))
 			goto out_free_namespace;
 		if (!cbor_array_set(namespace, k, item)) {
-			cbor_decref(&item);
+			ctf_cbor_decref(tof, &item);
 			goto out_free_namespace;
 		}
 	}
@@ -348,31 +350,31 @@ trace_object_encode(const struct trace_object *trace_object)
 	 * the larger structures holding references to them.
 	 */
 out_free_human_array:
-	cbor_decref(&human_array);
+	ctf_cbor_decref(tof, &human_array);
 	goto out_free_array;
 out_free_machine:
-	cbor_decref(&machine);
+	ctf_cbor_decref(tof, &machine);
 	goto out_free_array;
 out_free_namespace:
-	cbor_decref(&namespace);
+	ctf_cbor_decref(tof, &namespace);
 	goto out_free_array;
 out_free_severity:
-	cbor_decref(&severity);
+	ctf_cbor_decref(tof, &severity);
 	goto out_free_array;
 out_free_details:
-	cbor_decref(&details);
+	ctf_cbor_decref(tof, &details);
 	goto out_free_array;
 out_free_timestamp:
-	cbor_decref(&timestamp);
+	ctf_cbor_decref(tof, &timestamp);
 	goto out_free_array;
 out_free_hostname:
-	cbor_decref(&hostname);
+	ctf_cbor_decref(tof, &hostname);
 	goto out_free_array;
 out_free_thread_id:
-	cbor_decref(&thread_id);
+	ctf_cbor_decref(tof, &thread_id);
 	goto out_free_array;
 out_free_array:
-	cbor_decref(&array);
+	ctf_cbor_decref(tof, &array);
 	return NULL;
 }
 
@@ -416,10 +418,10 @@ tof_encode(const struct tof_msg *msg)
 			goto out_free_tof_nr_obj;
 		break;
 	out_free_tof_nr_obj:
-		cbor_decref(&tof_nr_obj);
+		ctf_cbor_decref(tof, &tof_nr_obj);
 		goto out_free_msg_array;
 	out_free_tof_blocking:
-		cbor_decref(&tof_blocking);
+		ctf_cbor_decref(tof, &tof_blocking);
 		goto out_free_msg_array;
 
 	case tof_reply:
@@ -450,7 +452,7 @@ tof_encode(const struct tof_msg *msg)
 			}
 			if (cbor_array_set(reply_array, k, reply_array_entry))
 				continue;
-			cbor_decref(&reply_array_entry);
+			ctf_cbor_decref(tof, &reply_array_entry);
 			goto out_free_reply_array;
 		}
 		if (!cbor_array_set(msg_array, 1, reply_array))
@@ -465,13 +467,13 @@ tof_encode(const struct tof_msg *msg)
 	 * the larger structures holding references to them.
 	 */
 out_free_reply_array:
-	cbor_decref(&reply_array);
+	ctf_cbor_decref(tof, &reply_array);
 	goto out_free_msg_array;
 out_free_msg_type:
-	cbor_decref(&msg_type);
+	ctf_cbor_decref(tof, &msg_type);
 	goto out_free_msg_array;
 out_free_msg_array:
-	cbor_decref(&msg_array);
+	ctf_cbor_decref(tof, &msg_array);
 	return NULL;
 }
 
@@ -545,14 +547,14 @@ tof_nr_obj_decode_array(const cbor_item_t *nr_obj_item, uint16_t *val)
 	}
 	if (!(upper = cbor_array_get(nr_obj_item, 1))) {
 		ctf_msg(tof, "cbor_array_get(nr_obj_item, 1) failed!\n");
-		cbor_decref(&lower);
+		ctf_cbor_decref(tof, &lower);
 		return false;
 	}
 	ret = ret && tof_nr_obj_decode_uint(lower, &lower_val);
 	ret = ret && tof_nr_obj_decode_uint(upper, val);
 	ret = ret && !!(lower_val == 0);
-	cbor_decref(&lower);
-	cbor_decref(&upper);
+	ctf_cbor_decref(tof, &lower);
+	ctf_cbor_decref(tof, &upper);
 	return ret;
 }
 
@@ -670,6 +672,7 @@ tof_decode(const cbor_item_t *msg)
 			ctf_msg(tof, "reply msg array too small!\n");
 			goto exit_free_tof;
 		}
+		/* refcount on reply_array acquired here: */
 		if (!(reply_array = cbor_array_get(msg, 1))) {
 			ctf_msg(tof, "cbor_array_get() reply array failed!\n");
 			goto exit_free_tof;
@@ -696,16 +699,18 @@ tof_decode(const cbor_item_t *msg)
 			}
 			reply->tof_replies[k]
 				= trace_object_decode(array_entry);
-			cbor_decref(&array_entry);
+			ctf_cbor_decref(tof, &array_entry);
 			if (!reply->tof_replies[k]) {
 				ctf_msg(tof, "reply->tof_replies[%u] "
 						"decode failed!\n", k);
 				cbor_describe(array_entry, stderr);
-				cbor_decref(&array_entry);
+				ctf_cbor_decref(tof, &array_entry);
 				goto exit_free_reply;
 			}
 		}
-		cbor_decref(&reply_array);
+		/* cbor_decref(&reply_array); will happen eventually
+		 * anyway upon falling through to the exit_free_reply
+		 * label. */
 		break;
 	default:
 		ctf_msg(tof, "unrecognized tof_msg_type %d\n", tof->tof_msg_type);
@@ -715,17 +720,19 @@ tof_decode(const cbor_item_t *msg)
 		ctf_msg(tof, "tof_decode() succeeded\n");
 	else
 		ctf_msg(tof, "tof_decode() returned NULL\n");
-	cbor_decref((cbor_item_t **)&msg);
+	ctf_cbor_decref(tof, (cbor_item_t **)&msg);
 	return tof;
 exit_free_reply:
 	if (!!reply_array)
-		cbor_decref(&reply_array);
+		ctf_cbor_decref(tof, &reply_array);
+	else
+		ctf_msg(tof, "reply_array NULL at exit_free_reply\n");
 exit_free_tof:
 	ctf_msg(tof, "error return, describing msg if non-NULL\n");
 	if (!!msg) {
 		if (0)
 			cbor_describe((cbor_item_t *)msg, stderr);
-		cbor_decref((cbor_item_t **)&msg);
+		ctf_cbor_decref(tof, (cbor_item_t **)&msg);
 	}
 	tof_free(tof);
 	return NULL;

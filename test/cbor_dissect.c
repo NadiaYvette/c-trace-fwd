@@ -133,7 +133,7 @@ restart_loop:
 		goto exit_free_buf;
 	}
 	cbor_describe(item, stdout);
-	cbor_decref(&item);
+	ctf_cbor_decref(cbor_dissect, &item);
 	goto restart_loop;
 	retval = EXIT_SUCCESS;
 exit_free_buf:

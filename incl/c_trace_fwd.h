@@ -10,18 +10,13 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include "agency.h"
 
 #define RETVAL_SUCCESS EXIT_SUCCESS
 #define RETVAL_FAILURE EXIT_FAILURE
 
 struct cbor_item_t;
 struct tof_msg;
-
-enum agency {
-	agency_local  = 0,
-	agency_remote = 1,
-	agency_nobody = 2,
-};
 
 struct c_trace_fwd_conf {
 	/* The path length is limited by this structure. */

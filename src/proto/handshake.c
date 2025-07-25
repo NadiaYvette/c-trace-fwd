@@ -200,7 +200,7 @@ handshake_decode(const cbor_item_t *msg_array)
 	if (!(type_cbor = cbor_array_get(msg_array, 0)))
 		goto out_free_handshake;
 	handshake->handshake_type = cbor_get_int(type_cbor);
-	cbor_decref(&type_cbor);
+	ctf_cbor_decref(handshake, &type_cbor);
 	switch (handshake->handshake_type) {
 	case handshake_propose_versions:
 		return propose_versions_decode(msg_array, handshake);
@@ -235,7 +235,7 @@ handshake_free(struct handshake *handshake)
 		struct handshake_accept_version *hav;
 
 		hav = &msg->accept_version;
-		cbor_decref(&hav->handshake_accept_version_params);
+		ctf_cbor_decref(handshake, &hav->handshake_accept_version_params);
 		break;
 	case handshake_query_reply:
 		struct handshake_query_reply *hqr = &msg->query_reply;
@@ -349,15 +349,15 @@ propose_versions_encode(const struct handshake_propose_versions *propose_version
 out_free_proposal_map:
 	ctf_msg(handshake, "out_free_proposal_map "
 			   "propose_versions_encode() goto label\n");
-	cbor_decref(&proposal_map);
+	ctf_cbor_decref(handshake, &proposal_map);
 out_free_array_zero_element:
 	ctf_msg(handshake, "out_free_array_zero_element "
 			   "propose_versions_encode() goto label\n");
-	cbor_decref(&array_zero_element);
+	ctf_cbor_decref(handshake, &array_zero_element);
 out_free_proposal_array:
 	ctf_msg(handshake, "out_free_proposal_array "
 			   "propose_versions_encode() goto label\n");
-	cbor_decref(&proposal_array);
+	ctf_cbor_decref(handshake, &proposal_array);
 	ctf_msg(handshake, "propose_versions_encode() failure return!\n");
 	return NULL;
 }
@@ -399,21 +399,21 @@ propose_versions_encode_bad(const struct handshake_propose_versions *propose_ver
 			goto exit_free_map_len;
 		pair.value = elem->propose_version_value;
 		if (!cbor_map_add(versions_map, pair)) {
-			cbor_decref(&pair.key);
+			ctf_cbor_decref(handshake, &pair.key);
 			goto exit_free_map_len;
 		}
 	}
 	return item;
 exit_free_map_len:
-	cbor_decref(&versions_len);
+	ctf_cbor_decref(handshake, &versions_len);
 exit_free_map:
-	cbor_decref(&versions_map);
+	ctf_cbor_decref(handshake, &versions_map);
 exit_free_tag:
-	cbor_decref(&type_tag);
+	ctf_cbor_decref(handshake, &type_tag);
 exit_free_len:
-	cbor_decref(&len);
+	ctf_cbor_decref(handshake, &len);
 exit_free_item:
-	cbor_decref(&item);
+	ctf_cbor_decref(handshake, &item);
 	return NULL;
 }
 #endif
