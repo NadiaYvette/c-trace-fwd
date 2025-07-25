@@ -737,7 +737,8 @@ tof_decode(const cbor_item_t *msg)
 				tof_msg_type_string(tof->tof_msg_type));
 	else
 		ctf_msg(tof, "tof_decode() returned NULL\n");
-	ctf_cbor_decref(tof, (cbor_item_t **)&msg);
+	/* The caller is responsible for releasing refcounst on the input. */
+	/* ctf_cbor_decref(tof, (cbor_item_t **)&msg); */
 	return tof;
 exit_free_reply:
 	if (!!reply_array)
