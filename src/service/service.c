@@ -185,12 +185,12 @@ int
 service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 {
 	unsigned failure_count = 64;
-	bool status;
 	int retval;
 
 	(void)!conf;
 	ctf_msg(service, "entered service_loop()\n");
 	for (;;) {
+		bool status;
 		/* The request-issuing half of the service loop.
 		 * We always keep requests in flight.
 		 */
@@ -200,11 +200,22 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		}
 		if (state->nr_to > 0)
 			ctf_msg(service, "%d in queue\n", state->nr_to);
-		if (state->agency == agency_remote)
-			status = !usleep(10 * 1000);
-		else if (state->agency == agency_nobody) {
+		switch (state->agency) {
+		case agency_nobody:
 			ctf_msg(service, "about to service_issue_request()\n");
 			status = service_issue_request(state);
+			break;
+		case agency_remote:
+			/* XXX: waiting like this is never the right answer */
+			status = !usleep(10 * 1000);
+			break;
+		default:
+			ctf_msg(service, "unrecognized agency value %d\n",
+					state->agency);
+			/* fall through */
+		case agency_local:
+			status = true;
+			break;
 		}
 		(void)!pthread_mutex_unlock(&state->state_lock);
 		if (!status) {
