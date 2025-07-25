@@ -15,6 +15,20 @@
 #include "service.h"
 #include "sdu.h"
 
+const char *
+agency_string(enum agency agency)
+{
+	static const char *agency_table[] = {
+		[agency_local]  = "agency_local",
+		[agency_nobody] = "agency_nobody",
+		[agency_remote] = "agency_remote",
+	};
+
+	if (agency >= AGENCY_MIN && agency <= AGENCY_MAX)
+		return agency_table[agency];
+	return NULL;
+}
+
 static struct handshake_propose_version_pair handshake_versions[] = {
 	[0] = {
 		.propose_version_key = 1, /* 19, */

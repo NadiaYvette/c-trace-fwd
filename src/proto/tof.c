@@ -8,13 +8,13 @@ const char *
 tof_msg_type_string(enum tof_msg_type type)
 {
 	static const char *tof_msg_type_strings[] = {
-		NULL,
-		"tof_request",
-		"tof_done",
-		"tof_reply",
+		[0]           = NULL,
+		[tof_request] = "tof_request",
+		[tof_done]    = "tof_done",
+		[tof_reply]   = "tof_reply",
 	};
 
-	if (type >= TOF_MSG_TYPE_MIN && type <= TOF_MSG_TYPE_MAX)
+	if (TOF_MSG_TYPE_VALID(type))
 		return tof_msg_type_strings[type];
 	else
 		return NULL;

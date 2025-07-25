@@ -10,21 +10,18 @@ const char *
 mini_protocol_string(enum mini_protocol_num mpn)
 {
 	static char *mpn_string_table[9] = {
-		"mpn_handshake",
-		"mpn_EKG_metrics",
-		"mpn_trace_objects",
-		"mpn_data_points",
-		"mpn_node_tx_submit",
-		"mpn_chain_sync",
-		"mpn_client_tx_submit",
-		"mpn_state_query",
-		"mpn_keepalive",
+		[mpn_handshake]        = "mpn_handshake",
+		[mpn_EKG_metrics]      = "mpn_EKG_metrics",
+		[mpn_trace_objects]    = "mpn_trace_objects",
+		[mpn_data_points]      = "mpn_data_points",
+		[mpn_node_tx_submit]   = "mpn_node_tx_submit",
+		[mpn_chain_sync]       = "mpn_chain_sync",
+		[mpn_client_tx_submit] = "mpn_client_tx_submit",
+		[mpn_state_query]      = "mpn_state_query",
+		[mpn_keepalive]        = "mpn_keepalive",
 	};
 
-	if (mpn >= 0 && mpn <= MPN_MAX)
-		return mpn_string_table[mpn];
-	else
-		return NULL;
+	return MPN_VALID(mpn) ? mpn_string_table[mpn] : NULL;
 }
 
 int
@@ -70,32 +67,13 @@ sdu_decode(const union sdu_ptr hdr, struct sdu *sdu)
 	 * headers and then to dynamically size the CBOR buffers
 	 * according to the header's payload length field.
 	 */
-	switch (sdu->sdu_proto_un.sdu_proto_num) {
-	case mpn_handshake:
-		if (0)
-			ctf_msg(sdu, "->sdu_proto_num = mpn_handshake 0x%"
-					PRIx16"\n",
-					sdu->sdu_proto_un.sdu_proto_word16);
+	if (MPN_VALID(sdu->sdu_proto_un.sdu_proto_num)) {
+		ctf_msg(sdu, "->sdu_proto_num = %s 0x%"
+			PRIx16"\n",
+			mini_protocol_string(sdu->sdu_proto_un.sdu_proto_num),
+			sdu->sdu_proto_un.sdu_proto_word16);
 		return RETVAL_SUCCESS;
-	case mpn_trace_objects:
-		if (0)
-			ctf_msg(sdu, "->sdu_proto_num = mpn_trace_objects 0x%"
-					PRIx16"\n",
-					sdu->sdu_proto_un.sdu_proto_word16);
-		return RETVAL_SUCCESS;
-	case mpn_EKG_metrics:
-		if (0)
-			ctf_msg(sdu, "->sdu_proto_num = mpn_EKG_metrics 0x%"
-					PRIx16"\n",
-					sdu->sdu_proto_un.sdu_proto_word16);
-		return RETVAL_SUCCESS;
-	case mpn_data_points:
-		if (0)
-			ctf_msg(sdu, "->sdu_proto_num = mpn_data_points 0x%"
-					PRIx16"\n",
-					sdu->sdu_proto_un.sdu_proto_word16);
-		return RETVAL_SUCCESS;
-	default:
+	} else {
 		ctf_msg(sdu, "unrecognized SDU mini_protocol_num 0x%"
 				PRIx16" decoded\n",
 				sdu->sdu_proto_un.sdu_proto_word16);

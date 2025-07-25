@@ -58,6 +58,13 @@ enum tof_msg_type {
 
 #define TOF_MSG_TYPE_MIN MIN(tof_request, MIN(tof_done, tof_reply))
 #define TOF_MSG_TYPE_MAX MAX(tof_request, MAX(tof_done, tof_reply))
+#define TOF_MSG_TYPE_VALID(value)					\
+	({								\
+		enum tof_msg_type __ctx_tmt##__LINE__ = (value);	\
+		__ctx_tmt##__LINE__ >= TOF_MSG_TYPE_MIN &&		\
+			__ctx_tmt##__LINE__ <= TOF_MSG_TYPE_MAX;	\
+	})
+
 
 struct tof_msg {
 	enum tof_msg_type tof_msg_type;
