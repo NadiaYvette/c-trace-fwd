@@ -4,6 +4,42 @@
 #include "handshake.h"
 #include "tof.h"
 
+const char *
+tof_msg_type_string(enum tof_msg_type type)
+{
+	static const char *tof_msg_type_strings[] = {
+		NULL,
+		"tof_request",
+		"tof_done",
+		"tof_reply",
+	};
+
+	if (type >= TOF_MSG_TYPE_MIN && type <= TOF_MSG_TYPE_MAX)
+		return tof_msg_type_strings[type];
+	else
+		return NULL;
+}
+
+bool
+tof_valid_msg_type(const enum tof_msg_type type)
+{
+	if (type >= TOF_MSG_TYPE_MIN && type <= TOF_MSG_TYPE_MAX)
+		return true;
+	switch (type) {
+	case tof_request /* == 1 */:
+	case tof_done    /* == 2 */:
+	case tof_reply   /* == 3 */:
+		return true;
+	default:
+		if (type == 0)
+			ctf_msg(tof, "invalid tof_msg_type 0 seen!\n");
+		else
+			ctf_msg(tof, "unrecognized tof_msg_type %d "
+					"seen!\n", type);
+		return false;
+	}
+}
+
 /* TODO: error handling */
 
 static bool
@@ -477,24 +513,6 @@ out_free_msg_array:
 	return NULL;
 }
 
-bool
-tof_valid_msg_type(const enum tof_msg_type type)
-{
-	switch (type) {
-	case tof_request /* == 1 */:
-	case tof_done    /* == 2 */:
-	case tof_reply   /* == 3 */:
-		return true;
-	default:
-		if (type == 0)
-			ctf_msg(tof, "tof_msg_type 0 seen!\n");
-		else
-			ctf_msg(tof, "unrecognized tof_msg_type %d "
-					"seen!\n", type);
-		return false;
-	}
-}
-
 static bool
 tof_nr_obj_decode_uint(const cbor_item_t *nr_obj_item, uint16_t *val)
 {
@@ -605,8 +623,6 @@ tof_decode(const cbor_item_t *msg)
 		ctf_msg(tof, "NULL msg!\n");
 		return NULL;
 	}
-	if (0)
-		cbor_describe((cbor_item_t *)msg, stderr);
 	if (!tof) {
 		ctf_msg(tof, "tof allocation failed!\n");
 		return NULL;
@@ -717,7 +733,8 @@ tof_decode(const cbor_item_t *msg)
 		goto exit_free_tof;
 	}
 	if (!!tof)
-		ctf_msg(tof, "tof_decode() succeeded\n");
+		ctf_msg(tof, "tof_decode() type %s succeeded\n",
+				tof_msg_type_string(tof->tof_msg_type));
 	else
 		ctf_msg(tof, "tof_decode() returned NULL\n");
 	ctf_cbor_decref(tof, (cbor_item_t **)&msg);

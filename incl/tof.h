@@ -2,6 +2,7 @@
 
 #include <cbor.h>
 #include <stdint.h>
+#include <sys/param.h>
 #include <sys/time.h>
 
 /* Trace Objects and subsidiary enums */
@@ -55,6 +56,9 @@ enum tof_msg_type {
 	tof_reply = 3
 };
 
+#define TOF_MSG_TYPE_MIN MIN(tof_request, MIN(tof_done, tof_reply))
+#define TOF_MSG_TYPE_MAX MAX(tof_request, MAX(tof_done, tof_reply))
+
 struct tof_msg {
 	enum tof_msg_type tof_msg_type;
 	union {
@@ -69,3 +73,4 @@ void tof_free(struct tof_msg *);
 void trace_object_free(struct trace_object *);
 struct trace_object *trace_object_decode(const cbor_item_t *);
 cbor_item_t *trace_object_encode(const struct trace_object *);
+const char *tof_msg_type_string(enum tof_msg_type);
