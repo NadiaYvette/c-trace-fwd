@@ -118,12 +118,14 @@ to_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
 		goto out_string_free;
 	}
 	if (cbor_string_is_definite(item)) {
+		size_t new_string_len = cbor_string_length(item);
+
 		if (!(new_string = (char *)cbor_string_handle(item))) {
 			ctf_msg(tof, "string handle NULL\n");
 			retval = false;
 			goto out_string_free;
 		}
-		if (!(*string = strdup(new_string))) {
+		if (!(*string = strndup(new_string, new_string_len))) {
 			ctf_msg(tof, "strdup() failed\n");
 			retval = false;
 			goto out_string_free;
