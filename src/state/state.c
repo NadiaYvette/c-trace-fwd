@@ -345,7 +345,12 @@ continue_for_loop:
 			if (!!result->proto_stk_decode_result_body.undecoded) {
 
 				ctf_msg(state, "undecoded %p not NULL? should we cbor_decref() it?\n", result->proto_stk_decode_result_body.undecoded);
-				ctf_cbor_decref(state, &result->proto_stk_decode_result_body.undecoded);
+				if (result->load_result.error.code != CBOR_ERR_NONE)
+					ctf_msg(state, "load result error code =%d != CBOR_ERR_NONE, not decref'ing\n", result->load_result.error.code);
+				else {
+					ctf_msg(state, "load result error code == CBOR_ERR_NONE, decref'ing it now\n");
+					ctf_cbor_decref(state, &result->proto_stk_decode_result_body.undecoded);
+				}
 			}
 			free(result);
 			continue;
