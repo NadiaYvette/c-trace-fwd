@@ -120,6 +120,7 @@ to_uint_array_get(const cbor_item_t *array, unsigned k, uintmax_t *val)
 		ctf_msg(tof, "no map entry for 1 found\n");
 		cbor_describe(map, stderr);
 		ctf_cbor_decref(tof, &map);
+		break;
 	default:
 		ctf_msg(tof, "unrecognised item type\n");
 		cbor_describe(item, stderr);
