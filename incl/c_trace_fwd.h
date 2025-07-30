@@ -28,6 +28,7 @@ struct c_trace_fwd_conf {
 struct c_trace_fwd_state {
 	int ux_sock_fd;
 	struct io_queue unix_io;
+	struct io_queue *ux_io;
 	int nr_clients;
 	fd_set state_fds;
 	pthread_mutex_t state_lock;
