@@ -12,6 +12,7 @@
 #include "ctf_util.h"
 #include "handshake.h"
 #include "proto_stk.h"
+#include "queue.h"
 #include "service.h"
 #include "sdu.h"
 
