@@ -133,7 +133,7 @@ to_queue_answer_request( struct c_trace_fwd_state *state
 	req_obj = request->tof_nr_obj;
 	msg->tof_msg_type = tof_reply;
 	to = &msg->tof_msg_body.reply.tof_replies;
-	if (!(*to = calloc(req_obj, sizeof(struct trace_object **)))) {
+	if (!(*to = calloc(req_obj, sizeof(struct trace_object *)))) {
 		free(msg);
 		return svc_req_failure;
 	}
