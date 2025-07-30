@@ -615,7 +615,7 @@ tof_nr_obj_decode(const cbor_item_t *nr_obj_item, uint16_t *val)
 struct tof_msg *
 tof_decode(const cbor_item_t *msg)
 {
-	struct tof_msg *tof = calloc(1, sizeof(struct tof_msg));
+	struct tof_msg *tof;
 	cbor_item_t *item, *reply_array = NULL;
 
 	ctf_msg(tof, "entered tof_decode()\n");
@@ -623,7 +623,7 @@ tof_decode(const cbor_item_t *msg)
 		ctf_msg(tof, "NULL msg!\n");
 		return NULL;
 	}
-	if (!tof) {
+	if (!(tof = calloc(1, sizeof(struct tof_msg)))) {
 		ctf_msg(tof, "tof allocation failed!\n");
 		return NULL;
 	}
