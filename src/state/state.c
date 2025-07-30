@@ -24,7 +24,7 @@ agency_string(enum agency agency)
 		[agency_remote] = "agency_remote",
 	};
 
-	if (agency >= AGENCY_MIN && agency <= AGENCY_MAX)
+	if (AGENCY_VALID(agency))
 		return agency_table[agency];
 	return NULL;
 }
