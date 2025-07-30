@@ -30,7 +30,7 @@ const struct cbor_callbacks ctf_cbor_drv = {
 	.indef_break = ctf_indef_break,
 };
 
-cbor_item_t *ctf_stk_pop(struct c_trace_fwd_state *state)
+cbor_item_t *ctf_stk_pop(struct ctf_stk_state *state)
 {
 	cbor_item_t *item;
 
@@ -41,7 +41,7 @@ cbor_item_t *ctf_stk_pop(struct c_trace_fwd_state *state)
 	return item;
 }
 
-int ctf_stk_grow(struct c_trace_fwd_state *state)
+int ctf_stk_grow(struct ctf_stk_state *state)
 {
 	size_t new_sz = 2 * state->stack_sz;
 	cbor_item_t **new_stk;
@@ -56,7 +56,7 @@ int ctf_stk_grow(struct c_trace_fwd_state *state)
 	return RETVAL_SUCCESS;
 }
 
-int ctf_stk_push(struct c_trace_fwd_state *state, cbor_item_t *item)
+int ctf_stk_push(struct ctf_stk_state *state, cbor_item_t *item)
 {
 	int retval = RETVAL_FAILURE;
 	size_t top = state->stack_top;
@@ -68,7 +68,7 @@ int ctf_stk_push(struct c_trace_fwd_state *state, cbor_item_t *item)
 	return RETVAL_SUCCESS;
 }
 
-int ctf_stk_top_append(struct c_trace_fwd_state *state, cbor_item_t *item)
+int ctf_stk_top_append(struct ctf_stk_state *state, cbor_item_t *item)
 {
 	int retval = RETVAL_FAILURE;
 	cbor_item_t *top;

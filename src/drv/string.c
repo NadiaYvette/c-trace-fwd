@@ -18,7 +18,7 @@ void ctf_string_start(void *ctx)
 void ctf_string(void *ctx, cbor_data buf, uint64_t len)
 {
 	cbor_item_t *chunk, *stack_top;
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_stk_state *state = ctx;
 
 	(*cbor_empty_callbacks.string)(ctx, buf, len);
 	if (!(chunk = cbor_build_string((const char *)buf)))
@@ -34,7 +34,7 @@ void ctf_string(void *ctx, cbor_data buf, uint64_t len)
 
 void ctf_byte_string_start(void *ctx)
 {
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_stk_state *state = ctx;
 	cbor_item_t *item;
 
 	(*cbor_empty_callbacks.byte_string_start)(ctx);
@@ -47,7 +47,7 @@ void ctf_byte_string_start(void *ctx)
 void ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
 {
 	cbor_item_t *chunk, *stack_top;
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_stk_state *state = ctx;
 
 	(*cbor_empty_callbacks.byte_string)(ctx, buf, len);
 	if (!(chunk = cbor_build_bytestring(buf, len)))

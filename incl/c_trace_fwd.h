@@ -30,10 +30,13 @@ struct c_trace_fwd_state {
 	struct io_queue unix_io;
 	int nr_clients;
 	fd_set state_fds;
+	pthread_mutex_t state_lock;
+};
+
+struct ctf_stk_state {
 	ssize_t stack_top; /* negative for empty stack */
 	size_t stack_sz;
 	struct cbor_item_t **stack; /* to parse nested structures */
-	pthread_mutex_t state_lock;
 };
 
 int setup_conf(struct c_trace_fwd_conf **, int, char *[]);

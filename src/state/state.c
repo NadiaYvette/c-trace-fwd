@@ -438,17 +438,10 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 		goto exit_failure;
 	}
 	(void)!pthread_mutex_init(&(*state)->state_lock, &state_lock_attr);
-	(*state)->stack = calloc(1024, sizeof(cbor_item_t *));
-	if (!(*state)->stack) {
-		ctf_msg(state, "state->stack allocation failed\n");
-		goto exit_destroy_mutex;
-	}
-	(*state)->stack_sz = 1024;
-	(*state)->stack_top = -1;
 	unix_sock = (struct sockaddr *)&conf->unix_sock;
 	if (!setup_unix_sock(&(*state)->unix_io.fd, unix_sock)) {
 		ctf_msg(state, "setup_unix_sock() failed\n");
-		goto exit_free_stack;
+		goto exit_destroy_mutex;
 	}
 	FD_SET((*state)->unix_io.fd, &(*state)->state_fds);
 	page_size = getpagesize();
@@ -496,9 +489,6 @@ exit_shutdown_unix:
 	(void)!shutdown((*state)->unix_io.fd, SHUT_RDWR);
 	(void)!close((*state)->unix_io.fd);
 	(*state)->unix_io.fd = 0;
-exit_free_stack:
-	free((*state)->stack);
-	(*state)->stack_top = -1;
 exit_destroy_mutex:
 	(void)!pthread_mutex_destroy(&(*state)->state_lock);
 	(void)!pthread_mutexattr_destroy(&state_lock_attr);
