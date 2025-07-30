@@ -71,10 +71,10 @@ do {									\
 		}						   \
 	} while (0)
 
-#define ctf_set_agency(mod, state, new_agency)				\
+#define ctf_set_agency(mod, io_point, new_agency)			\
 do {									\
 	enum agency *__ctx_old_agency_ptr##__LINE__			\
-			= &(state)->agency,				\
+			= &(io_point)->agency,				\
 		__ctx_new_agency##__LINE__ = new_agency;		\
 	if (AGENCY_VALID(*(__ctx_old_agency_ptr##__LINE__)) &&		\
 		AGENCY_VALID(__ctx_new_agency##__LINE__))		\

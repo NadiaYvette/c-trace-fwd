@@ -84,7 +84,7 @@ service_build_reply(struct c_trace_fwd_state *state, struct tof_request *req)
 {
 	struct tof_msg *msg = NULL;
 
-	if (to_queue_answer_request(&state->unix_io.queue_pair.in_queue, req, &msg) == svc_req_success)
+	if (to_queue_answer_request(&state->unix_io_point.queue_pair.in_queue, req, &msg) == svc_req_success)
 		return msg;
 	return NULL;
 }

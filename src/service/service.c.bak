@@ -57,7 +57,7 @@ service_issue_request(struct c_trace_fwd_state *state)
 	cur_buf = buf;
 	cur_sz = sz;
 restart_write:
-	if ((ret = send(state->unix_io.fd, cur_buf, cur_sz, flg)) == cur_sz)
+	if ((ret = send(state->unix_io_point.fd, cur_buf, cur_sz, flg)) == cur_sz)
 		goto out_free_buf;
 	if (ret < 0) {
 		ctf_msg(service, "send() failed, errno = %d\n", errno);
@@ -106,12 +106,12 @@ service_loop_core(struct c_trace_fwd_state *state)
 				ctf_msg(service, "service_ux_sock() failed\n");
 				goto exit_free_pollfds;
 			}
-		} else if (pollfds[k].fd == state->unix_io.fd) {
+		} else if (pollfds[k].fd == state->unix_io_point.fd) {
 			ctf_msg(service, "unix_sock_fd ready "
 					"revents = 0x%x "
 					"state->nr_to = %d\n",
 					pollfds[k].revents,
-					state->unix_io.queue_pair.in_queue.nr_to);
+					state->nr_to);
 			if (service_unix_sock(state, &pollfds[k]) == svc_progress_fail) {
 				ctf_msg(service, "service_unix_sock() "
 						"failed, continuing\n");
@@ -198,9 +198,8 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			retval = RETVAL_FAILURE;
 			break;
 		}
-		if (state->unix_io.queue_pair.in_queue.nr_to > 0)
-			ctf_msg(service, "%d in queue\n",
-					state->unix_io.queue_pair.in_queue.nr_to);
+		if (state->nr_to > 0)
+			ctf_msg(service, "%d in queue\n", state->nr_to);
 		switch (state->agency) {
 		case agency_nobody:
 			ctf_msg(service, "about to service_issue_request()\n");
