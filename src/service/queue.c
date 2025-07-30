@@ -34,7 +34,7 @@ to_dequeue_multi(struct c_trace_fwd_state *state, struct trace_object ***to, int
 			req_len, *n, state->nr_to);
 	nr_to = MIN(req_len, state->nr_to);
 	nr_q  = state->nr_to - nr_to;
-	if (!nr_to) {
+	if (!nr_to || !state->to_queue) {
 		free(*to);
 		*to = NULL;
 		*n = 0;

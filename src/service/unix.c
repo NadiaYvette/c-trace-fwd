@@ -7,6 +7,7 @@
 #include "ctf_util.h"
 #include "c_trace_fwd.h"
 #include "proto_stk.h"
+#include "queue.h"
 #include "service.h"
 #include "tof.h"
 
