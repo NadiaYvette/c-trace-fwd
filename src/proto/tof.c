@@ -198,7 +198,7 @@ out_string_free:
 struct trace_object *
 trace_object_decode(const cbor_item_t *array)
 {
-	size_t k, n, nsub;
+	size_t k, n;
 	uintmax_t val;
 	struct trace_object *to;
 	cbor_item_t *subarray;
@@ -228,7 +228,7 @@ trace_object_decode(const cbor_item_t *array)
 		ctf_cbor_decref(tof, &subarray);
 		goto out_free_to;
 	}
-	if (cbor_is_null(subarray) || !cbor_isa_array(subarray) || (nsub = cbor_array_size(subarray)) < 1)
+	if (cbor_is_null(subarray) || !cbor_isa_array(subarray) || cbor_array_size(subarray) < 1)
 		to->to_human = NULL;
 	else if (!to_strdup_array_get(&to->to_human, subarray, 0)) {
 		ctf_msg(tof, "human lacking\n");
