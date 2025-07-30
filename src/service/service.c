@@ -82,11 +82,11 @@ service_loop_move(struct c_trace_fwd_state *state)
 	struct trace_object **to_move = NULL;
 	int k, retval, nr_to_move = 0;
 
-	if (to_dequeue_multi(&state->unix_io.in_queue, &to_move, 1024, &nr_to_move) != RETVAL_SUCCESS)
+	if (to_dequeue_multi(&state->unix_io.out_queue, &to_move, 1024, &nr_to_move) != RETVAL_SUCCESS)
 		return RETVAL_FAILURE;
 	retval = RETVAL_SUCCESS;
 	for (k = 0; k < state->nr_clients; ++k)
-		if (to_enqueue_multi(&state->ux_io[k].out_queue, to_move, nr_to_move) != RETVAL_SUCCESS)
+		if (to_enqueue_multi(&state->ux_io[k].in_queue, to_move, nr_to_move) != RETVAL_SUCCESS)
 			retval = RETVAL_FAILURE;
 	return retval;
 }
