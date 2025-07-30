@@ -56,7 +56,7 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 			retval = svc_progress_send;
 		tof_free(msg);
 		/* will this work? */
-		if (state->agency == agency_nobody) {
+		if (state->unix_io.agency == agency_nobody) {
 			ctf_msg(unix, "sending done\n");
 			(void)!service_unix_sock_send_done(state, fd);
 		}
@@ -70,7 +70,7 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 			svc_req_ret == svc_req_must_block ? "must_block"
 							: "none_available");
 		retval = svc_progress_none;
-		if (state->agency != agency_nobody)
+		if (state->unix_io.agency != agency_nobody)
 			break;
 		ctf_msg(unix, "sending done\n");
 		if (service_unix_sock_send_done(state, fd) == svc_progress_fail)

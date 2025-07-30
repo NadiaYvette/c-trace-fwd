@@ -201,7 +201,7 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		if (state->unix_io.queue_pair.in_queue.nr_to > 0)
 			ctf_msg(service, "%d in queue\n",
 					state->unix_io.queue_pair.in_queue.nr_to);
-		switch (state->agency) {
+		switch (state->unix_io.agency) {
 		case agency_nobody:
 			ctf_msg(service, "about to service_issue_request()\n");
 			status = service_issue_request(state);
@@ -212,7 +212,7 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			break;
 		default:
 			ctf_msg(service, "unrecognized agency value %d\n",
-					state->agency);
+					state->unix_io.agency);
 			/* fall through */
 		case agency_local:
 			status = true;

@@ -27,7 +27,6 @@ struct c_trace_fwd_conf {
 };
 struct c_trace_fwd_state {
 	int ux_sock_fd;
-	enum agency agency;
 	struct queue_io_point unix_io;
 	int nr_clients;
 	fd_set state_fds;
