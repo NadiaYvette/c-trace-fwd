@@ -248,11 +248,11 @@ service_unix_sock2(struct c_trace_fwd_state *state)
 		ctf_msg(service_unix, "calloc() failed!\n");
 		return RETVAL_FAILURE;
 	}
-retry_read:
 	ctf_msg(service_unix, "service_unix_sock() about to read()\n");
 	sz = 64 * 1024;
 	cur_sz = sz;
 	cur_buf = buf;
+retry_read:
 	if ((ret_sz = recv(state->unix_sock_fd, cur_buf, cur_sz, 0)) == cur_sz)
 		goto got_past_read;
 	if (ret_sz <= 0) {
