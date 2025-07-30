@@ -254,7 +254,7 @@ service_unix_sock2(struct c_trace_fwd_state *state)
 	cur_sz = sz;
 	cur_buf = buf;
 retry_read:
-	if ((ret_sz = recv(state->unix_sock_fd, cur_buf, cur_sz, 0)) == cur_sz)
+	if ((ret_sz = recv(state->unix_io_point.fd, cur_buf, cur_sz, 0)) == cur_sz)
 		goto got_past_read;
 	if (ret_sz <= 0) {
 		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
@@ -348,7 +348,7 @@ tof_msg_type_switch:
 				retval = RETVAL_FAILURE;
 				break;
 			}
-			if (send(state->unix_sock_fd, msg_buf, msg_size, flg)
+			if (send(state->unix_io_point.fd, msg_buf, msg_size, flg)
 						!= (ssize_t)msg_size) {
 				/* connection left in bad state, lost
 				 * trace_objects, leaked memory

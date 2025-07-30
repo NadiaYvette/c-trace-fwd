@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include "agency.h"
+#include "queue.h"
 
 #define RETVAL_SUCCESS EXIT_SUCCESS
 #define RETVAL_FAILURE EXIT_FAILURE
@@ -27,7 +28,8 @@ struct c_trace_fwd_conf {
 struct c_trace_fwd_state {
 	int ux_sock_fd;
 	enum agency agency;
-	int unix_sock_fd;
+	/* int unix_sock_fd; */
+	struct queue_io_point unix_io_point;
 	int nr_clients;
 	fd_set state_fds;
 	int nr_to;

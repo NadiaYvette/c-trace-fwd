@@ -127,7 +127,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 		ctf_msg(state, "sdu_encode failed\n");
 		goto out_free_sdu;
 	}
-	if (send(state->unix_sock_fd, sdu_buf, buf_sz + 2*sizeof(uint32_t), flg) <= 0 && errno != 0) {
+	if (send(state->unix_io_point.fd, sdu_buf, buf_sz + 2*sizeof(uint32_t), flg) <= 0 && errno != 0) {
 		ctf_msg(state, "write error in handshake\n");
 		goto out_free_buf;
 	}
@@ -162,7 +162,7 @@ state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 	sigdelset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_UNBLOCK, &sig_mask, &old_sig_mask))
 		ctf_msg(state, "sigprocmask failed\n");
-	while ((reply_len = recv(state->unix_sock_fd, buf, buf_sz, 0)) <= 0) {
+	while ((reply_len = recv(state->unix_io_point.fd, buf, buf_sz, 0)) <= 0) {
 		/* Cancel any pending alarms. */
 		alarm(0);
 		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
@@ -446,11 +446,11 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	(*state)->stack_sz = 1024;
 	(*state)->stack_top = -1;
 	unix_sock = (struct sockaddr *)&conf->unix_sock;
-	if (!setup_unix_sock(&(*state)->unix_sock_fd, unix_sock)) {
+	if (!setup_unix_sock(&(*state)->unix_io_point.fd, unix_sock)) {
 		ctf_msg(state, "setup_unix_sock() failed\n");
 		goto exit_free_stack;
 	}
-	FD_SET((*state)->unix_sock_fd, &(*state)->state_fds);
+	FD_SET((*state)->unix_io_point.fd, &(*state)->state_fds);
 	page_size = getpagesize();
 	if (page_size < 0) {
 		ctf_msg(state, "page size detection failed\n");
@@ -493,9 +493,9 @@ exit_shutdown_ux:
 	(void)!close((*state)->ux_sock_fd);
 	(*state)->ux_sock_fd = 0;
 exit_shutdown_unix:
-	(void)!shutdown((*state)->unix_sock_fd, SHUT_RDWR);
-	(void)!close((*state)->unix_sock_fd);
-	(*state)->unix_sock_fd = 0;
+	(void)!shutdown((*state)->unix_io_point.fd, SHUT_RDWR);
+	(void)!close((*state)->unix_io_point.fd);
+	(*state)->unix_io_point.fd = 0;
 exit_free_stack:
 	free((*state)->stack);
 	(*state)->stack_top = -1;
@@ -510,9 +510,9 @@ exit_failure:
 
 void teardown_state(struct c_trace_fwd_state **state)
 {
-	(void)!shutdown((*state)->unix_sock_fd, SHUT_RDWR);
-	(void)!close((*state)->unix_sock_fd);
-	(*state)->unix_sock_fd = 0;
+	(void)!shutdown((*state)->unix_io_point.fd, SHUT_RDWR);
+	(void)!close((*state)->unix_io_point.fd);
+	(*state)->unix_io_point.fd = 0;
 	(void)!shutdown((*state)->ux_sock_fd, SHUT_RDWR);
 	(void)!close((*state)->ux_sock_fd);
 	(*state)->ux_sock_fd = 0;

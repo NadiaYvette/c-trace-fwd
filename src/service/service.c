@@ -57,7 +57,7 @@ service_issue_request(struct c_trace_fwd_state *state)
 	cur_buf = buf;
 	cur_sz = sz;
 restart_write:
-	if ((ret = send(state->unix_sock_fd, cur_buf, cur_sz, flg)) == cur_sz)
+	if ((ret = send(state->unix_io_point.fd, cur_buf, cur_sz, flg)) == cur_sz)
 		goto out_free_buf;
 	if (ret < 0) {
 		ctf_msg(service, "send() failed, errno = %d\n", errno);
@@ -106,7 +106,7 @@ service_loop_core(struct c_trace_fwd_state *state)
 				ctf_msg(service, "service_ux_sock() failed\n");
 				goto exit_free_pollfds;
 			}
-		} else if (pollfds[k].fd == state->unix_sock_fd) {
+		} else if (pollfds[k].fd == state->unix_io_point.fd) {
 			ctf_msg(service, "unix_sock_fd ready "
 					"revents = 0x%x "
 					"state->nr_to = %d\n",
