@@ -111,7 +111,7 @@ service_loop_core(struct c_trace_fwd_state *state)
 					"revents = 0x%x "
 					"state->nr_to = %d\n",
 					pollfds[k].revents,
-					state->unix_io.queue_pair.in_queue.nr_to);
+					state->unix_io.in_queue.nr_to);
 			if (service_unix_sock(state, &pollfds[k]) == svc_progress_fail) {
 				ctf_msg(service, "service_unix_sock() "
 						"failed, continuing\n");
@@ -198,9 +198,9 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			retval = RETVAL_FAILURE;
 			break;
 		}
-		if (state->unix_io.queue_pair.in_queue.nr_to > 0)
+		if (state->unix_io.in_queue.nr_to > 0)
 			ctf_msg(service, "%d in queue\n",
-					state->unix_io.queue_pair.in_queue.nr_to);
+					state->unix_io.in_queue.nr_to);
 		switch (state->unix_io.agency) {
 		case agency_nobody:
 			ctf_msg(service, "about to service_issue_request()\n");

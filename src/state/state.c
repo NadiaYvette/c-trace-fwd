@@ -376,7 +376,7 @@ continue_for_loop:
 			continue;
 		}
 		for (k = 0; k < result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_nr_replies; ++k) {
-			if (to_enqueue(&state->unix_io.queue_pair.in_queue, result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_replies[k]) == RETVAL_SUCCESS)
+			if (to_enqueue(&state->unix_io.in_queue, result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_replies[k]) == RETVAL_SUCCESS)
 				continue;
 			ctf_msg(state, "enqueue failed\n");
 			tof_free(result->proto_stk_decode_result_body.tof_msg);

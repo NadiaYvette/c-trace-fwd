@@ -46,7 +46,7 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 	enum svc_req_result svc_req_ret;
 
 	ctf_msg(unix, "calling to_queue_answer_request()\n");
-	switch (svc_req_ret = to_queue_answer_request(&state->unix_io.queue_pair.in_queue, &request, &msg)) {
+	switch (svc_req_ret = to_queue_answer_request(&state->unix_io.in_queue, &request, &msg)) {
 	case svc_req_success:
 		ctf_msg(unix, "svc_req_success\n");
 		/* send */
@@ -130,7 +130,7 @@ tof_msg_type_switch:
 	case tof_reply:
 		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
 		reply = &tof->tof_msg_body.reply;
-		enq_ret = to_enqueue_multi(&state->unix_io.queue_pair.in_queue, reply->tof_replies, reply->tof_nr_replies);
+		enq_ret = to_enqueue_multi(&state->unix_io.in_queue, reply->tof_replies, reply->tof_nr_replies);
 		if (enq_ret != RETVAL_SUCCESS)
 			ctf_msg(service_unix, "to_enqueue_multi() failed\n");
 		state->unix_io.agency = agency_local;
@@ -144,7 +144,7 @@ tof_msg_type_switch:
 				"to_queue_answer_request()\n");
 		/* state->agency = agency_local; */
 		ctf_set_agency(unix, &state->unix_io, agency_local);
-		switch (ret = to_queue_answer_request(&state->unix_io.queue_pair.in_queue, req, &reply_msg)) {
+		switch (ret = to_queue_answer_request(&state->unix_io.in_queue, req, &reply_msg)) {
 		case svc_req_must_block:
 			ctf_msg(service_unix, "returning "
 					"svc_req_must_block\n");
@@ -308,7 +308,7 @@ tof_msg_type_switch:
 	case tof_reply:
 		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
 		reply = &tof->tof_msg_body.reply;
-		retval = to_enqueue_multi(&state->unix_io.queue_pair.in_queue, reply->tof_replies, reply->tof_nr_replies);
+		retval = to_enqueue_multi(&state->unix_io.in_queue, reply->tof_replies, reply->tof_nr_replies);
 		if (retval != RETVAL_SUCCESS)
 			ctf_msg(service_unix, "to_enqueue_multi() failed\n");
 		break;
@@ -319,7 +319,7 @@ tof_msg_type_switch:
 
 		ctf_msg(service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
-		switch (ret = to_queue_answer_request(&state->unix_io.queue_pair.in_queue, req, &reply_msg)) {
+		switch (ret = to_queue_answer_request(&state->unix_io.in_queue, req, &reply_msg)) {
 		case svc_req_must_block:
 			ctf_msg(service_unix, "returning "
 					"svc_req_must_block\n");

@@ -13,12 +13,8 @@ struct queue {
 	struct trace_object **queue;
 };
 
-struct queue_pair {
+struct io_queue {
 	struct queue in_queue, out_queue;
-};
-
-struct queue_io_point {
-	struct queue_pair queue_pair;
 	int fd;
 	enum agency agency;
 };
