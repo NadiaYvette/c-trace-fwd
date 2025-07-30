@@ -117,6 +117,40 @@ to_enqueue_multi(struct queue *queue, struct trace_object **to, int n)
 	return RETVAL_SUCCESS;
 }
 
+bool
+to_queue_move(struct queue *dst, struct queue *src, size_t nr)
+{
+	struct trace_object **new_dst_q, **new_src_q;
+
+	if (!nr)
+		nr = src->nr_to;
+	if (!dst->nr_to || !dst->queue)
+		new_dst_q = calloc(nr, sizeof(struct trace_object *));
+	else
+		new_dst_q = reallocarray(dst->queue, dst->nr_to + nr, sizeof(struct trace_object *));
+	if (!new_dst_q)
+		return false;
+	(void)!memmove(&new_dst_q[dst->nr_to], src->queue, nr * sizeof(struct trace_object *));
+	if (src->nr_to <= nr)
+		new_src_q = NULL;
+	else
+		new_src_q = reallocarray(src->queue, src->nr_to - nr, sizeof(struct trace_object *));
+	if (!new_src_q)
+		goto out_cleanup;
+	src->queue  = new_src_q;
+	src->nr_to -= nr;
+	dst->queue  = new_dst_q;
+	dst->nr_to += nr;
+	return true;
+out_cleanup:
+	/* the best way to handle this is a little unclear */
+	if (dst->nr_to > 0)
+		(void)!reallocarray(new_dst_q, dst->nr_to, sizeof(struct trace_object *));
+	else
+		free(new_dst_q);
+	return false;
+}
+
 enum svc_req_result
 to_queue_answer_request( struct queue *queue
 		       , const struct tof_request *request

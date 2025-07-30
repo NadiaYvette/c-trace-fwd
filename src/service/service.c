@@ -77,12 +77,29 @@ out_free_buf:
 }
 
 static int
+service_loop_move(struct c_trace_fwd_state *state)
+{
+	struct trace_object **to_move = NULL;
+	int k, retval, nr_to_move = 0;
+
+	if (to_dequeue_multi(&state->unix_io.in_queue, &to_move, 1024, &nr_to_move) != RETVAL_SUCCESS)
+		return RETVAL_FAILURE;
+	retval = RETVAL_SUCCESS;
+	for (k = 0; k < state->nr_clients; ++k)
+		if (to_enqueue_multi(&state->ux_io[k].out_queue, to_move, nr_to_move) != RETVAL_SUCCESS)
+			retval = RETVAL_FAILURE;
+	return retval;
+}
+
+static int
 service_loop_core(struct c_trace_fwd_state *state)
 {
 	int nr_ready, k, retval = RETVAL_FAILURE;
 	struct pollfd *pollfds;
 
 	ctf_msg(service, "entered service_loop_core()\n");
+	if (service_loop_move(state) != RETVAL_SUCCESS)
+		return RETVAL_FAILURE;
 	if (!(pollfds = service_create_pollfds(state))) {
 		ctf_msg(service, "service_create_pollfds() failed\n");
 		return RETVAL_FAILURE;

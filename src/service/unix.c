@@ -144,7 +144,7 @@ tof_msg_type_switch:
 				"to_queue_answer_request()\n");
 		/* state->agency = agency_local; */
 		ctf_set_agency(unix, &state->unix_io, agency_local);
-		switch (ret = to_queue_answer_request(&state->unix_io.in_queue, req, &reply_msg)) {
+		switch (ret = to_queue_answer_request(&state->unix_io.out_queue, req, &reply_msg)) {
 		case svc_req_must_block:
 			ctf_msg(service_unix, "returning "
 					"svc_req_must_block\n");
