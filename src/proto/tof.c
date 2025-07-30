@@ -186,6 +186,7 @@ to_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
 		}
 		for (k = 0, cur = new_string; k < nr_chunks; ++k)
 			cur = stpcpy(cur, (const char *)cbor_string_handle(chunks[k]));
+		*string = new_string;
 		retval = true;
 	} else
 		retval = false;
