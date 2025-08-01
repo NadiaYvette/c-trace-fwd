@@ -1,5 +1,6 @@
 #include <cbor.h>
 #include <cbor/ints.h>
+#include <glib.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -63,8 +64,7 @@ propose_versions_decode(const cbor_item_t *msg_array, struct handshake *handshak
 	propose_versions->handshake_propose_versions_len
 		= cbor_map_size(version_map);
 	propose_versions->handshake_propose_versions
-		= calloc(propose_versions->handshake_propose_versions_len,
-			sizeof(struct handshake_propose_version_pair));
+		= g_rc_box_alloc0(propose_versions->handshake_propose_versions_len * sizeof(struct handshake_propose_version_pair));
 	for (k = 0; k < propose_versions->handshake_propose_versions_len; ++k) {
 		struct handshake_propose_version_pair *pair
 			= &propose_versions->handshake_propose_versions[k];
@@ -102,8 +102,7 @@ version_mismatch_decode(const cbor_item_t *refusal_array, struct handshake *hand
 	mismatch->handshake_refusal_version_mismatch_len
 		= cbor_array_size(mismatch_array);
 	mismatch->handshake_refusal_version_mismatch_versions
-		= calloc(mismatch->handshake_refusal_version_mismatch_len,
-				sizeof(uint64_t));
+		= g_rc_box_alloc0(mismatch->handshake_refusal_version_mismatch_len * sizeof(uint64_t));
 	for (k = 0; k < mismatch->handshake_refusal_version_mismatch_len; ++k)
 		mismatch->handshake_refusal_version_mismatch_versions[k]
 			= cbor_get_int(cbor_array_get(mismatch_array, k));
@@ -176,8 +175,7 @@ query_reply_decode(const cbor_item_t *msg_array, struct handshake *handshake)
 	query_reply->handshake_query_reply_len
 		= cbor_map_size(version_map);
 	query_reply->handshake_query_reply
-		= calloc(query_reply->handshake_query_reply_len,
-			sizeof(struct handshake_query_reply_pair));
+		= g_rc_box_alloc0(query_reply->handshake_query_reply_len * sizeof(struct handshake_query_reply_pair));
 	for (k = 0; k < query_reply->handshake_query_reply_len; ++k) {
 		struct handshake_query_reply_pair *pair
 			= &query_reply->handshake_query_reply[k];
@@ -195,7 +193,7 @@ handshake_decode(const cbor_item_t *msg_array)
 	cbor_item_t *type_cbor;
 	struct handshake *handshake = NULL;
 
-	if (!(handshake = calloc(1, sizeof(struct handshake))))
+	if (!(handshake = g_rc_box_new0(struct handshake)))
 		return NULL;
 	if (!(type_cbor = cbor_array_get(msg_array, 0)))
 		goto out_free_handshake;
@@ -215,13 +213,14 @@ handshake_decode(const cbor_item_t *msg_array)
 	}
 	return handshake;
 out_free_handshake:
-	free(handshake);
+	handshake_free(handshake);
 	return NULL;
 }
 
-void
-handshake_free(struct handshake *handshake)
+static void
+handshake_release_memory(void *p)
 {
+	struct handshake *handshake = p;
 	union handshake_message *msg = &handshake->handshake_message;
 
 	switch (handshake->handshake_type) {
@@ -229,7 +228,7 @@ handshake_free(struct handshake *handshake)
 		struct handshake_propose_versions *hpv;
 
 		hpv = &msg->propose_versions;
-		free(hpv->handshake_propose_versions);
+		g_rc_box_release(hpv->handshake_propose_versions);
 		break;
 	case handshake_accept_version:
 		struct handshake_accept_version *hav;
@@ -239,21 +238,23 @@ handshake_free(struct handshake *handshake)
 		break;
 	case handshake_query_reply:
 		struct handshake_query_reply *hqr = &msg->query_reply;
+		unsigned k;
 
-		free(hqr->handshake_query_reply);
+		for (k = 0; k < hqr->handshake_query_reply_len; ++k)
+			cbor_decref(&hqr->handshake_query_reply[k].query_reply_value);
 		break;
 	case handshake_refusal:
 		struct handshake_refusal *hr = &msg->refusal;
 
 		switch (hr->reason_type) {
 		case handshake_refusal_version_mismatch:
-			free(hr->refusal_message.version_mismatch.handshake_refusal_version_mismatch_versions);
+			g_rc_box_release(hr->refusal_message.version_mismatch.handshake_refusal_version_mismatch_versions);
 			break;
 		case handshake_refusal_decode_error:
-			free(hr->refusal_message.decode_error.handshake_refusal_decode_error_string);
+			g_rc_box_release(hr->refusal_message.decode_error.handshake_refusal_decode_error_string);
 			break;
 		case handshake_refusal_refused:
-			free(hr->refusal_message.refused.handshake_refusal_refused_string);
+			g_rc_box_release(hr->refusal_message.refused.handshake_refusal_refused_string);
 			break;
 		default:
 			ctf_msg(handshake, "unrecognized handshake refusal\n");
@@ -262,7 +263,12 @@ handshake_free(struct handshake *handshake)
 	default:
 		ctf_msg(handshake, "freeing handshake of unrecognized type\n");
 	}
-	free(handshake);
+}
+
+void
+handshake_free(struct handshake *handshake)
+{
+	g_rc_box_release_full(handshake, handshake_release_memory);
 }
 
 static cbor_item_t *
