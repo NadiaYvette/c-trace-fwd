@@ -324,32 +324,38 @@ continue_for_loop:
 			ctf_msg(state, "got CBOR_ERR_NOTENOUGHDATA, "
 					"but continuing until EOF "
 					"anyway\n");
+			cpsdr_free(result);
 			goto continue_for_loop;
 		case CBOR_ERR_NODATA:
 			ctf_msg(state, "got CBOR_ERR_NODATA, "
 					"but continuing until EOF "
 					"anyway\n");
+			cpsdr_free(result);
 			goto continue_for_loop;
 		case CBOR_ERR_MALFORMATED:
 			ctf_msg(state, "got CBOR_ERR_MALFORMATED, "
 					"but continuing until EOF "
 					"anyway\n");
+			cpsdr_free(result);
 			goto continue_for_loop;
 		case CBOR_ERR_MEMERROR:
 			ctf_msg(state, "got CBOR_ERR_MEMERR, "
 					"but continuing until EOF "
 					"anyway\n");
+			cpsdr_free(result);
 			goto continue_for_loop;
 		case CBOR_ERR_SYNTAXERROR:
 			ctf_msg(state, "got CBOR_ERR_SYNTAXERR, "
 					"but continuing until EOF "
 					"anyway\n");
+			cpsdr_free(result);
 			goto continue_for_loop;
 		default:
 			ctf_msg(state, "got unknown error %d, "
 					"but continuing until EOF "
 					"anyway\n",
 					result->load_result.error.code);
+			cpsdr_free(result);
 			goto continue_for_loop;
 		}
 		mpn = result->sdu.sdu_proto_un.sdu_proto_num;
@@ -428,9 +434,8 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	int ai_family, ai_socktype, ai_protocol, page_size,
 		retval = RETVAL_FAILURE;
 
-	*state = calloc(1, sizeof(struct c_trace_fwd_state));
-	if (!*state) {
-		ctf_msg(state, "calloc() failed\n");
+	if (!(*state = g_rc_box_new0(struct c_trace_fwd_state))) {
+		ctf_msg(state, "g_rc_box_new0() failed\n");
 		return RETVAL_FAILURE;
 	}
 	if (pthread_mutexattr_init(&state_lock_attr)) {
@@ -499,15 +504,22 @@ exit_failure:
 	return retval;
 }
 
+static void
+state_release_memory(void *p)
+{
+	struct c_trace_fwd_state *state = p;
+
+	(void)!shutdown(state->unix_io.fd, SHUT_RDWR);
+	(void)!close(state->unix_io.fd);
+	state->unix_io.fd = -1;
+	(void)!shutdown(state->ux_sock_fd, SHUT_RDWR);
+	state->ux_sock_fd = -1;
+	(void)!pthread_mutex_destroy(&state->state_lock);
+	free(state->ux_io);
+}
+
 void teardown_state(struct c_trace_fwd_state **state)
 {
-	(void)!shutdown((*state)->unix_io.fd, SHUT_RDWR);
-	(void)!close((*state)->unix_io.fd);
-	(*state)->unix_io.fd = 0;
-	(void)!shutdown((*state)->ux_sock_fd, SHUT_RDWR);
-	(void)!close((*state)->ux_sock_fd);
-	(*state)->ux_sock_fd = 0;
-	(void)!pthread_mutex_destroy(&(*state)->state_lock);
-	free(*state);
+	g_rc_box_release_full(*state, state_release_memory);
 	*state = NULL;
 }
