@@ -367,12 +367,12 @@ continue_for_loop:
 					ctf_cbor_decref(state, &result->proto_stk_decode_result_body.undecoded);
 				}
 			}
-			free(result);
+			cpsdr_free(result);
 			continue;
 		}
 		if (result->proto_stk_decode_result_body.tof_msg->tof_msg_type != tof_reply) {
 			tof_free(result->proto_stk_decode_result_body.tof_msg);
-			free(result);
+			cpsdr_free(result);
 			continue;
 		}
 		for (k = 0; k < result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_nr_replies; ++k) {
@@ -380,7 +380,7 @@ continue_for_loop:
 				continue;
 			ctf_msg(state, "enqueue failed\n");
 			tof_free(result->proto_stk_decode_result_body.tof_msg);
-			free(result);
+			cpsdr_free(result);
 			goto out_free_buf;
 		}
 	}

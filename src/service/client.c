@@ -156,7 +156,7 @@ tof_msg_type_switch:
 		goto out_free_tof;
 	}
 out_free_cpsdr:
-	free(cpsdr);
+	cpsdr_free(cpsdr);
 out_free_tof:
 	tof_free(tof);
 	return retval;

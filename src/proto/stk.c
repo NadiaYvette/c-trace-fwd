@@ -6,6 +6,30 @@
 #include "sdu.h"
 #include "tof.h"
 
+static void
+cpsdr_release_memory(void *p)
+{
+	struct ctf_proto_stk_decode_result *cpsdr = p;
+
+	if (cpsdr->load_result.error.code != CBOR_ERR_NONE)
+		return;
+	if (cpsdr->sdu.sdu_proto_un.sdu_proto_num == mpn_trace_objects) {
+		if (cpsdr->proto_stk_decode_result_body.tof_msg != NULL) {
+			tof_free(cpsdr->proto_stk_decode_result_body.tof_msg);
+			cpsdr->proto_stk_decode_result_body.tof_msg = NULL;
+		}
+	} else if (cpsdr->proto_stk_decode_result_body.undecoded != NULL) {
+		cbor_decref(&cpsdr->proto_stk_decode_result_body.undecoded);
+		cpsdr->proto_stk_decode_result_body.undecoded = NULL;
+	}
+}
+
+void
+cpsdr_free(struct ctf_proto_stk_decode_result *cpsdr)
+{
+	g_rc_box_release_full(cpsdr, cpsdr_release_memory);
+}
+
 struct ctf_proto_stk_decode_result *
 ctf_proto_stk_decode(const void *buf)
 {
@@ -16,7 +40,7 @@ ctf_proto_stk_decode(const void *buf)
 	cbor_data sdu_data_addr;
 	size_t sdu_data_len;
 
-	if (!(cpsdr = calloc(1, sizeof(struct ctf_proto_stk_decode_result))))
+	if (!(cpsdr = g_rc_box_new0(struct ctf_proto_stk_decode_result)))
 		return NULL;
 	if (sdu_decode(hdr, &cpsdr->sdu))
 		goto out_free_cpsdr;
@@ -113,7 +137,7 @@ out_free_tof_cbor:
 	if (!!tof_cbor)
 		ctf_cbor_decref(stk, &tof_cbor);
 out_free_cpsdr:
-	free(cpsdr);
+	g_rc_box_release_full(cpsdr, cpsdr_release_memory);
 	return NULL;
 }
 

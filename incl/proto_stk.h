@@ -15,3 +15,4 @@ struct ctf_proto_stk_decode_result {
 
 struct ctf_proto_stk_decode_result *ctf_proto_stk_decode(const void *);
 void *ctf_proto_stk_encode(const struct tof_msg *, size_t *);
+void cpsdr_free(struct ctf_proto_stk_decode_result *);

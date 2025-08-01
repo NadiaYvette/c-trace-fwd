@@ -191,7 +191,7 @@ tof_msg_type_switch:
 		break;
 	}
 out_free_cpsdr:
-	free(cpsdr);
+	cpsdr_free(cpsdr);
 out_msg:
 	ctf_msg(service_unix, "reached out_free_buf label\n");
 	if (retval != RETVAL_SUCCESS)
@@ -383,7 +383,7 @@ tof_msg_type_switch:
 		break;
 	}
 out_free_cpsdr:
-	free(cpsdr);
+	cpsdr_free(cpsdr);
 out_free_buf:
 	ctf_msg(service_unix, "reached out_free_buf label\n");
 	free(buf);
