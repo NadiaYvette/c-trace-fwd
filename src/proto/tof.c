@@ -786,6 +786,7 @@ tof_free_members(void *p)
 	for (k = 0; k < reply->tof_nr_replies; ++k)
 		trace_object_free(reply->tof_replies[k]);
 }
+
 void tof_free(struct tof_msg *tof)
 {
 	g_rc_box_release_full(tof, tof_free_members);
