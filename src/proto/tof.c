@@ -164,7 +164,7 @@ to_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
 			retval = false;
 			goto out_string_free;
 		}
-		if (!(*string = strndup(new_string, new_string_len))) {
+		if (!(*string = g_rc_box_dup(new_string_len, new_string))) {
 			ctf_msg(tof, "strdup() failed\n");
 			retval = false;
 			goto out_string_free;
@@ -181,7 +181,7 @@ to_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
 			goto out_string_free;
 		}
 		nr_chunks = cbor_string_chunk_count(item);
-		if (!(new_string = calloc(cbor_string_length(item), sizeof(char)))) {
+		if (!(new_string = g_rc_box_alloc0(cbor_string_length(item) * sizeof(char)))) {
 			retval = false;
 			goto out_string_free;
 		}
@@ -205,7 +205,7 @@ trace_object_decode(const cbor_item_t *array)
 	cbor_item_t *subarray;
 
 	if (!(to = g_rc_box_new0(struct trace_object))) {
-		ctf_msg(tof, "calloc() failed\n");
+		ctf_msg(tof, "g_rc_box_new0() failed\n");
 		return NULL;
 	}
 
@@ -254,8 +254,8 @@ trace_object_decode(const cbor_item_t *array)
 	}
 	/* tags don't get used in this case */
 	to->to_namespace_nr = cbor_array_size(subarray);
-	if (!(to->to_namespace = calloc(to->to_namespace_nr, sizeof(char *)))) {
-		ctf_msg(tof, "namespace calloc() failed\n");
+	if (!(to->to_namespace = g_rc_box_alloc0(to->to_namespace_nr * sizeof(char *)))) {
+		ctf_msg(tof, "namespace g_rc_box_alloc0() failed\n");
 		ctf_cbor_decref(tof, &subarray);
 		goto out_free_machine;
 	}
@@ -297,15 +297,15 @@ trace_object_decode(const cbor_item_t *array)
 	}
 	return to;
 out_free_hostname:
-	free((void *)to->to_hostname);
+	g_rc_box_release((void *)to->to_hostname);
 out_free_namespace_entries:
 	for (k = 0; k < to->to_namespace_nr; ++k)
-		free((void *)to->to_namespace[k]);
-	free(to->to_namespace);
+		g_rc_box_release((void *)to->to_namespace[k]);
+	g_rc_box_release(to->to_namespace);
 out_free_machine:
-	free((void *)to->to_machine);
+	g_rc_box_release((void *)to->to_machine);
 /* out_free_human: */
-	free((void *)to->to_human);
+	g_rc_box_release((void *)to->to_human);
 out_free_to:
 	g_rc_box_release(to);
 	if (0)
@@ -701,8 +701,7 @@ tof_decode(const cbor_item_t *msg)
 		}
 		reply->tof_nr_replies = cbor_array_size(reply_array);
 		reply->tof_replies
-			= calloc(reply->tof_nr_replies,
-					sizeof(struct trace_object *));
+			= g_rc_box_alloc0(reply->tof_nr_replies * sizeof(struct trace_object *));
 		if (reply->tof_nr_replies > UINT16_MAX) {
 			ctf_msg(tof, "too many tof_nr_replies %zd\n",
 					reply->tof_nr_replies);
@@ -764,13 +763,13 @@ void trace_object_free(struct trace_object *to)
 
 	if (!to)
 		return;
-	free((void *)to->to_human);
-	free((void *)to->to_machine);
+	g_rc_box_release((void *)to->to_human);
+	g_rc_box_release((void *)to->to_machine);
 	for (k = 0; k < to->to_namespace_nr; ++k)
-		free((void *)to->to_namespace[k]);
-	free(to->to_namespace);
-	free((void *)to->to_hostname);
-	free((void *)to->to_thread_id);
+		g_rc_box_release((void *)to->to_namespace[k]);
+	g_rc_box_release(to->to_namespace);
+	g_rc_box_release((void *)to->to_hostname);
+	g_rc_box_release((void *)to->to_thread_id);
 }
 
 static void
