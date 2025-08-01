@@ -1,6 +1,7 @@
 #include <cbor.h>
 #include <cbor/data.h>
 #include <errno.h>
+#include <glib.h>
 #include <poll.h>
 #include <sched.h>
 #include <stdlib.h>
@@ -80,14 +81,15 @@ static int
 service_loop_move(struct c_trace_fwd_state *state)
 {
 	struct trace_object **to_move = NULL;
-	int k, retval, nr_to_move = 0;
+	size_t k, nr_to_move = 1024;
+	bool retval = true;
 
-	if (to_dequeue_multi(&state->unix_io.out_queue, &to_move, 1024, &nr_to_move) != RETVAL_SUCCESS)
-		return RETVAL_FAILURE;
+	if (!to_queue_fillarray(&to_move, &state->unix_io.out_queue, &nr_to_move))
+		return false;
 	retval = RETVAL_SUCCESS;
 	for (k = 0; k < state->nr_clients; ++k)
-		if (to_enqueue_multi(&state->ux_io[k].in_queue, to_move, nr_to_move) != RETVAL_SUCCESS)
-			retval = RETVAL_FAILURE;
+		if (!to_queue_putarray(&state->ux_io[k].in_queue, to_move, nr_to_move))
+			retval = false;
 	return retval;
 }
 
@@ -98,7 +100,7 @@ service_loop_core(struct c_trace_fwd_state *state)
 	struct pollfd *pollfds;
 
 	ctf_msg(service, "entered service_loop_core()\n");
-	if (service_loop_move(state) != RETVAL_SUCCESS)
+	if (!service_loop_move(state))
 		return RETVAL_FAILURE;
 	if (!(pollfds = service_create_pollfds(state))) {
 		ctf_msg(service, "service_create_pollfds() failed\n");
@@ -128,7 +130,7 @@ service_loop_core(struct c_trace_fwd_state *state)
 					"revents = 0x%x "
 					"state->nr_to = %d\n",
 					pollfds[k].revents,
-					state->unix_io.in_queue.nr_to);
+					g_queue_get_length(&state->unix_io.in_queue));
 			if (service_unix_sock(state, &pollfds[k]) == svc_progress_fail) {
 				ctf_msg(service, "service_unix_sock() "
 						"failed, continuing\n");
@@ -215,9 +217,9 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			retval = RETVAL_FAILURE;
 			break;
 		}
-		if (state->unix_io.in_queue.nr_to > 0)
+		if (g_queue_get_length(&state->unix_io.in_queue) > 0)
 			ctf_msg(service, "%d in queue\n",
-					state->unix_io.in_queue.nr_to);
+				g_queue_get_length(&state->unix_io.in_queue));
 		switch (state->unix_io.agency) {
 		case agency_nobody:
 			ctf_msg(service, "about to service_issue_request()\n");

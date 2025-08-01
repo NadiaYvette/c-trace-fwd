@@ -19,7 +19,7 @@ service_ux_sock(struct c_trace_fwd_state *state)
 	if (!new_ux_io)
 		goto out_close;
 	state->ux_io = new_ux_io;
-	new_ux_io[state->nr_clients].fd = new_fd;
+	(void)!io_queue_init(&new_ux_io[state->nr_clients], new_fd);
 	state->nr_clients++;
 	FD_SET(new_fd, &state->state_fds);
 	return RETVAL_SUCCESS;

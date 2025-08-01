@@ -1,183 +1,97 @@
 #include <stdlib.h>
 #include <string.h>
+#include <glib.h>
 #include <sys/param.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
 #include "service.h"
 #include "tof.h"
 
-struct trace_object *
-to_dequeue(struct queue *queue)
-{
-	struct trace_object *to, **new_queue;
-
-	if (queue->nr_to == 0 || queue->queue == NULL)
-		return NULL;
-	to = queue->queue[0];
-	memmove(&queue->queue[0], &queue->queue[1], (queue->nr_to - 1) * sizeof(struct trace_object *));
-	new_queue = reallocarray(queue->queue, queue->nr_to - 1, sizeof(struct trace_object *));
-	if (!!new_queue) {
-		queue->queue = new_queue;
-		queue->nr_to--;
-		return to;
-	}
-	memmove(&queue->queue[1], &queue->queue[0], (queue->nr_to - 1) * sizeof(struct trace_object *));
-	queue->queue[0] = to;
-	return NULL;
-}
-
-int
-to_dequeue_multi(struct queue *queue, struct trace_object ***to, int req_len, int *n)
-{
-	int nr_to, nr_q;
-	struct trace_object **new_q;
-
-	ctf_msg(queue, "req_len = %d, *n = %d, queue->nr_to = %d\n",
-			req_len, *n, queue->nr_to);
-	nr_to = MIN(req_len, queue->nr_to);
-	nr_q  = queue->nr_to - nr_to;
-	if (!nr_to || !queue->queue) {
-		free(*to);
-		*to = NULL;
-		*n = 0;
-		return RETVAL_SUCCESS;
-	} else if (nr_to < req_len) {
-		struct trace_object **new_to;
-
-		if (!!queue->queue)
-			new_to = reallocarray(*to, nr_to, sizeof(struct trace_object *));
-		else
-			new_to = calloc(nr_to, sizeof(struct trace_object *));
-		if (!new_to) {
-			ctf_msg(queue, "reallocarray()/calloc() failed!\n");
-			return RETVAL_FAILURE;
-		}
-		*to = new_to;
-		*n = nr_to;
-	}
-	memccpy(*to, queue->queue, nr_to, sizeof(struct trace_object *));
-	if (!nr_q && 0) {
-		free(queue->queue);
-		queue->queue = NULL;
-		queue->nr_to    = 0;
-		return RETVAL_SUCCESS;
-	}
-	memmove(&queue->queue[0], &queue->queue[nr_to],
-		nr_q * sizeof(struct trace_object *));
-	if (!!nr_q)
-		new_q = reallocarray(queue->queue, nr_q,
-					sizeof(struct trace_object *));
-	else {
-		free(queue->queue);
-		new_q = NULL;
-	}
-	if (!!new_q || (!nr_q && !new_q)) {
-		queue->queue = new_q;
-		queue->nr_to -= nr_to;
-		return RETVAL_SUCCESS;
-	}
-	memmove(&queue->queue[nr_to], &queue->queue[0],
-		nr_q * sizeof(struct trace_object *));
-	memccpy(queue->queue, to, nr_to, sizeof(struct trace_object *));
-	memset(*to, 0, (*n) * sizeof(struct trace_object *));
-	ctf_msg(queue, "fell through! queue->nr_to = %d, nr_to = %d, *n = %d\n",
-			queue->nr_to, nr_to, *n);
-	return RETVAL_FAILURE;
-}
-
-int
-to_enqueue(struct queue *queue, struct trace_object *to)
-{
-	struct trace_object **new_queue;
-
-	new_queue = reallocarray(queue->queue, queue->nr_to + 1, sizeof(struct trace_object *));
-	if (!new_queue)
-		return RETVAL_FAILURE;
-	queue->queue = new_queue;
-	queue->nr_to++;
-	queue->queue[queue->nr_to - 1] = to;
-	return RETVAL_SUCCESS;
-}
-
-int
-to_enqueue_multi(struct queue *queue, struct trace_object **to, int n)
-{
-	struct trace_object **new_queue;
-
-	ctf_msg(queue, "entering to_enqueue_multi()\n");
-	if (!(new_queue = reallocarray(queue->queue, queue->nr_to + n, sizeof(struct trace_object *)))) {
-		ctf_msg(queue, "reallocarray() failed, n = %d, nmemb = %zd, size = %zd\n",
-				n, (size_t)(queue->nr_to + n), sizeof(struct trace_object *));
-		return RETVAL_FAILURE;
-	}
-	memccpy(&new_queue[queue->nr_to], to, n, sizeof(struct trace_object *));
-	queue->queue = new_queue;
-	queue->nr_to += n;
-	ctf_msg(queue, "to_enqueue_multi() succeeded\n");
-	return RETVAL_SUCCESS;
-}
-
 bool
-to_queue_move(struct queue *dst, struct queue *src, size_t nr)
+to_queue_fillarray(struct trace_object ***dst, GQueue *src, size_t *nr)
 {
-	struct trace_object **new_dst_q, **new_src_q;
+	GQueue tmp = G_QUEUE_INIT;
+	size_t k, nr_ret, nr_req = *nr;
 
-	if (!nr)
-		nr = src->nr_to;
-	if (!dst->nr_to || !dst->queue)
-		new_dst_q = calloc(nr, sizeof(struct trace_object *));
-	else
-		new_dst_q = reallocarray(dst->queue, dst->nr_to + nr, sizeof(struct trace_object *));
-	if (!new_dst_q)
-		return false;
-	(void)!memmove(&new_dst_q[dst->nr_to], src->queue, nr * sizeof(struct trace_object *));
-	if (src->nr_to <= nr)
-		new_src_q = NULL;
-	else
-		new_src_q = reallocarray(src->queue, src->nr_to - nr, sizeof(struct trace_object *));
-	if (!new_src_q)
-		goto out_cleanup;
-	src->queue  = new_src_q;
-	src->nr_to -= nr;
-	dst->queue  = new_dst_q;
-	dst->nr_to += nr;
+	for (k = 0; k < nr_req; ++k) {
+		if (g_queue_is_empty(src))
+			break;
+	}
+	nr_ret = to_queue_move(&tmp, src, nr_req);
+	if (!(*dst = calloc(nr_ret, sizeof(struct trace_object *))))
+		goto out_restore_queue;
+	for (k = 0; k < nr_ret; ++k)
+		(*dst)[k] = g_queue_pop_head(&tmp);
+	*nr = nr_ret;
 	return true;
-out_cleanup:
-	/* the best way to handle this is a little unclear */
-	if (dst->nr_to > 0)
-		(void)!reallocarray(new_dst_q, dst->nr_to, sizeof(struct trace_object *));
-	else
-		free(new_dst_q);
+out_restore_queue:
+	while (!g_queue_is_empty(&tmp))
+		g_queue_push_tail(src, g_queue_pop_head(&tmp));
 	return false;
 }
 
+bool
+to_queue_putarray(GQueue *dst, struct trace_object **to, size_t nr)
+{
+	size_t k;
+
+	for (k = 0; k < nr; ++k)
+		g_queue_push_tail(dst, to[k]);
+	return true;
+}
+
+size_t
+to_queue_move(GQueue *dst, GQueue *src, size_t nr_requested)
+{
+	size_t nr_moved;
+	gpointer datum;
+
+	for (nr_moved = 0; nr_moved < nr_requested; ++nr_moved) {
+		if (g_queue_is_empty(src))
+			break;
+		if (!(datum = g_queue_pop_head(src)))
+			break;
+		g_queue_push_tail(dst, datum);
+	}
+	return nr_moved;
+}
+
+int
+to_enqueue(GQueue *queue, struct trace_object *to)
+{
+	g_queue_push_tail(queue, to);
+	return RETVAL_SUCCESS;
+}
+
+struct trace_object *
+to_dequeue(GQueue *queue)
+{
+	return g_queue_pop_head(queue);
+}
+
 enum svc_req_result
-to_queue_answer_request( struct queue *queue
+to_queue_answer_request( GQueue *queue
 		       , const struct tof_request *request
 		       , struct tof_msg **reply_msg)
 {
 	struct tof_msg *msg;
 	struct trace_object ***to;
-	int *n, req_obj;
+	size_t req_obj;
 
 	if (!reply_msg)
 		return svc_req_failure;
-	if (request->tof_blocking && !queue->nr_to)
+	if (request->tof_blocking && g_queue_is_empty(queue))
 		return svc_req_must_block;
 	if (!(msg = calloc(1, sizeof(struct tof_msg))))
 		return svc_req_failure;
 	req_obj = request->tof_nr_obj;
 	msg->tof_msg_type = tof_reply;
 	to = &msg->tof_msg_body.reply.tof_replies;
-	if (!(*to = calloc(req_obj, sizeof(struct trace_object *)))) {
-		free(msg);
-		return svc_req_failure;
-	}
-	n = &msg->tof_msg_body.reply.tof_nr_replies;
-	if (to_dequeue_multi(queue, to, req_obj, n) != RETVAL_SUCCESS) {
-		ctf_msg(queue, "to_dequeue_multi() failed!\n");
+	if (!to_queue_fillarray(to, queue, &req_obj)) {
+		ctf_msg(queue, "to_dequeue_fillarray() failed!\n");
 		goto out_free_replies;
 	}
+	msg->tof_msg_body.reply.tof_nr_replies = req_obj;
 	*reply_msg = msg;
 	return svc_req_success;
 out_free_replies:
@@ -185,4 +99,14 @@ out_free_replies:
 /* out_free_msg: */
 	free(msg);
 	return svc_req_failure;
+}
+
+bool
+io_queue_init(struct io_queue *ioq, int fd)
+{
+	g_queue_init(&ioq->in_queue);
+	g_queue_init(&ioq->out_queue);
+	ioq->fd = fd;
+	ioq->agency = agency_remote;
+	return true;
 }

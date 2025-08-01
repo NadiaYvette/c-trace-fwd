@@ -443,6 +443,7 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 		ctf_msg(state, "setup_unix_sock() failed\n");
 		goto exit_destroy_mutex;
 	}
+	io_queue_init(&(*state)->unix_io, (*state)->unix_io.fd);
 	FD_SET((*state)->unix_io.fd, &(*state)->state_fds);
 	page_size = getpagesize();
 	if (page_size < 0) {

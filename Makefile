@@ -35,12 +35,12 @@ LIB_OBJDIRS:=$(addprefix $(OBJDIR)/,$(LIB_SUBDIRS))
 OBJBINDIR:=$(OBJDIR)/bin
 OBJLIBDIR:=$(OBJDIR)/lib
 INCDIR:=$(TOPDIR)/incl
-INCFLAGS:=-I$(INCDIR)
+INCFLAGS:=-I$(INCDIR) $(shell pkgconf --cflags-only-I glib-2.0)
 CTF_LIBS:=c_trace_fwd
 
 # The placement of the library is assumed in-place for the moment.
 # Installation directories should follow.
-LDFLAGS:=-L$(OBJLIBDIR)
+LDFLAGS:=-L$(OBJLIBDIR) $(shell pkgconf --libs glib-2.0)
 LIBS:=$(CBOR_LIBS)
 
 # -Wno-unused-function may sometimes be helpful.
@@ -194,7 +194,7 @@ check:
 		$(shell find $(INCDIR) $(SRCDIR) -name '*.[ch]') \
 		--analyzer-output-path=$(OBJDIR)/analysis \
 		-- \
-		-std=gnu23 -I./incl -isystem /usr/include \
+		-std=gnu23 $(INCFLAGS) -isystem /usr/include \
 		-isystem /usr/lib/clang/19/include
 
 allclean: ckclean clean depclean

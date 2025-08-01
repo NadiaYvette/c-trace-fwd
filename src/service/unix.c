@@ -95,7 +95,6 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 	struct ctf_proto_stk_decode_result *cpsdr;
 	struct tof_msg *tof;
 	struct tof_reply *reply;
-	int enq_ret;
 
 	/* receive */
 	/* change agency to local */
@@ -128,11 +127,13 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 tof_msg_type_switch:
 	switch (tof->tof_msg_type) {
 	case tof_reply:
+		size_t nr_replies;
+
 		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
 		reply = &tof->tof_msg_body.reply;
-		enq_ret = to_enqueue_multi(&state->unix_io.in_queue, reply->tof_replies, reply->tof_nr_replies);
-		if (enq_ret != RETVAL_SUCCESS)
-			ctf_msg(service_unix, "to_enqueue_multi() failed\n");
+		nr_replies = reply->tof_nr_replies;
+		if (!to_queue_fillarray(&reply->tof_replies, &state->unix_io.in_queue, &nr_replies))
+			ctf_msg(service_unix, "to_queue_fillarray() failed\n");
 		state->unix_io.agency = agency_local;
 		break;
 	case tof_request:
@@ -306,11 +307,13 @@ got_past_read:
 tof_msg_type_switch:
 	switch (tof->tof_msg_type) {
 	case tof_reply:
-		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
+		size_t nr_replies;
+
 		reply = &tof->tof_msg_body.reply;
-		retval = to_enqueue_multi(&state->unix_io.in_queue, reply->tof_replies, reply->tof_nr_replies);
-		if (retval != RETVAL_SUCCESS)
-			ctf_msg(service_unix, "to_enqueue_multi() failed\n");
+		nr_replies = reply->tof_nr_replies;
+		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
+		if (!to_queue_fillarray(&reply->tof_replies, &state->unix_io.in_queue, &nr_replies))
+			ctf_msg(service_unix, "to_queue_fillarray() failed\n");
 		break;
 	case tof_request:
 		struct tof_request *req = &tof->tof_msg_body.request;
