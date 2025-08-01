@@ -204,7 +204,7 @@ trace_object_decode(const cbor_item_t *array)
 	struct trace_object *to;
 	cbor_item_t *subarray;
 
-	if (!(to = calloc(1, sizeof(struct trace_object)))) {
+	if (!(to = g_rc_box_new0(struct trace_object))) {
 		ctf_msg(tof, "calloc() failed\n");
 		return NULL;
 	}
@@ -307,7 +307,7 @@ out_free_machine:
 /* out_free_human: */
 	free((void *)to->to_human);
 out_free_to:
-	free(to);
+	g_rc_box_release(to);
 	if (0)
 		cbor_describe((cbor_item_t *)array, stderr);
 	return NULL;
@@ -625,7 +625,7 @@ tof_decode(const cbor_item_t *msg)
 		ctf_msg(tof, "NULL msg!\n");
 		return NULL;
 	}
-	if (!(tof = calloc(1, sizeof(struct tof_msg)))) {
+	if (!(tof = g_rc_box_new0(struct tof_msg))) {
 		ctf_msg(tof, "tof allocation failed!\n");
 		return NULL;
 	}
@@ -773,16 +773,20 @@ void trace_object_free(struct trace_object *to)
 	free((void *)to->to_thread_id);
 }
 
-void tof_free(struct tof_msg *tof)
+static void
+tof_free_members(void *p)
 {
+	struct tof_msg *tof = p;
 	struct tof_reply *reply;
 	int k;
 
 	if (tof->tof_msg_type != tof_reply)
-		goto exit_free_tof;
+		return;
 	reply = &tof->tof_msg_body.reply;
 	for (k = 0; k < reply->tof_nr_replies; ++k)
 		trace_object_free(reply->tof_replies[k]);
-exit_free_tof:
-	free(tof);
+}
+void tof_free(struct tof_msg *tof)
+{
+	g_rc_box_release_full(tof, tof_free_members);
 }

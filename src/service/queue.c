@@ -82,7 +82,7 @@ to_queue_answer_request( GQueue *queue
 		return svc_req_failure;
 	if (request->tof_blocking && g_queue_is_empty(queue))
 		return svc_req_must_block;
-	if (!(msg = calloc(1, sizeof(struct tof_msg))))
+	if (!(msg = g_rc_box_new0(struct tof_msg)))
 		return svc_req_failure;
 	req_obj = request->tof_nr_obj;
 	msg->tof_msg_type = tof_reply;
@@ -95,9 +95,7 @@ to_queue_answer_request( GQueue *queue
 	*reply_msg = msg;
 	return svc_req_success;
 out_free_replies:
-	free(msg->tof_msg_body.reply.tof_replies);
-/* out_free_msg: */
-	free(msg);
+	tof_free(msg);
 	return svc_req_failure;
 }
 
