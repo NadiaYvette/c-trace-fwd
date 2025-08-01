@@ -32,12 +32,32 @@ static void copy_optarg(struct sockaddr_un *unix_sock, const char *s)
 	strncpy(unix_sock->sun_path, s, sizeof(unix_sock->sun_path));
 }
 
-int setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
+static void
+conf_free_memory(void *p)
+{
+	struct c_trace_fwd_conf *conf = p;
+	struct addrinfo *addrinfo;
+
+	if (!!conf->preload_queue)
+		free(conf->preload_queue);
+	if (!(addrinfo = conf->ux_addr))
+		return;
+	do {
+		struct addrinfo *next = addrinfo->ai_next;
+
+		free(addrinfo->ai_addr);
+		free(addrinfo->ai_canonname);
+		free(addrinfo);
+		addrinfo = next;
+	} while (!!addrinfo);
+}
+
+int
+setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 {
 	int opt, retval = RETVAL_FAILURE;
 
-	*conf = calloc(1, sizeof(struct c_trace_fwd_conf));
-	if (*conf == NULL)
+	if (!(*conf = g_rc_box_new0(struct c_trace_fwd_conf)))
 		goto exit_failure;
 	while ((opt = getopt(argc, argv, "f:q:u:")) != -1) {
 		switch (opt) {
@@ -69,7 +89,7 @@ int setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 	retval = RETVAL_SUCCESS;
 	return retval;
 exit_cleanup:
-	free(*conf);
+	g_rc_box_release_full(*conf, conf_free_memory);
 	*conf = NULL;
 exit_failure:
 	return retval;
@@ -77,7 +97,6 @@ exit_failure:
 
 void teardown_conf(struct c_trace_fwd_conf **conf)
 {
-	free((*conf)->ux_addr);
-	free(*conf);
+	conf_free_memory(*conf);
 	*conf = NULL;
 }
