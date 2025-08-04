@@ -84,12 +84,16 @@ service_loop_move(struct c_trace_fwd_state *state)
 	size_t k, nr_to_move = 1024;
 	bool retval = true;
 
-	if (!to_queue_fillarray(&to_move, &state->unix_io.out_queue, &nr_to_move))
+	if (!to_queue_fillarray(&to_move, &state->unix_io.out_queue, &nr_to_move)) {
+		ctf_msg(service, "to_queue_fillarray() failed\n");
 		return false;
-	retval = RETVAL_SUCCESS;
-	for (k = 0; k < state->nr_clients; ++k)
-		if (!to_queue_putarray(&state->ux_io[k].in_queue, to_move, nr_to_move))
-			retval = false;
+	}
+	for (k = 0; k < state->nr_clients; ++k) {
+		if (to_queue_putarray(&state->ux_io[k].in_queue, to_move, nr_to_move))
+			continue;
+		ctf_msg(service, "to_queue_putarray() failed\n");
+		retval = false;
+	}
 	return retval;
 }
 
@@ -100,8 +104,10 @@ service_loop_core(struct c_trace_fwd_state *state)
 	struct pollfd *pollfds;
 
 	ctf_msg(service, "entered service_loop_core()\n");
-	if (!service_loop_move(state))
+	if (!service_loop_move(state)) {
+		ctf_msg(service, "service_loop_move() failed\n");
 		return RETVAL_FAILURE;
+	}
 	if (!(pollfds = service_create_pollfds(state))) {
 		ctf_msg(service, "service_create_pollfds() failed\n");
 		return RETVAL_FAILURE;
