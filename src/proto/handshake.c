@@ -2,11 +2,14 @@
 #include <cbor/ints.h>
 #include <glib.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "c_trace_fwd.h"
 #include "ctf_util.h"
 #include "handshake.h"
+#include "sdu.h"
 
 cbor_item_t *
 cbor_build_encode_word(uint64_t value)
@@ -553,5 +556,242 @@ handshake_encode(const struct handshake *handshake)
 				(int)handshake->handshake_type);
 		break;
 	}
+	return retval;
+}
+
+static struct handshake_propose_version_pair handshake_versions[] = {
+	[0] = {
+		.propose_version_key = 1, /* 19, */
+		.propose_version_value = NULL
+	}
+};
+
+static struct handshake handshake_proposal = {
+	.handshake_type = handshake_propose_versions,
+	.handshake_message = {
+		.propose_versions = {
+			.handshake_propose_versions_len = 1,
+			.handshake_propose_versions = handshake_versions
+		}
+	}
+};
+
+static cbor_item_t *handshake_proposal_cbor = NULL;
+
+static void
+sig_action(int sig, siginfo_t *info, void *data)
+{
+	(void)!info;
+	(void)!data;
+	ctf_msg(handshake, "received signal %d\n", sig);
+}
+
+int
+handshake_xmit(int fd)
+{
+	struct handshake *handshake_reply;
+	cbor_item_t *reply_cbor, *handshake_proposal_map;
+	unsigned char *sdu_buf, *buf = NULL;
+	size_t buf_sz, sdu_buf_sz;
+	ssize_t reply_len;
+	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
+	struct sigaction old_sigact, new_sigact;
+	struct sdu sdu, reply_sdu;
+	struct cbor_load_result cbor_load_result;
+	union sdu_ptr sdu_ptr;
+	sigset_t sig_mask, old_sig_mask;
+
+	ctf_msg(handshake, "entering\n");
+	ctf_msg(handshake, "different message\n");
+	handshake_versions[0].propose_version_key = 1;
+	if (!handshake_versions[0].propose_version_value) {
+		handshake_versions[0].propose_version_value
+			= cbor_build_uint32( 764824073 /* 19 */ );
+		if (!handshake_versions[0].propose_version_value) {
+			ctf_msg(handshake, "version value alloc failed\n");
+			return RETVAL_FAILURE;
+		}
+	}
+	ctf_msg(handshake, "past checking version value, about to cbor encode\n");
+	if (!(handshake_proposal_cbor = handshake_encode(&handshake_proposal))) {
+		ctf_msg(handshake, "handshake_encode() returned NULL & failed!\n");
+		return RETVAL_FAILURE;
+	}
+	ctf_msg(handshake, "handshake_encode() succeeded\n");
+	cbor_describe(handshake_proposal_cbor, stderr);
+	if (!cbor_serialize_alloc(handshake_proposal_cbor, &buf, &buf_sz)) {
+		ctf_msg(handshake, "cbor_serialize_alloc failed\n");
+		return RETVAL_FAILURE;
+	}
+	if (cbor_typeof(handshake_proposal_cbor) != CBOR_TYPE_ARRAY) {
+		ctf_msg(handshake, "handshake_encode() didn't return array!\n");
+		return RETVAL_FAILURE;
+	}
+	if (cbor_array_size(handshake_proposal_cbor) != 2) {
+		ctf_msg(handshake, "handshake_encode() returned wrong size array!\n");
+		return RETVAL_FAILURE;
+	}
+	if (!(handshake_proposal_map = cbor_array_get(handshake_proposal_cbor, 1))) {
+		ctf_msg(handshake, "handshake_encode() lacked [1] array entry!\n");
+		return RETVAL_FAILURE;
+
+	}
+	if (cbor_typeof(handshake_proposal_map) != CBOR_TYPE_MAP) {
+		ctf_msg(handshake, "handshake_encode() [1] array entry not CBOR_TYPE_MAP!\n");
+		return RETVAL_FAILURE;
+	}
+	sdu_buf_sz = buf_sz + 2*sizeof(uint32_t);
+	if (!(sdu_buf = calloc(sdu_buf_sz, sizeof(unsigned char)))) {
+		ctf_msg(handshake, "sdu_buf calloc failed\n");
+		goto out_free_buf;
+	}
+	sdu.sdu_xmit = (uint32_t)time(NULL);
+	sdu.sdu_init_or_resp = false;
+	sdu.sdu_proto_un.sdu_proto_word16 = 19;
+	sdu.sdu_len = buf_sz;
+	sdu.sdu_data = (char *)&sdu_buf[sizeof(struct sdu)];
+	memcpy(&sdu_buf[2*sizeof(uint32_t)], buf, buf_sz);
+	sdu_ptr.sdu8 = (uint8_t *)sdu_buf;
+	if (sdu_encode(&sdu, sdu_ptr) != RETVAL_SUCCESS) {
+		ctf_msg(handshake, "sdu_encode failed\n");
+		goto out_free_sdu;
+	}
+	if (send(fd, sdu_buf, buf_sz + 2*sizeof(uint32_t), flg) <= 0 && errno != 0) {
+		ctf_msg(handshake, "write error in handshake\n");
+		goto out_free_buf;
+	}
+	if (buf_sz < 64 * 1024) {
+		unsigned char *new_buf;
+
+		ctf_msg(handshake, "reallocating buffer\n");
+		if (!(new_buf = realloc(buf, 64 * 1024)))
+			goto out_free_buf;
+		buf_sz = 64 * 1024;
+		buf = new_buf;
+		ctf_msg(handshake, "buffer successfully reallocated\n");
+	}
+	ctf_msg(handshake, "about to try to read for handshake reply\n");
+	sigemptyset(&sig_mask);
+	sigemptyset(&old_sig_mask);
+	sigaddset(&sig_mask, SIGALRM);
+	sigaddset(&sig_mask, SIGPIPE);
+	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
+		ctf_msg(handshake, "sigprocmask failed\n");
+	sigaddset(&old_sig_mask, SIGPIPE);
+	new_sigact.sa_sigaction = sig_action;
+	sigemptyset(&new_sigact.sa_mask);
+	sigaddset(&new_sigact.sa_mask, SIGALRM);
+	sigaddset(&new_sigact.sa_mask, SIGPIPE);
+	new_sigact.sa_flags = SA_SIGINFO;
+	new_sigact.sa_restorer = NULL;
+	if (!!sigaction(SIGALRM, &new_sigact, &old_sigact))
+		ctf_msg(handshake, "sigaction failed\n");
+	/* The alarm is to interrupt stalled reads to restart them. */
+	alarm(1);
+	sigdelset(&sig_mask, SIGPIPE);
+	if (!!sigprocmask(SIG_UNBLOCK, &sig_mask, &old_sig_mask))
+		ctf_msg(handshake, "sigprocmask failed\n");
+	while ((reply_len = recv(fd, buf, buf_sz, 0)) <= 0) {
+		/* Cancel any pending alarms. */
+		alarm(0);
+		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
+			ctf_msg(handshake, "handshake read got errno %d\n", errno);
+			break;
+		}
+		errno = 0;
+		ctf_msg(handshake, "read zero data, looping\n");
+		sleep(1);
+		alarm(1);
+	}
+	alarm(0);
+	sigaddset(&sig_mask, SIGPIPE);
+	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
+		ctf_msg(handshake, "sigprocmask failed\n");
+	if (!!sigaction(SIGALRM, &old_sigact, NULL))
+		ctf_msg(handshake, "sigaction cleanup failed\n");
+	if (!errno)
+		ctf_msg(handshake, "got past reading for handshake reply\n");
+	else
+		ctf_msg(handshake, "error reading for handshake reply\n");
+	if (reply_len < 0) {
+		ctf_msg(handshake, "negative reply length, exiting\n");
+		goto out_free_buf;
+	}
+	ctf_msg(handshake, "attempting sdu_decode()\n");
+	sdu_ptr.sdu8 = (uint8_t *)buf;
+	if (sdu_decode(sdu_ptr, &reply_sdu) != RETVAL_SUCCESS) {
+		ctf_msg(handshake, "saw sdu_decode() failure, now goto "
+				"out_free_buf\n");
+		goto out_free_buf;
+	}
+	ctf_msg(handshake, "got past sdu_decode(), checking reply_sdu.sdu_len\n");
+	if (reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t)) {
+		ctf_msg(handshake, "SDU length unexpected was 0x%x expected"
+			       " 0x%zx\n", reply_sdu.sdu_len,
+			       (size_t)reply_len);
+		reply_sdu.sdu_len = reply_len - 2*sizeof(uint32_t);
+	}
+	ctf_msg(handshake, "got past reply_sdu.sdu_len check trying cbor_load()\n");
+	if (!(reply_cbor = cbor_load(&buf[2*sizeof(uint32_t)], reply_sdu.sdu_len, &cbor_load_result))) {
+		ctf_msg(handshake, "cbor_load() failed, freeing buffer\n");
+		goto out_free_buf;
+	}
+	ctf_msg(handshake, "got past cbor_load(), checking result\n");
+	switch (cbor_load_result.error.code) {
+	case CBOR_ERR_NONE:
+		ctf_msg(handshake, "got CBOR_ERR_NONE, continuing\n");
+		break;
+	case CBOR_ERR_NOTENOUGHDATA:
+		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		goto out_decref_reply;
+		break;
+	case CBOR_ERR_NODATA:
+		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		goto out_decref_reply;
+		break;
+	case CBOR_ERR_MALFORMATED:
+		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		goto out_decref_reply;
+		break;
+	case CBOR_ERR_MEMERROR:
+		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		goto out_decref_reply;
+		break;
+	case CBOR_ERR_SYNTAXERROR:
+		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		goto out_decref_reply;
+		break;
+	default:
+		ctf_msg(handshake, "got unrecognized CBOR error code\n");
+		goto out_decref_reply;
+		break;
+	}
+	ctf_msg(handshake, "got past checking cbor_load() result, "
+		       "doing handshake_decode()\n");
+	if (!(handshake_reply = handshake_decode(reply_cbor))) {
+		ctf_msg(handshake, "handshake_decode() failed decref(&reply_cbor)\n");
+		goto out_decref_reply;
+	}
+	ctf_msg(handshake, "got past handshake_decode(), checking reply type\n");
+	if (handshake_reply->handshake_type != handshake_accept_version) {
+		ctf_msg(handshake, "reply type not acceptance, decref(&reply_cbor)\n");
+		goto out_handshake_free;
+	}
+	ctf_msg(handshake, "handshake_xmit() succeeded, returning RETVAL_SUCCESS\n");
+	retval = RETVAL_SUCCESS;
+out_handshake_free:
+	handshake_free(handshake_reply);
+out_decref_reply:
+	if (!!retval)
+		ctf_msg(handshake, "out_decref_reply: label of handshake_xmit()\n");
+	ctf_cbor_decref(state, &reply_cbor);
+out_free_sdu:
+	if (!!retval)
+		ctf_msg(handshake, "out_free_sdu: label of handshake_xmit()\n");
+	free(sdu_buf);
+out_free_buf:
+	if (!!retval)
+		ctf_msg(handshake, "out_free_buf: label of handshake_xmit()\n");
+	free(buf);
 	return retval;
 }

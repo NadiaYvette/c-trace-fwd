@@ -90,6 +90,7 @@ struct handshake {
 	union handshake_message handshake_message;
 };
 
+int handshake_xmit(int);
 void handshake_free(struct handshake *);
 struct handshake *handshake_decode(const cbor_item_t *);
 cbor_item_t *handshake_encode(const struct handshake *);
