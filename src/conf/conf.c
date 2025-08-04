@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,9 +12,7 @@ static int split_addrinfo(struct addrinfo **addrinfo, char *s)
 	char *token, *after_colon = s;
 	int retval = RETVAL_FAILURE;
 
-	*addrinfo = calloc(1, sizeof(struct addrinfo));
-	if (*addrinfo == NULL)
-		return retval;
+	assert(*addrinfo == NULL);
 	token = strsep(&after_colon, ":");
 	if (getaddrinfo(token, after_colon, NULL /* hints */, addrinfo))
 		goto exit_failure;
@@ -36,20 +35,13 @@ static void
 conf_free_memory(void *p)
 {
 	struct c_trace_fwd_conf *conf = p;
-	struct addrinfo *addrinfo;
 
 	if (!!conf->preload_queue)
-		free(conf->preload_queue);
-	if (!(addrinfo = conf->ux_addr))
-		return;
-	do {
-		struct addrinfo *next = addrinfo->ai_next;
-
-		free(addrinfo->ai_addr);
-		free(addrinfo->ai_canonname);
-		free(addrinfo);
-		addrinfo = next;
-	} while (!!addrinfo);
+		g_rc_box_release(conf->preload_queue);
+	/* getaddrinfo() dynamically allocates a result list with a
+	 * freeing function freeaddrinfo() */
+	if (!!conf->ux_addr)
+		freeaddrinfo(conf->ux_addr);
 }
 
 int
@@ -65,7 +57,9 @@ setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 			copy_optarg(&(*conf)->unix_sock, optarg);
 			break;
 		case 'q':
-			if (!((*conf)->preload_queue = strdup(optarg))) {
+			size_t optarg_len = strlen(optarg) + 1; /* w/NUL */
+
+			if (!((*conf)->preload_queue = g_rc_box_dup(optarg_len, optarg))) {
 				ctf_msg(conf, "strcpy() failed\n");
 				goto exit_cleanup;
 			}
@@ -89,14 +83,13 @@ setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
 	retval = RETVAL_SUCCESS;
 	return retval;
 exit_cleanup:
-	g_rc_box_release_full(*conf, conf_free_memory);
-	*conf = NULL;
+	teardown_conf(conf);
 exit_failure:
 	return retval;
 }
 
 void teardown_conf(struct c_trace_fwd_conf **conf)
 {
-	conf_free_memory(*conf);
+	g_rc_box_release_full(*conf, conf_free_memory);
 	*conf = NULL;
 }

@@ -499,7 +499,7 @@ exit_destroy_mutex:
 	(void)!pthread_mutex_destroy(&(*state)->state_lock);
 	(void)!pthread_mutexattr_destroy(&state_lock_attr);
 exit_failure:
-	free(*state);
+	g_rc_box_release(*state);
 	*state = NULL;
 	return retval;
 }
