@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,7 +11,8 @@ static int split_addrinfo(struct addrinfo **addrinfo, char *s)
 	char *token, *after_colon = s;
 	int retval = RETVAL_FAILURE;
 
-	assert(*addrinfo == NULL);
+	if (*addrinfo != NULL)
+		ctf_msg(conf, "addrinfo not NULL\n");
 	token = strsep(&after_colon, ":");
 	if (getaddrinfo(token, after_colon, NULL /* hints */, addrinfo))
 		goto exit_failure;
