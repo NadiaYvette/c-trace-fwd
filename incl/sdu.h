@@ -63,7 +63,7 @@ struct sdu {
 	bool sdu_init_or_resp;
 	/* end of msHeader :: SDUHeader, now msBlob :: ByteString */
 	const char *sdu_data;
-};
+} __attribute__((packed,aligned(8)));
 
 union sdu_ptr {
 	uint32_t *sdu32;

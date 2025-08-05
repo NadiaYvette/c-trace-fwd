@@ -12,7 +12,7 @@ int
 main(void)
 {
 	struct sdu sdu;
-	union sdu_ptr sdu_buf;
+	union sdu_ptr sdu_buf = { .sdu8 = (uint8_t *)&sdu };
 	ssize_t ret;
 	off_t cur_off, dst_off;
 	struct stat stat_buf;

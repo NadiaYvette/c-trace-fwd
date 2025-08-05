@@ -35,12 +35,12 @@ LIB_OBJDIRS:=$(addprefix $(OBJDIR)/,$(LIB_SUBDIRS))
 OBJBINDIR:=$(OBJDIR)/bin
 OBJLIBDIR:=$(OBJDIR)/lib
 INCDIR:=$(TOPDIR)/incl
-INCFLAGS:=-I$(INCDIR) $(shell pkgconf --cflags-only-I glib-2.0)
+INCFLAGS:=-I$(INCDIR) $(shell pkgconf --cflags glib-2.0)
 CTF_LIBS:=c_trace_fwd
 
 # The placement of the library is assumed in-place for the moment.
 # Installation directories should follow.
-LDFLAGS:=-L$(OBJLIBDIR) $(shell pkgconf --libs glib-2.0)
+LDFLAGS:=-L$(OBJLIBDIR) $(shell pkgconf --libs --keep-system-libs glib-2.0)
 LIBS:=$(CBOR_LIBS)
 
 # -Wno-unused-function may sometimes be helpful.
@@ -74,7 +74,7 @@ DOC_MAIN_SRC:=$(DOCDIR)/cardiff.ltx
 IMG_SRC:=$(wildcard $(addsuffix /*.svg,$(IMGDIR)))
 LIB_SRC:=$(wildcard $(addsuffix /*.c,$(addprefix $(SRCDIR)/,$(LIB_SUBDIRS))))
 TST_SRC:=$(wildcard $(addsuffix /*.c,$(TSTDIR)))
-HDR:=$(wildcard $(HDR)/*.h)
+HDR_SRC:=$(wildcard $(INCDIR)/*.h)
 APP_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(APP_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
 IMG_TIKZ:=$(patsubst %.svg,%.tikz,$(foreach FILE,$(IMG_SRC),$(DOCDIR)/$(shell realpath --relative-to=$(IMGDIR) $(FILE))))
 LIB_OBJ:=$(patsubst %.c,%.o,$(foreach FILE,$(LIB_SRC),$(OBJDIR)/$(shell realpath --relative-to=$(SRCDIR) $(FILE))))
@@ -87,8 +87,9 @@ CBOR_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_dissect)
 CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
 CTF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,c_trace_fwd)
 DSC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_cbor_dsc)
-SDU_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_dissect)
+EMP_BIN_EXE:=$(addprefix $(OBJBINDIR)/,empty_loop)
 RNC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_reencode)
+SDU_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_dissect)
 TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
 TRY_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_try)
 
@@ -105,6 +106,10 @@ $(CTF_LIB_DSO): $(LIB_OBJ)
 	$(CC) $(LDFLAGS) $(DBGFLAGS) -shared $(LIB_OBJ) $(LIBS) -o $@
 
 $(DSC_BIN_EXE): $(OBJDIR)/test/sdu_cbor_dsc.o $(CTF_LIB_DSO)
+	@mkdir -p $(dir @)
+	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
+
+$(EMP_BIN_EXE): $(OBJDIR)/test/empty_loop.o $(CTF_LIB_DSO)
 	@mkdir -p $(dir @)
 	$(CC) $(LDFLAGS) $(DBGFLAGS) $+ $(LIBS) $(addprefix -l,$(CTF_LIBS)) -o $@
 
@@ -183,7 +188,8 @@ $(OBJDIR)/util/%.o: %.c
 .PHONY: all allclean check clean ckclean depclean doc dbg-run trace-compare
 
 all: $(CBOR_BIN_EXE) $(CTF_BIN_EXE) $(CTF_LIB_DSO) $(DSC_BIN_EXE) \
-	$(SDU_BIN_EXE) $(RNC_BIN_EXE) $(TOF_BIN_EXE) $(TRY_BIN_EXE)
+	$(EMP_BIN_EXE) $(RNC_BIN_EXE) $(SDU_BIN_EXE) $(TOF_BIN_EXE) \
+	$(TRY_BIN_EXE)
 
 check:
 	# The per-C source file plist files don't mirror the
@@ -191,7 +197,7 @@ check:
 	# to have meaningful content in observed cases and are largely
 	# undocumented. So it seems to be no great loss.
 	clang-check --analyze -p ./ \
-		$(shell find $(INCDIR) $(SRCDIR) -name '*.[ch]') \
+		$(APP_SRC) $(HDR_SRC) $(LIB_SRC) $(TST_SRC) \
 		--analyzer-output-path=$(OBJDIR)/analysis \
 		-- \
 		-std=gnu23 $(INCFLAGS) -isystem /usr/include \

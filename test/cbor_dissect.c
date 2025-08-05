@@ -13,7 +13,7 @@ int
 main(void)
 {
 	struct sdu sdu;
-	union sdu_ptr sdu_buf;
+	union sdu_ptr sdu_buf = { .sdu8 = (uint8_t *)&sdu };
 	ssize_t ret;
 	off_t cur_off, dst_off;
 	struct stat stat_buf;
@@ -41,15 +41,15 @@ main(void)
 	case S_IFBLK:
 		ctf_msg(cbor_dissect, "fatal: block device unexpected "
 				"as input file\n");
-		return EXIT_FAILURE;
+		goto exit_free_buf;
 	case S_IFCHR:
 		ctf_msg(cbor_dissect, "fatal: character device "
 				"unexpected as input file\n");
-		return EXIT_FAILURE;
+		goto exit_free_buf;
 	case S_IFDIR:
 		ctf_msg(cbor_dissect, "fatal: directory unexpected as "
 				     "input file\n");
-		return EXIT_FAILURE;
+		goto exit_free_buf;
 	case S_IFIFO:
 		ctf_msg(cbor_dissect, "FIFO unexpected as "
 				     "input file\n");
@@ -68,7 +68,7 @@ main(void)
 	default:
 		ctf_msg(cbor_dissect, "fatal: undocumented input file "
 				"type\n");
-		return EXIT_FAILURE;
+		goto exit_free_buf;
 	}
 restart_loop_from_tell:
 	if ((cur_off = lseek(STDIN_FILENO, 0, SEEK_CUR)) < 0) {
@@ -137,5 +137,6 @@ restart_loop:
 	goto restart_loop;
 	retval = EXIT_SUCCESS;
 exit_free_buf:
+	free(buf);
 	return retval;
 }
