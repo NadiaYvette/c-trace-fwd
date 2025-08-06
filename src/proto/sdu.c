@@ -7,6 +7,20 @@
 #include "sdu.h"
 
 const char *
+agency_string(enum agency agency)
+{
+	static const char *agency_table[] = {
+		[agency_local]  = "agency_local",
+		[agency_nobody] = "agency_nobody",
+		[agency_remote] = "agency_remote",
+	};
+
+	if (AGENCY_VALID(agency))
+		return agency_table[agency];
+	return NULL;
+}
+
+const char *
 mini_protocol_string(enum mini_protocol_num mpn)
 {
 	static char *mpn_string_table[9] = {

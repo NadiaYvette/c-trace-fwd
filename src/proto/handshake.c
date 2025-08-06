@@ -11,6 +11,20 @@
 #include "handshake.h"
 #include "sdu.h"
 
+const char *
+handshake_string(enum handshake_type handshake_type)
+{
+	static const char *handshake_type_table[] = {
+		[handshake_propose_versions] = "handshake_propose_versions",
+		[handshake_accept_version] = "handshake_accept_version",
+		[handshake_refusal] = "handshake_refusal",
+		[handshake_query_reply] = "handshake_query_reply",
+	};
+	if (!HANDSHAKE_TYPE_VALID(handshake_type))
+		return NULL;
+	return handshake_type_table[handshake_type];
+}
+
 cbor_item_t *
 cbor_build_encode_word(uint64_t value)
 {

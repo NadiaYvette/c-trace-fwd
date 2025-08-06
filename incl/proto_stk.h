@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cbor.h>
+#include "handshake.h"
 #include "sdu.h"
 #include "tof.h"
 
@@ -10,6 +11,7 @@ struct ctf_proto_stk_decode_result {
 	union {
 		cbor_item_t *undecoded;
 		struct tof_msg *tof_msg;
+		struct handshake *handshake_msg;
 	} proto_stk_decode_result_body;
 };
 

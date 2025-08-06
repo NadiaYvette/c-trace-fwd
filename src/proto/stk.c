@@ -63,7 +63,9 @@ ctf_proto_stk_decode(const void *buf)
 		/* cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor; */
 		return cpsdr;
 	case CBOR_ERR_NODATA:
-		ctf_msg(stk, "CBOR_ERR_NODATA returned by cbor_load()\n");
+		ctf_msg(stk, "CBOR_ERR_NODATA returned by cbor_load(%zd)\n",
+				sdu_data_len);
+		sdu_print(&cpsdr->sdu);
 		if (!!tof_cbor) {
 			ctf_msg(stk, "tof_cbor != NULL (%p) despite "
 					"CBOR_ERR_NODATA?\n",
@@ -117,6 +119,13 @@ ctf_proto_stk_decode(const void *buf)
 		goto out_free_cpsdr;
 	}
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
+	case mpn_handshake:
+		cpsdr->proto_stk_decode_result_body.handshake_msg
+			= handshake_decode(tof_cbor);
+		if (!cpsdr->proto_stk_decode_result_body.handshake_msg)
+			goto out_free_tof_cbor;
+		ctf_cbor_decref(stk, &tof_cbor);
+		break;
 	case mpn_trace_objects:
 		if (!(cpsdr->proto_stk_decode_result_body.tof_msg = tof_decode(tof_cbor)))
 			goto out_free_tof_cbor;

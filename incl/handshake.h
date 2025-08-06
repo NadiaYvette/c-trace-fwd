@@ -3,6 +3,7 @@
 #include <cbor.h>
 #include <inttypes.h>
 #include <stdint.h>
+#include <sys/param.h>
 
 /*
  * nodeToClientVersionCodec
@@ -77,6 +78,21 @@ enum handshake_type {
 	handshake_query_reply = 3
 };
 
+#define HANDSHAKE_TYPE_MIN   MIN(HANDSHAKE_TYPE_MIN_0, HANDSHAKE_TYPE_MIN_1)
+#define HANDSHAKE_TYPE_MIN_0 MIN(handshake_propose_versions, handshake_accept_version)
+#define HANDSHAKE_TYPE_MIN_1 MIN(handshake_refusal, handshake_query_reply)
+
+#define HANDSHAKE_TYPE_MAX   MAX(HANDSHAKE_TYPE_MAX_0, HANDSHAKE_TYPE_MAX_1)
+#define HANDSHAKE_TYPE_MAX_0 MAX(handshake_propose_versions, handshake_accept_version)
+#define HANDSHAKE_TYPE_MAX_1 MAX(handshake_refusal, handshake_query_reply)
+
+#define HANDSHAKE_TYPE_VALID(value)					\
+({									\
+	enum handshake_type __ctx_handshake_type##__LINE__ = (value);	\
+	__ctx_handshake_type##__LINE__ >= HANDSHAKE_TYPE_MIN &&		\
+		__ctx_handshake_type##__LINE__ <= HANDSHAKE_TYPE_MAX;	\
+})
+
 union handshake_message {
 	struct handshake_propose_versions propose_versions;
 	/* struct handshake_reply_versions reply_versions; */
@@ -96,3 +112,4 @@ struct handshake *handshake_decode(const cbor_item_t *);
 cbor_item_t *handshake_encode(const struct handshake *);
 cbor_item_t *cbor_build_encode_word(uint64_t);
 bool cbor_get_uint(const cbor_item_t *, uintmax_t *);
+const char *handshake_string(enum handshake_type);
