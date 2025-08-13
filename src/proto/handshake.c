@@ -2,6 +2,7 @@
 #include <cbor/ints.h>
 #include <glib.h>
 #include <limits.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -606,14 +607,19 @@ handshake_xmit(int fd)
 	struct handshake *handshake_reply;
 	cbor_item_t *reply_cbor, *handshake_proposal_map;
 	unsigned char *sdu_buf, *buf = NULL;
-	size_t buf_sz, sdu_buf_sz;
-	ssize_t reply_len;
+	size_t buf_sz, sdu_buf_sz, send_len;
+	ssize_t reply_len, send_ret;
 	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
 	struct sigaction old_sigact, new_sigact;
 	struct sdu sdu, reply_sdu;
 	struct cbor_load_result cbor_load_result;
 	union sdu_ptr sdu_ptr;
 	sigset_t sig_mask, old_sig_mask;
+	struct pollfd pollfd = {
+		.fd = fd,
+		.events = POLLOUT,
+		.revents = 0,
+	};
 
 	ctf_msg(handshake, "entering\n");
 	ctf_msg(handshake, "different message\n");
@@ -661,7 +667,8 @@ handshake_xmit(int fd)
 	}
 	sdu.sdu_xmit = (uint32_t)time(NULL);
 	sdu.sdu_init_or_resp = false;
-	sdu.sdu_proto_un.sdu_proto_word16 = 19;
+	/* sdu.sdu_proto_un.sdu_proto_word16 = 19; */
+	sdu.sdu_proto_un.sdu_proto_num = mpn_handshake;
 	sdu.sdu_len = buf_sz;
 	sdu.sdu_data = (char *)&sdu_buf[sizeof(struct sdu)];
 	memcpy(&sdu_buf[2*sizeof(uint32_t)], buf, buf_sz);
@@ -670,8 +677,12 @@ handshake_xmit(int fd)
 		ctf_msg(handshake, "sdu_encode failed\n");
 		goto out_free_sdu;
 	}
-	if (send(fd, sdu_buf, buf_sz + 2*sizeof(uint32_t), flg) <= 0 && errno != 0) {
+	send_len = buf_sz + 2*sizeof(uint32_t);
+	(void)!poll(&pollfd, 1, -1);
+	if ((send_ret = send(fd, sdu_buf, send_len, flg)) <= 0 && errno != 0) {
 		ctf_msg(handshake, "write error in handshake\n");
+		ctf_msg(handshake, "send(%d, %p, %zd, 0x%x) = %zd, errno=%d (%s)\n",
+				fd, sdu_buf, send_len, flg, send_ret, errno, strerror(errno));
 		goto out_free_buf;
 	}
 	if (buf_sz < 64 * 1024) {

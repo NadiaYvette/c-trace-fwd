@@ -59,6 +59,30 @@ out_shutdown:
 	return retval;
 }
 
+static bool
+fd_wait_readable(int fd)
+{
+	struct pollfd pollfd = {
+		.fd = fd,
+		.events = POLLIN,
+		.revents = 0,
+	};
+
+	return poll(&pollfd, 1, -1) >= 0;
+}
+
+static bool
+fd_wait_writable(int fd)
+{
+	struct pollfd pollfd = {
+		.fd = fd,
+		.events = POLLOUT,
+		.revents = 0,
+	};
+
+	return poll(&pollfd, 1, -1) >= 0;
+}
+
 static int
 send_tof(struct tof_msg *tof, int fd)
 {
@@ -73,6 +97,7 @@ send_tof(struct tof_msg *tof, int fd)
 	cur_buf = buf;
 	cur_sz = sz;
 retry_send:
+	fd_wait_writable(fd);
 	ret_sz = send(fd, cur_buf, cur_sz, MSG_CONFIRM | MSG_NOSIGNAL);
 	if (ret_sz == (ssize_t)cur_sz)
 		retval = RETVAL_SUCCESS;
@@ -104,10 +129,12 @@ send_done(int fd)
 			},
 		},
 	};
+	ctf_msg(empty_loop, "entered send_done()\n");
 	if (send_tof(&done_msg, fd) != RETVAL_SUCCESS) {
 		ctf_msg(unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
+	ctf_msg(empty_loop, "successful return from send_done()\n");
 	return svc_progress_send;
 }
 
@@ -118,13 +145,39 @@ recv_tof(int fd)
 	char *buf, *cur_buf;
 	size_t sz, cur_sz;
 	ssize_t ret_sz;
+	struct sdu sdu;
+	union sdu_ptr sdu_ptr;
 
-	if (!(buf = calloc(64, 1024))) {
+	/* 64 KB + 8 B */
+	if (!(buf = g_rc_box_alloc0(65 * 1024))) {
 		ctf_msg(empty_loop, "calloc() failed\n");
 		return NULL;
 	}
-	sz = 64 * 1024;
+	sz = 2*sizeof(uint32_t);
 	cur_buf = buf;
+	cur_sz = sz;
+	do {
+		ret_sz = recv(fd, cur_buf, cur_sz, 0);
+		if (ret_sz < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				continue;
+			goto out_free_buf;
+		} else if (ret_sz < cur_sz) {
+			cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
+			cur_sz -= MIN(cur_sz, ret_sz);
+			(void)!sched_yield();
+			continue;
+		} else {
+			assert(ret_sz == cur_sz);
+			break;
+		}
+	} while (cur_sz > 0);
+	sdu_ptr.sdu8 = (uint8_t *)buf;
+	if (sdu_decode(sdu_ptr, &sdu) != RETVAL_SUCCESS)
+		goto out_free_buf;
+
+	sz = sdu.sdu_len;
+	cur_buf = &buf[2*sizeof(uint32_t)];
 	cur_sz = sz;
 retry_read:
 	if ((ret_sz = recv(fd, cur_buf, cur_sz, 0)) == cur_sz) {
@@ -142,8 +195,8 @@ retry_read:
 		(void)!sched_yield();
 		goto retry_read;
 	}
-/* out_free_buf: */
-	free(buf);
+out_free_buf:
+	g_rc_box_release(buf);
 	return cpsdr;
 }
 
@@ -170,6 +223,7 @@ send_empty_reply(int fd)
 	cur_buf = buf;
 	cur_sz = sz;
 retry_send:
+	fd_wait_writable(fd);
 	ret_sz = send(fd, cur_buf, cur_sz, MSG_CONFIRM | MSG_NOSIGNAL);
 	if (ret_sz == (ssize_t)cur_sz)
 		retval = true;
@@ -198,6 +252,7 @@ empty_svc_loop(int fd)
 	uintmax_t loop_ctr = 0;
 
 redo_handshake:
+	(void)!fd_wait_writable(fd);
 	if (handshake_xmit(fd) != RETVAL_SUCCESS)
 		return false;
 loop:
@@ -208,28 +263,49 @@ loop:
 	case agency_local:
 	case agency_nobody:
 		if (!is_reply_pending) {
-			ctf_msg(empty_loop, "%s, no pending reply, "
-					"sending tof_done\n",
+			ctf_msg(empty_loop, "%s, no pending reply\n",
 					agency_string(agency.agency));
-			if (send_done(fd) == svc_progress_fail)
-				goto out;
-		} else {
+			/* if busy, receiving done errors */
+			if (agency.agency == agency_nobody) {
+				ctf_msg(empty_loop, "sending tof_done %s\n",
+						agency_string(agency.agency));
+				if (send_done(fd) == svc_progress_fail)
+					goto out;
+				ctf_set_agency(empty_loop, &agency,
+						agency_remote);
+			} else {
+				/* This doesn't entirely make sense
+				 * within the protocol, but sending an
+				 * empty reply in this situation avoids
+				 * deadlocking because the other end
+				 * gags on tof_done */
+				if (!send_empty_reply(fd))
+					goto out;
+				ctf_set_agency(empty_loop, &agency,
+						agency_remote);
+			}
+		} else /* is_reply_pending == true */ {
 			ctf_msg(empty_loop, "%s, reply pending, "
 					"sending empty reply\n",
 					agency_string(agency.agency));
 			is_reply_pending = false;
 			if (!send_empty_reply(fd))
 				goto out;
+			ctf_set_agency(empty_loop, &agency, agency_remote);
 		}
-		ctf_set_agency(empty_loop, &agency, agency_remote);
 		goto loop;
 	case agency_remote:
 		struct tof_msg *tof;
 		enum mini_protocol_num mpn;
 
 		ctf_msg(empty_loop, "remote agency, doing recv()\n");
+		(void)!fd_wait_readable(fd);
 		if (!(cpsdr = recv_tof(fd))) {
 			ctf_msg(empty_loop, "recv_tof() failed\n");
+			goto out;
+		}
+		if (cpsdr->load_result.error.code != CBOR_ERR_NONE) {
+			ctf_msg(empty_loop, "got error!\n");
 			goto out;
 		}
 		mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num;
@@ -237,8 +313,11 @@ loop:
 			struct handshake *handshake
 				= cpsdr->proto_stk_decode_result_body.handshake_msg;
 			if (mpn == mpn_handshake) {
-				ctf_msg("unexpected handshake type %s\n",
-					handshake_string(handshake->handshake_type));
+				if (!handshake)
+					ctf_msg(empty_loop, "NULL handshake?\n");
+				else
+					ctf_msg(empty_loop, "unexpected handshake type %s\n",
+						handshake_string(handshake->handshake_type));
 				goto redo_handshake;
 			}
 			if (MPN_VALID(mpn))
@@ -265,19 +344,13 @@ loop:
 		cpsdr = NULL;
 		goto loop;
 	default:
-		struct pollfd pollfd = {
-			.fd = fd,
-			.events = POLLIN,
-			.revents = 0,
-		};
-
-		ctf_msg(empty_loop, "unrecognized agency, polling\n");
-		if (poll(&pollfd, 1, -1) < 0)
-			goto out;
+		ctf_msg(empty_loop, "unrecognized agency %d, polling\n",
+				(int)agency.agency);
+		(void)!fd_wait_readable(fd);
+		/* it's unclear what to set the agency to, if anything */
 		ctf_set_agency(empty_loop, &agency, agency_remote);
-		/* just send a reply */
-		/* agency = agency_local; */
-		break;
+		/* just go back and retry */
+		goto loop;
 	}
 out:
 	return true;

@@ -1,5 +1,6 @@
 #include <endian.h>
 #include <inttypes.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <arpa/inet.h>
 #include "c_trace_fwd.h"
@@ -127,15 +128,27 @@ sdu_encode(const struct sdu *sdu, union sdu_ptr hdr)
 				& ((1U << 8) - 1);
 		break;
 	default:
+		if (sdu->sdu_proto_un.sdu_proto_word16 == 19) {
+			ctf_msg(sdu, "mini_protocol_num == 19!\n");
+			hdr.sdu8[4+1] = sdu->sdu_proto_un.sdu_proto_word16
+					& ((1U << 8) - 1);
+			break;
+		}
 		ctf_msg(sdu, "unrecognized mini_protocol_num!\n");
 		ctf_msg(sdu, "sdu->sdu_proto_un.sdu_proto_word16 = 0x%"
 				PRIx16"!\n",
 				sdu->sdu_proto_un.sdu_proto_word16);
-		ctf_msg(sdu, "overriding with mpn_data_points "
-				"because it's best not to try to "
-				"interpret the data, because it will "
-				"fail.\n");
-		hdr.sdu8[4+1] = mpn_trace_objects;
+		if (0) {
+			ctf_msg(sdu, "overriding with mpn_data_points "
+					"because it's best not to try to "
+					"interpret the data, because it will "
+					"fail.\n");
+			hdr.sdu8[4+1] = mpn_trace_objects;
+		}
+		if (sdu->sdu_proto_un.sdu_proto_word16 >= UINT8_MAX)
+			ctf_msg(sdu, "mpn = 0x%"PRIx16" > UINT8_MAX!\n",
+					sdu->sdu_proto_un.sdu_proto_word16);
+		hdr.sdu8[4+1] = sdu->sdu_proto_un.sdu_proto_word16;
 		break;
 	}
 	hdr.sdu8[4+2] = (sdu->sdu_len >> 8) & ((1U << 8) - 1);
