@@ -9,11 +9,6 @@ struct trace_object;
 struct tof_msg;
 struct tof_request;
 
-struct queue /* {
-	unsigned nr_to;
-	struct trace_object **queue;
-} */;
-
 struct io_queue {
 	GQueue in_queue, out_queue;
 	int fd;
