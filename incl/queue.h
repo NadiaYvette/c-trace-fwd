@@ -13,6 +13,7 @@ struct io_queue {
 	GQueue in_queue, out_queue;
 	int fd;
 	enum agency agency;
+	bool reply_pending;
 };
 
 struct trace_object *to_dequeue(GQueue *);

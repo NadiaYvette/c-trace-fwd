@@ -32,6 +32,28 @@ service_unix_sock_send_done(struct c_trace_fwd_state *state, int fd)
 	return svc_progress_send;
 }
 
+static enum svc_result
+service_unix_sock_send_empty_reply(struct c_trace_fwd_state *state, int fd)
+{
+	struct tof_msg reply_msg = {
+		.tof_msg_type = tof_reply,
+		.tof_msg_body = {
+			.reply = {
+				.tof_nr_replies	= 0,
+				.tof_replies	= NULL,
+			},
+		},
+	};
+	if (service_send_tof(state, &reply_msg, fd) != RETVAL_SUCCESS) {
+		ctf_msg(unix, "service_send_tof() failed\n");
+		return svc_progress_fail;
+	}
+	/* state->agency = agency_remote; */
+	ctf_set_agency(unix, &state->unix_io, agency_remote);
+	state->unix_io.reply_pending = false;
+	return svc_progress_send;
+}
+
 /* here "nonremote" means local or nobody
  * It's unclear when it would ever be nobody. */
 static enum svc_result
@@ -54,6 +76,7 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 			retval = svc_progress_fail;
 		else
 			retval = svc_progress_send;
+		state->unix_io.reply_pending = false;
 		tof_free(msg);
 		/* will this work? */
 		if (state->unix_io.agency == agency_nobody) {
@@ -137,47 +160,15 @@ tof_msg_type_switch:
 		state->unix_io.agency = agency_local;
 		break;
 	case tof_request:
-		struct tof_request *req = &tof->tof_msg_body.request;
+		/* struct tof_request *req = &tof->tof_msg_body.request;
 		struct tof_msg *reply_msg = NULL;
-		int ret;
+		int ret; */
 
 		ctf_msg(service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
 		/* state->agency = agency_local; */
 		ctf_set_agency(unix, &state->unix_io, agency_local);
-		switch (ret = to_queue_answer_request(&state->unix_io.out_queue, req, &reply_msg)) {
-		case svc_req_must_block:
-			ctf_msg(service_unix, "returning "
-					"svc_req_must_block\n");
-			retval = svc_progress_none;
-			break;
-		case svc_req_none_available:
-			ctf_msg(service_unix, "returning "
-					"svc_req_none_available\n");
-			retval = svc_progress_none;
-			break;
-		case svc_req_failure:
-			ctf_msg(service_unix, "returning "
-					"svc_req_failure\n");
-			retval = svc_progress_fail;
-			break;
-		case svc_req_success:
-			if (service_send_tof(state, reply_msg, fd) != RETVAL_SUCCESS)
-				retval = svc_progress_fail;
-			else {
-				/* state->agency = agency_remote; */
-				ctf_set_agency(unix, &state->unix_io, agency_remote);
-				retval = svc_progress_send;
-			}
-			break;
-		default:
-			ctf_msg(service_unix, "unrecognized "
-					"to_queue_answer_request() "
-					"return value %d!\n", ret);
-			tof_free(reply_msg);
-			retval = svc_progress_fail;
-			break;
-		}
+		state->unix_io.reply_pending = true;
 		break;
 	case tof_done:
 		ctf_msg(service_unix, "tof_done case no-op\n");
@@ -205,31 +196,39 @@ service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 	switch (state->unix_io.agency) {
 	case agency_nobody:
 		if (!!(pollfd->revents & POLLIN)) {
-			ctf_msg(unix, "agency_nobody service_unix_sock_recv()\n");
+			ctf_msg(unix, "agency_nobody "
+					"service_unix_sock_recv()\n");
 			return service_unix_sock_recv(state, pollfd->fd);
 		}
 		if (!!(pollfd->revents & POLLOUT)) {
-			ctf_msg(unix, "agency_nobody service_unix_sock_send()\n");
-			return service_unix_sock_send(state, pollfd->fd);
+			ctf_msg(unix, "agency_nobody "
+					"service_unix_sock_send()\n");
+			return service_unix_sock_send_done(state, pollfd->fd);
 		}
 		ctf_msg(unix, "agency_nobody no events\n");
 		return svc_progress_none;
 	case agency_local:
 		if (!!(pollfd->revents & POLLOUT)) {
-			ctf_msg(unix, "agency_local service_unix_sock_send()\n");
-			return service_unix_sock_send(state, pollfd->fd);
+			ctf_msg(unix, "agency_local "
+					"service_unix_sock_send()\n");
+			if (!state->unix_io.reply_pending)
+				return service_unix_sock_send_empty_reply(state, pollfd->fd);
+			else
+				return service_unix_sock_send(state, pollfd->fd);
 		}
 		ctf_msg(unix, "agency_local no events\n");
 		return svc_progress_none;
 	case agency_remote:
 		if (!!(pollfd->revents & POLLIN)) {
-			ctf_msg(unix, "agency_remote service_unix_sock_recv()\n");
+			ctf_msg(unix, "agency_remote "
+					"service_unix_sock_recv()\n");
 			return service_unix_sock_recv(state, pollfd->fd);
 		}
 		ctf_msg(unix, "agency_remote no events\n");
 		return svc_progress_none;
 	default:
-		ctf_msg(service, "unrecognized agency %d\n", state->unix_io.agency);
+		ctf_msg(service, "unrecognized agency %d\n",
+				state->unix_io.agency);
 		return svc_progress_fail;
 	}
 }
