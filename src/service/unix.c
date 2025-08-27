@@ -236,53 +236,15 @@ service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 int
 service_unix_sock2(struct c_trace_fwd_state *state)
 {
-	unsigned retry_counter = 64;
 	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
-	unsigned char *buf, *cur_buf;
-	ssize_t ret_sz, sz, cur_sz;
 	struct ctf_proto_stk_decode_result *cpsdr;
 	struct tof_msg *tof;
 	struct tof_reply *reply;
 
 	ctf_msg(service_unix, "entered service_unix_sock()\n");
-	if (!(buf = calloc(64, 1024))) {
-		ctf_msg(service_unix, "calloc() failed!\n");
-		return RETVAL_FAILURE;
-	}
-	ctf_msg(service_unix, "service_unix_sock() about to read()\n");
-	sz = 64 * 1024;
-	cur_sz = sz;
-	cur_buf = buf;
-retry_read:
-	if ((ret_sz = recv(state->unix_io.fd, cur_buf, cur_sz, 0)) == cur_sz)
-		goto got_past_read;
-	if (ret_sz <= 0) {
-		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
-			ctf_msg(service_unix, "fatal read error! "
-					"errno = %d (%s)!\n",
-					errno, strerror(errno));
-			goto out_free_buf;
-		}
-		errno = 0;
-	}
-	if (!!sched_yield()) {
-		ctf_msg(service_unix, "sched_yield() error! "
-				"errno = %d (%s)!\n",
-				errno, strerror(errno));
-		errno = 0;
-		/* There isn't really anything to do. It just
-		 * theoretically cedes the CPU to programs that
-		 * might need it more. */
-	}
-	cur_buf = &cur_buf[ret_sz];
-	cur_sz -= ret_sz;
-	if (!--retry_counter)
-		goto out_free_buf;
-	goto retry_read;
-got_past_read:
-	if (!(cpsdr = ctf_proto_stk_decode(buf))) {
+	if (!(cpsdr = ctf_proto_stk_decode(state->unix_io.fd))) {
 		ctf_msg(service_unix, "tof decode failed!\n");
-		goto out_free_buf;
+		goto out_free_cpsdr;
 	}
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_trace_objects:
@@ -383,9 +345,7 @@ tof_msg_type_switch:
 	}
 out_free_cpsdr:
 	cpsdr_free(cpsdr);
-out_free_buf:
-	ctf_msg(service_unix, "reached out_free_buf label\n");
-	free(buf);
+	ctf_msg(service_unix, "reached out_free_cpsdr label\n");
 	if (!!retval)
 		ctf_msg(service_unix, "service_unix_core() failed!\n");
 	return retval;

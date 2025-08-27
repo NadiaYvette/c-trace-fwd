@@ -31,23 +31,70 @@ cpsdr_free(struct ctf_proto_stk_decode_result *cpsdr)
 }
 
 struct ctf_proto_stk_decode_result *
-ctf_proto_stk_decode(const void *buf)
+ctf_proto_stk_decode(int fd)
 {
+	char *cur_buf, *buf;
 	struct ctf_proto_stk_decode_result *cpsdr;
 	struct cbor_load_result *load_result_addr;
 	cbor_item_t *tof_cbor;
-	const union sdu_ptr hdr = { .sdu8 = (uint8_t *)buf, };
+	struct sdu sdu;
+	const union sdu_ptr hdr = { .sdu8 = (uint8_t *)&sdu, };
 	cbor_data sdu_data_addr;
-	size_t sdu_data_len;
+	size_t sdu_data_len, sz, cur_sz;
+	ssize_t ret_sz;
 
 	if (!(cpsdr = g_rc_box_new0(struct ctf_proto_stk_decode_result)))
 		return NULL;
+	sz = 2*sizeof(uint32_t);
+	cur_sz = sz;
+	cur_buf = (char *)hdr.sdu8;
+	do {
+		ret_sz = recv(fd, cur_buf, cur_sz, 0);
+		if (ret_sz < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				continue;
+			goto out_free_cpsdr;
+		} else if (ret_sz < cur_sz) {
+			cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
+			cur_sz -= MIN(cur_sz, ret_sz);
+			(void)!sched_yield();
+			continue;
+		} else {
+			assert(ret_sz == cur_sz);
+			break;
+		}
+	} while (cur_sz > 0);
 	if (sdu_decode(hdr, &cpsdr->sdu))
 		goto out_free_cpsdr;
 	cpsdr->sdu.sdu_data = (const char *)&hdr.sdu32[2];
 	load_result_addr = &cpsdr->load_result;
+	if (!(buf = g_rc_box_alloc0(65 * 1024))) {
+		ctf_msg(stk, "calloc() failed\n");
+		goto out_free_cpsdr;
+	}
+	(void)!memcpy(&buf[0], &sdu, 2*sizeof(uint32_t));
+	cpsdr->sdu.sdu_data = &buf[2*sizeof(uint32_t)];
 	sdu_data_addr = (cbor_data)cpsdr->sdu.sdu_data;
 	sdu_data_len  = cpsdr->sdu.sdu_len;
+	sz = sdu_data_len;
+	cur_sz = sz;
+	cur_buf = (char *)sdu_data_addr;
+	do {
+		ret_sz = recv(fd, cur_buf, cur_sz, 0);
+		if (ret_sz < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				continue;
+			goto out_free_buf;
+		} else if (ret_sz < cur_sz) {
+			cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
+			cur_sz -= MIN(cur_sz, ret_sz);
+			(void)!sched_yield();
+			continue;
+		} else {
+			assert(ret_sz == cur_sz);
+			break;
+		}
+	} while (cur_sz > 0);
 	tof_cbor = cbor_load(sdu_data_addr, sdu_data_len, load_result_addr);
 	switch (load_result_addr->error.code) {
 	case CBOR_ERR_NONE:
@@ -145,6 +192,8 @@ ctf_proto_stk_decode(const void *buf)
 out_free_tof_cbor:
 	if (!!tof_cbor)
 		ctf_cbor_decref(stk, &tof_cbor);
+out_free_buf:
+	g_rc_box_release(buf);
 out_free_cpsdr:
 	g_rc_box_release_full(cpsdr, cpsdr_release_memory);
 	return NULL;

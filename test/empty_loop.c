@@ -142,61 +142,11 @@ struct ctf_proto_stk_decode_result *
 recv_tof(int fd)
 {
 	struct ctf_proto_stk_decode_result *cpsdr = NULL;
-	char *buf, *cur_buf;
-	size_t sz, cur_sz;
-	ssize_t ret_sz;
-	struct sdu sdu;
-	union sdu_ptr sdu_ptr;
 
-	/* 64 KB + 8 B */
-	if (!(buf = g_rc_box_alloc0(65 * 1024))) {
-		ctf_msg(empty_loop, "calloc() failed\n");
+	if (!(cpsdr = ctf_proto_stk_decode(fd))) {
+		ctf_msg(empty_loop, "ctf_proto_stk_decode() failed\n");
 		return NULL;
 	}
-	sz = 2*sizeof(uint32_t);
-	cur_buf = buf;
-	cur_sz = sz;
-	do {
-		ret_sz = recv(fd, cur_buf, cur_sz, 0);
-		if (ret_sz < 0) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				continue;
-			goto out_free_buf;
-		} else if (ret_sz < cur_sz) {
-			cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
-			cur_sz -= MIN(cur_sz, ret_sz);
-			(void)!sched_yield();
-			continue;
-		} else {
-			assert(ret_sz == cur_sz);
-			break;
-		}
-	} while (cur_sz > 0);
-	sdu_ptr.sdu8 = (uint8_t *)buf;
-	if (sdu_decode(sdu_ptr, &sdu) != RETVAL_SUCCESS)
-		goto out_free_buf;
-
-	sz = sdu.sdu_len;
-	cur_buf = &buf[2*sizeof(uint32_t)];
-	cur_sz = sz;
-retry_read:
-	if ((ret_sz = recv(fd, cur_buf, cur_sz, 0)) == cur_sz) {
-		if (!(cpsdr = ctf_proto_stk_decode(buf)))
-			ctf_msg(empty_loop, "ctf_proto_stk_decode() failed\n");
-	} else if (!ret_sz) {
-		if (!errno) { /* all ready data consumed */
-			if (!(cpsdr = ctf_proto_stk_decode(buf)))
-				ctf_msg(empty_loop, "ctf_proto_stk_decode() failed\n");
-		} else if (errno == EAGAIN || errno == EWOULDBLOCK)
-			goto retry_read;
-	} else if (ret_sz > 0) {
-		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
-		cur_sz -= MIN(cur_sz, ret_sz);
-		(void)!sched_yield();
-		goto retry_read;
-	}
-out_free_buf:
-	g_rc_box_release(buf);
 	return cpsdr;
 }
 

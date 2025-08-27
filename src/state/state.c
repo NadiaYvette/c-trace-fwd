@@ -27,45 +27,20 @@ static bool
 setup_queue(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 {
 	int fd;
-	char *buf;
 
 	/* nop returning success w/no preload queue given */
 	if (!conf->preload_queue)
 		return true;
 	if ((fd = open(conf->preload_queue, O_RDONLY)) < 0)
 		return false;
-	if (!(buf = calloc(64, 1024)))
-		goto out_close_fd;
 
 	for (;;) {
-		int ret;
 		unsigned k;
-		struct sdu sdu;
-		union sdu_ptr sdu_ptr;
 		struct ctf_proto_stk_decode_result *result;
 		enum mini_protocol_num mpn;
 
 continue_for_loop:
-		if ((ret = read(fd, buf, 8)) < 0) {
-			ctf_msg(state, "read() failed\n");
-			goto out_free_buf;
-		}
-		if (!ret) /* EOF */
-			goto out_exit_for_loop;
-		sdu_ptr.sdu8 = (uint8_t *)buf;
-		if (sdu_decode(sdu_ptr, &sdu) != RETVAL_SUCCESS) {
-			ctf_msg(state, "sdu decode failed\n");
-			goto out_free_buf;
-		}
-		if ((ret = read(fd, &buf[8], sdu.sdu_len)) != sdu.sdu_len) {
-			ctf_msg(state, "read() failed\n");
-			/* gracefully ignore truncated captures at EOF */
-			if (!ret)
-				break;
-			else
-				goto out_free_buf;
-		}
-		if (!(result = ctf_proto_stk_decode(buf))) {
+		if (!(result = ctf_proto_stk_decode(fd))) {
 			ctf_msg(state, "decode failed, "
 					"ctf_proto_stk_decode() "
 					"returned NULL\n");
@@ -143,15 +118,11 @@ continue_for_loop:
 			ctf_msg(state, "enqueue failed\n");
 			tof_free(result->proto_stk_decode_result_body.tof_msg);
 			cpsdr_free(result);
-			goto out_free_buf;
+			goto out_close_fd;
 		}
 	}
-out_exit_for_loop:
-	free(buf);
 	close(fd);
 	return true;
-out_free_buf:
-	free(buf);
 out_close_fd:
 	close(fd);
 	return false;

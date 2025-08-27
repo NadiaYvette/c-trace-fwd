@@ -15,6 +15,6 @@ struct ctf_proto_stk_decode_result {
 	} proto_stk_decode_result_body;
 };
 
-struct ctf_proto_stk_decode_result *ctf_proto_stk_decode(const void *);
+struct ctf_proto_stk_decode_result *ctf_proto_stk_decode(int);
 void *ctf_proto_stk_encode(const struct tof_msg *, size_t *);
 void cpsdr_free(struct ctf_proto_stk_decode_result *);
