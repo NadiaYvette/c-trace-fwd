@@ -29,13 +29,28 @@
       # A Nixpkgs overlay.
       overlay = final: prev: {
 
-        c-trace-fwd = with final; stdenv.mkDerivation rec {
+        c-trace-fwd = with nixpkgs; with final; stdenv.mkDerivation rec {
           pname = "c-trace-fwd";
           inherit version;
 
           src = ./.;
 
-          nativeBuildInputs = [ autoreconfHook ];
+          # nativeBuildInputs = [ autoreconfHook ];
+          # nativeBuildInputs = [ ];
+          # phases = [ buildPhase installPhase ];
+          buildInputs = [clang coreutils gcc glib glibc gnumake libcbor pkgconf];
+          buildTarget = ''
+            all
+          '';
+          buildPhase = ''
+            make -f Makefile all
+          '';
+          installPhase = ''
+            mkdir -p $out/bin
+            mkdir -p $out/lib
+            cp obj/bin/c_trace_fwd $out/bin
+            cp obj/lib/libc_trace_fwd.so $out/lib
+          '';
         };
 
       };
