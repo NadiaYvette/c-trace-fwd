@@ -43,16 +43,20 @@ ctf_proto_stk_decode(int fd)
 	size_t sdu_data_len, sz, cur_sz;
 	ssize_t ret_sz;
 
-	if (!(cpsdr = g_rc_box_new0(struct ctf_proto_stk_decode_result)))
+	if (!(cpsdr = g_rc_box_new0(struct ctf_proto_stk_decode_result))) {
+		ctf_msg(stk, "g_rc_box_new0() failed\n");
 		return NULL;
+	}
 	sz = 2*sizeof(uint32_t);
 	cur_sz = sz;
 	cur_buf = (char *)hdr.sdu8;
 	do {
-		ret_sz = recv(fd, cur_buf, cur_sz, 0);
+		ret_sz = read(fd, cur_buf, cur_sz);
 		if (ret_sz < 0) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				continue;
+			ctf_msg(stk, "read() failure (%d): %s\n", errno,
+					strerror(errno));
 			goto out_free_cpsdr;
 		} else if (ret_sz < cur_sz) {
 			cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
@@ -64,12 +68,14 @@ ctf_proto_stk_decode(int fd)
 			break;
 		}
 	} while (cur_sz > 0);
-	if (sdu_decode(hdr, &cpsdr->sdu))
+	if (sdu_decode(hdr, &cpsdr->sdu) != RETVAL_SUCCESS) {
+		ctf_msg(stk, "sdu_decode() failed\n");
 		goto out_free_cpsdr;
+	}
 	cpsdr->sdu.sdu_data = (const char *)&hdr.sdu32[2];
 	load_result_addr = &cpsdr->load_result;
 	if (!(buf = g_rc_box_alloc0(65 * 1024))) {
-		ctf_msg(stk, "calloc() failed\n");
+		ctf_msg(stk, "buf calloc() failed\n");
 		goto out_free_cpsdr;
 	}
 	(void)!memcpy(&buf[0], &sdu, 2*sizeof(uint32_t));
@@ -80,7 +86,7 @@ ctf_proto_stk_decode(int fd)
 	cur_sz = sz;
 	cur_buf = (char *)sdu_data_addr;
 	do {
-		ret_sz = recv(fd, cur_buf, cur_sz, 0);
+		ret_sz = read(fd, cur_buf, cur_sz);
 		if (ret_sz < 0) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				continue;
@@ -169,13 +175,17 @@ ctf_proto_stk_decode(int fd)
 	case mpn_handshake:
 		cpsdr->proto_stk_decode_result_body.handshake_msg
 			= handshake_decode(tof_cbor);
-		if (!cpsdr->proto_stk_decode_result_body.handshake_msg)
+		if (!cpsdr->proto_stk_decode_result_body.handshake_msg) {
+			ctf_msg(stk, "handshake_decode() failed\n");
 			goto out_free_tof_cbor;
+		}
 		ctf_cbor_decref(stk, &tof_cbor);
 		break;
 	case mpn_trace_objects:
-		if (!(cpsdr->proto_stk_decode_result_body.tof_msg = tof_decode(tof_cbor)))
+		if (!(cpsdr->proto_stk_decode_result_body.tof_msg = tof_decode(tof_cbor))) {
+			ctf_msg(stk, "tof_decode() failed\n");
 			goto out_free_tof_cbor;
+		}
 		/* This case translates the CBOR to C trace object data
 		 * structures and discards the intermediate CBOR results. */
 		ctf_cbor_decref(stk, &tof_cbor);
