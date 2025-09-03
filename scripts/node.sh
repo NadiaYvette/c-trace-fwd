@@ -44,7 +44,9 @@ echo JQ_CMD=${JQ_CMD}
 # jq ${JQ_ALONZO_CMD}' | '${JQ_BYRON_CMD}' | '${JQ_CONWAY_CMD} \
 
 jq "${JQ_CMD}" < ${CONFIG_JSON} > ${TMPFILE}
-exec cabal --jobs=256 --keep-going --disable-documentation run cardano-node -- \
+exec cabal --jobs=256 --keep-going \
+	--disable-documentation \
+	run cardano-node -- \
 	run --config ${TMPFILE} \
 		--database-path ${NODE_DB_PATH} \
 		--socket-path ${NODE_DB_SOCK} \
