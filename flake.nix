@@ -38,12 +38,13 @@
           # nativeBuildInputs = [ autoreconfHook ];
           # nativeBuildInputs = [ ];
           # phases = [ buildPhase installPhase ];
-          buildInputs = [clang coreutils gcc glib glibc gnumake libcbor pkgconf];
+          buildInputs = [biber clang coreutils gcc gdb glib glibc gnumake libcbor libsysprof-capture pcre2 pkgconf pkg-config which svg2tikz texliveFull];
+          # texlive.withPackages (ps: [ ps.xelatex-dev ]);
           buildTarget = ''
-            all
+            $(pwd)/obj/bin/c_trace_fwd obj/lib/libc_trace_fwd.so $(pwd)/obj/bin/c_trace_fwd obj/lib/libc_trace_fwd.so
           '';
           buildPhase = ''
-            make -f Makefile all
+            make -f Makefile $(pwd)/obj/bin/c_trace_fwd $(pwd)/obj/lib/libc_trace_fwd.so
           '';
           installPhase = ''
             mkdir -p $out/bin
