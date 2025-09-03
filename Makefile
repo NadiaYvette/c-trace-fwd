@@ -3,8 +3,8 @@ LANG:=en_GB.UTF-8
 GDM_LANG:=en_GB.UTF-8
 LANGUAGE:=en_GB:en
 # This should be compatible with either gcc or clang.
-CC:=clang
-# CC:=gcc
+# CC:=clang
+CC:=gcc
 DBG:=$(shell which gdb)
 LD:=$(CC)
 BIBER:=$(shell which biber)
@@ -40,7 +40,10 @@ CTF_LIBS:=c_trace_fwd
 
 # The placement of the library is assumed in-place for the moment.
 # Installation directories should follow.
-LDFLAGS:=-L$(OBJLIBDIR) $(shell pkgconf --libs --keep-system-libs glib-2.0)
+PKGCONF_LIST:=libcbor glib-2.0
+LDFLAGS:=-v -L$(OBJLIBDIR) \
+		$(foreach PKG,$(PKGCONF_LIST), \
+			$(shell pkgconf --libs --keep-system-libs $(PKG)))
 LIBS:=$(CBOR_LIBS)
 
 # -Wno-unused-function may sometimes be helpful.
@@ -50,7 +53,7 @@ DBGFLAGS:=-g -gdwarf-3 -fvar-tracking-assignments
 else
 DBGFLAGS:=-g -gdwarf-3
 endif
-OPTFLAGS:=-O0
+OPTFLAGS:=-Og
 STDFLAGS:=-std=gnu23
 WARNFLAGS:=-Wall
 CGENFLAGS:=$(DBGFLAGS) $(OPTFLAGS) $(STDFLAGS) $(WARNFLAGS)
@@ -83,9 +86,9 @@ OBJ:=$(APP_OBJ) $(LIB_OBJ) $(TST_OBJ)
 DEP:=$(OBJ:%.o=%.d)
 DOC:=$(DOCDIR)/cardiff.pdf
 
-CBOR_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_dissect)
-CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
 CTF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,c_trace_fwd)
+CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
+CBOR_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_dissect)
 DSC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_cbor_dsc)
 EMP_BIN_EXE:=$(addprefix $(OBJBINDIR)/,empty_loop)
 RNC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_reencode)
