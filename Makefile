@@ -7,9 +7,6 @@ LANGUAGE:=en_GB:en
 CC:=gcc
 DBG:=$(shell which gdb)
 LD:=$(CC)
-BIBER:=$(shell which biber)
-LATEX:=$(shell which xelatex)
-SVG2TIKZ:=$(shell which svg2tikz)
 
 TOPDIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOPBASE:=$(shell basename $(TOPDIR))
@@ -58,9 +55,6 @@ STDFLAGS:=-std=gnu23
 WARNFLAGS:=-Wall
 CGENFLAGS:=$(DBGFLAGS) $(OPTFLAGS) $(STDFLAGS) $(WARNFLAGS)
 CFLAGS:=$(CGENFLAGS) $(CBOR_CFLAGS) $(INCFLAGS) -MD
-LATEX_CORE_FLAGS:=-output-directory=$(DOCDIR)
-LATEXFLAGS:=$(LATEX_CORE_FLAGS) --shell-escape
-BIBERFLAGS:=$(addprefix -,$(LATEX_CORE_FLAGS))
 ENVFLAGS:=-S GDM_LANG=en_GB.UTF-8 LANG=en_GB.UTF-8 LANGUAGE=en_GB:en 
 
 vpath %.ltx $(DOCDIR)
@@ -135,34 +129,6 @@ $(TRY_BIN_EXE): $(OBJDIR)/test/cbor_try.o $(CTF_LIB_DSO)
 -include $(DEP)
 
 # %.o: %.c
-$(DOCDIR)/%.pdf: %.ltx
-	@mkdir -p $(dir $@)
-	function biberBCF () { \
-		STATUS=0; \
-		for BCF in $(patsubst %.ltx,%.bcf, \
-				$(foreach FILE,$(DOC_SRC), \
-					$(DOCDIR)/$(shell realpath \
-						--relative-to=$(DOCDIR) \
-							$(FILE)))); do \
-			$(BIBER) $(BIBERFLAGS) $${BCF}; \
-			STATUS=$$?; \
-			@echo STATUS=$${STATUS}; \
-			if [ $${STATUS} -ne 0 ]; then \
-				break; \
-			fi; \
-		done; \
-		return $${STATUS}; \
-	}; \
-	$(LATEX) $(LATEXFLAGS) $< && \
-		biberBCF && \
-		$(LATEX) $(LATEXFLAGS) $< && \
-		$(LATEX) $(LATEXFLAGS) $<
-%.tikz: %.svg
-	@mkdir -p $(dir $@)
-	$(SVG2TIKZ) $< --codeoutput figonly --output $@
-$(DOCDIR)/%.tikz: %.svg
-	@mkdir -p $(dir $@)
-	$(SVG2TIKZ) $< --codeoutput figonly --output $@
 $(OBJDIR)/app/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -MD -MF $(@:%.o=%.d) -MT $@ -o $@
