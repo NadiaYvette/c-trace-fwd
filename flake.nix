@@ -35,11 +35,7 @@
 
           src = ./.;
 
-          # nativeBuildInputs = [ autoreconfHook ];
-          # nativeBuildInputs = [ ];
-          # phases = [ buildPhase installPhase ];
-          buildInputs = [biber clang coreutils gcc gdb glib glibc gnumake libcbor libsysprof-capture pcre2 pkgconf pkg-config which svg2tikz texliveFull];
-          # texlive.withPackages (ps: [ ps.xelatex-dev ]);
+          buildInputs = [clang coreutils gcc gdb glib glibc gnumake libcbor libsysprof-capture pcre2 pkgconf pkg-config which];
           buildTarget = ''
             $(pwd)/obj/bin/c_trace_fwd obj/lib/libc_trace_fwd.so $(pwd)/obj/bin/c_trace_fwd obj/lib/libc_trace_fwd.so
           '';
@@ -47,10 +43,32 @@
             make -f Makefile $(pwd)/obj/bin/c_trace_fwd $(pwd)/obj/lib/libc_trace_fwd.so
           '';
           installPhase = ''
+            # Create the bin directory
             mkdir -p $out/bin
             mkdir -p $out/lib
-            cp obj/bin/c_trace_fwd $out/bin
+
+            # Copy your main executable to a new location inside the package
+            # We'll rename it to avoid conflicts with the wrapper
+            cp obj/bin/c_trace_fwd $out/bin/c_trace_fwd.bin
+            # Originally was:
+            # cp obj/bin/c_trace_fwd $out/bin
+
+            # Largely unchanged.
             cp obj/lib/libc_trace_fwd.so $out/lib
+
+            # Create the wrapper script
+            cat > $out/bin/c_trace_fwd << EOF
+            #!/bin/sh
+            # Set the environment variables for your libs
+            export LD_PRELOAD="$out/lib/libc_trace_fwd.so"
+            export LD_LIBRARY_PATH="$out/lib:${LD_LIBRARY_PATH}"
+
+            # Execute the actual program
+            exec "$out/bin/c_trace_fwd.bin" "\$@"
+            EOF
+
+            # Make the wrapper script executable
+            chmod +x $out/bin/c_trace_fwd
           '';
         };
 
