@@ -65,7 +65,7 @@ do {									\
 		if (ctf_msg_core(&__ctx_##__LINE__,		   \
 				 fmt __VA_OPT__ (,) __VA_ARGS__)   \
 							< 0) {	   \
-			write(STDERR_FILENO,			   \
+			(void)!write(STDERR_FILENO,		   \
 				__ctx_errstr##__LINE__,		   \
 				sizeof(__ctx_errstr##__LINE__));   \
 		}						   \
