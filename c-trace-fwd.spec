@@ -8,7 +8,7 @@ Summary:         C trace forwarder
 License:         MIT
 URL:             %{forgeurl}
 Source0:         %{forgesource}
-BuildRequires:   gcc, gdb, glib2-devel, texlive-xetex, libcbor-devel
+BuildRequires:   gcc, gdb, glib2-devel, libcbor-devel
 
 %description
 C trace forwarding library w/example executable
@@ -17,7 +17,8 @@ C trace forwarding library w/example executable
 %forgeautosetup
 
 %build
-%make_build
+OBJDIR=$(realpath obj)
+%{__make} -j${RPM_BUILD_NCPUS} ${OBJDIR}/bin/c_trace_fwd ${OBJDIR}/lib/libc_trace_fwd.so
 
 %install
 install -Dpm 755 obj/bin/c_trace_fwd -t %{buildroot}%{_bindir}
