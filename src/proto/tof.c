@@ -134,8 +134,8 @@ out_uint_free:
 	return ret;
 }
 
-static bool
-to_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
+bool
+cbor_strdup_array_get(const char **string, const cbor_item_t *array, unsigned k)
 {
 	bool retval;
 	cbor_item_t *item;
@@ -231,13 +231,13 @@ trace_object_decode(const cbor_item_t *array)
 	}
 	if (cbor_is_null(subarray) || !cbor_isa_array(subarray) || cbor_array_size(subarray) < 1)
 		to->to_human = NULL;
-	else if (!to_strdup_array_get(&to->to_human, subarray, 0)) {
+	else if (!cbor_strdup_array_get(&to->to_human, subarray, 0)) {
 		ctf_msg(tof, "human lacking\n");
 		/* field optional */
 		/* goto out_free_to; */
 	}
 
-	if (!to_strdup_array_get(&to->to_machine, array, 2)) {
+	if (!cbor_strdup_array_get(&to->to_machine, array, 2)) {
 		ctf_msg(tof, "machine lacking\n");
 		/* field optional */
 		/* goto out_free_to; */
@@ -260,7 +260,7 @@ trace_object_decode(const cbor_item_t *array)
 		goto out_free_machine;
 	}
 	for (k = 0; k < to->to_namespace_nr; ++k) {
-		if (to_strdup_array_get(&to->to_namespace[k], subarray, k))
+		if (cbor_strdup_array_get(&to->to_namespace[k], subarray, k))
 			continue;
 		ctf_msg(tof, "namespace strdup() failed\n");
 		ctf_cbor_decref(tof, &subarray);
@@ -287,11 +287,11 @@ trace_object_decode(const cbor_item_t *array)
 	}
 	to->to_timestamp = (time_t)val;
 
-	if (!to_strdup_array_get(&to->to_hostname, array, 7)) {
+	if (!cbor_strdup_array_get(&to->to_hostname, array, 7)) {
 		ctf_msg(tof, "hostname failed\n");
 		goto out_free_namespace_entries;
 	}
-	if (!to_strdup_array_get(&to->to_thread_id, array, 8)) {
+	if (!cbor_strdup_array_get(&to->to_thread_id, array, 8)) {
 		ctf_msg(tof, "thread_id failed\n");
 		goto out_free_hostname;
 	}

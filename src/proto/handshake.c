@@ -11,6 +11,7 @@
 #include "ctf_util.h"
 #include "handshake.h"
 #include "sdu.h"
+#include "tof.h"
 
 const char *
 handshake_string(enum handshake_type handshake_type)
@@ -147,14 +148,27 @@ refused_decode(const cbor_item_t *refusal_array, struct handshake *handshake)
 {
 	struct handshake_refusal *refusal;
 	struct handshake_refusal_refused *refused;
+	cbor_item_t *item;
+	const char **string;
+	uintmax_t value;
 
 	refusal = &handshake->handshake_message.refusal;
 	refused = &refusal->refusal_message.refused;
-	refused->handshake_refusal_refused_version
-		= cbor_get_int(cbor_array_get(refusal_array, 1));
-	refused->handshake_refusal_refused_string
-		= strdup((char *)cbor_string_handle(cbor_array_get(refusal_array, 2)));
+	string  = (const char **)&refused->handshake_refusal_refused_string;
+	if (!(item = cbor_array_get(refusal_array, 1)))
+		return NULL;
+	/* The versions must be non-negative. */
+	if (!cbor_isa_uint(item))
+		goto out_decref;
+	if (!cbor_get_uint(item, &value))
+		goto out_decref;
+	refused->handshake_refusal_refused_version = (uint64_t)value;
+	if (!cbor_strdup_array_get(string, refusal_array, 2))
+		goto out_decref;
 	return handshake;
+out_decref:
+	cbor_decref(&item);
+	return NULL;
 }
 
 static struct handshake *
