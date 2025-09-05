@@ -249,6 +249,7 @@ service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
 			if (!--failure_count) {
 				ctf_msg(service, "too many failures, "
 						"exiting\n");
+				retval = RETVAL_FAILURE;
 				break;
 			}
 		}
