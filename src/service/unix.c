@@ -18,7 +18,7 @@ service_unix_sock_send_done(struct c_trace_fwd_state *state, int fd)
 		.tof_msg_type = tof_done,
 		.tof_msg_body = {
 			.request = {
-				.tof_blocking = 0,
+				.tof_blocking = true,
 				.tof_nr_obj   = 0,
 			},
 		},
@@ -60,7 +60,7 @@ static enum svc_result
 service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 {
 	struct tof_request request = {
-		.tof_blocking = 0,
+		.tof_blocking = true,
 		.tof_nr_obj   = 64,
 	};
 	struct tof_msg *msg = NULL;
@@ -119,14 +119,18 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 	struct tof_msg *tof;
 	struct tof_reply *reply;
 
+	ctf_msg(unix, "enter\n");
 	/* receive */
 	/* change agency to local */
+	ctf_msg(unix, "about to service_recv_tof()\n");
 	if (!(cpsdr = service_recv_tof(state, fd))) {
 		ctf_msg(service_unix, "service_recv_tof() failed!\n");
 		goto out_msg;
 	}
+	ctf_msg(unix, "back from service_recv_tof()\n");
 	/* state->agency = agency_local; */
 	ctf_set_agency(unix, &state->unix_io, agency_local);
+	ctf_msg(unix, "about to check miniprotocol nr\n");
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_trace_objects:
 		tof = cpsdr->proto_stk_decode_result_body.tof_msg;
@@ -147,7 +151,9 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 			ctf_cbor_decref(unix, &cpsdr->proto_stk_decode_result_body.undecoded);
 		goto out_free_cpsdr;
 	}
+	ctf_msg(unix, "finished miniprotocol nr check\n");
 tof_msg_type_switch:
+	ctf_msg(unix, "about to check ->tof_msg_type\n");
 	switch (tof->tof_msg_type) {
 	case tof_reply:
 		size_t nr_replies;
@@ -181,18 +187,23 @@ tof_msg_type_switch:
 				      tof->tof_msg_type);
 		break;
 	}
+	ctf_msg(unix, "finished ->tof_msg_type check\n");
 out_free_cpsdr:
+	ctf_msg(unix, "at label out_free_cpsdr\n");
 	cpsdr_free(cpsdr);
 out_msg:
-	ctf_msg(service_unix, "reached out_free_buf label\n");
+	ctf_msg(service_unix, "at out_msg label\n");
 	if (retval != RETVAL_SUCCESS)
-		ctf_msg(service_unix, "service_unix_core() failed!\n");
+		ctf_msg(service_unix, "service_unix_sock_recv() failed!\n");
+	ctf_msg(unix, "service_unix_sock_recv(): return\n");
 	return retval;
 }
 
 enum svc_result
 service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 {
+	ctf_msg(unix, "service_unix_sock() enter\n");
+	render_fd_flags(unix, pollfd->fd);
 	switch (state->unix_io.agency) {
 	case agency_nobody:
 		if (!!(pollfd->revents & POLLIN)) {
@@ -205,6 +216,8 @@ service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 					"service_unix_sock_send()\n");
 			return service_unix_sock_send_done(state, pollfd->fd);
 		}
+		if (!(pollfd->revents & (POLLIN|POLLOUT)))
+			ctf_msg(unix, "svc neither POLLIN|POLLOUT agency %s\n", agency_string(state->unix_io.agency));
 		ctf_msg(unix, "agency_nobody no events\n");
 		return svc_progress_none;
 	case agency_local:

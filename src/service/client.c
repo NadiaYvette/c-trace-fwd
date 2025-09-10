@@ -19,10 +19,15 @@ service_recv_tof(struct c_trace_fwd_state *state, int fd)
 {
 	struct ctf_proto_stk_decode_result *cpsdr = NULL;
 
+	ctf_msg(client, "enter\n");
+	ctf_msg(client, "about to ctf_proto_stk_decode()\n");
 	if (!(cpsdr = ctf_proto_stk_decode(fd))) {
-		ctf_msg(client, "service_recv_tof() failed\n");
+		ctf_msg(client, "ctf_proto_stk_decode() failed so "
+				"service_recv_tof() failed\n");
 		return NULL;
 	}
+	ctf_msg(client, "got past ctf_proto_stk_decode()\n");
+	ctf_msg(client, "return %p\n", cpsdr);
 	return cpsdr;
 }
 
