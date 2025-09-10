@@ -1,7 +1,7 @@
 #!/bin/sh
 NODE_DIR=${NODE_DIR:-../cardano-node}
 NODE_SOCK_DIR=${NODE_SOCK_DIR:-${NODE_DIR}/mainnetsingle/socket}
-# NODE_SOCK_DIR=${NODE_SOCK_DIR:-${NODE_DIR}/run/current/tracer}
+# NODE_SOCK_DIR=${NODE_SOCK_DIR:-$(realpath ${NODE_DIR}/run/current/tracer)}
 SOCK_FILE=${SOCK_FILE:-$(realpath ${NODE_SOCK_DIR}/tracer.socket)}
 if [ -v DEBUG ]
 then
@@ -15,6 +15,7 @@ exec env LD_PRELOAD=./obj/lib/libc_trace_fwd.so \
 	valgrind --tool=memcheck \
 		--leak-check=full \
 		--show-leak-kinds=all \
+		--show-error-list=all \
 		--track-origins=yes \
 		./obj/bin/c_trace_fwd \
 			-f ${SOCK_FILE} \
