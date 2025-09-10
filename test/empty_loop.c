@@ -124,7 +124,7 @@ send_done(int fd)
 		.tof_msg_type = tof_done,
 		.tof_msg_body = {
 			.request = {
-				.tof_blocking = 0,
+				.tof_blocking = false,
 				.tof_nr_obj   = 0,
 			},
 		},
