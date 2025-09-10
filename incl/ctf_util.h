@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -15,6 +16,7 @@ struct cbor_item_t;
 
 int ctf_msg_core(const struct ctf_msg_ctx *, const char *, ...);
 size_t cbor_refcount(const struct cbor_item_t *);
+bool render_flags_core(const struct ctf_msg_ctx *, int);
 
 #define CTF_CHK_PTR_LO_ADDR	(((uintptr_t)1) << 20)
 #define ctf_check_ptr(mod, ptr)					   \
@@ -96,3 +98,45 @@ do {									\
 	*__ctx_old_agency_ptr##__LINE__					\
 		= __ctx_new_agency##__LINE__;				\
 } while (0)
+
+#define render_flags(mod, flags)				    \
+	do {                                                        \
+		char __ctx_errstr##__LINE__[]			    \
+			= "render_flags() failed!\n";		    \
+		struct ctf_msg_ctx __ctx_##__LINE__ = {             \
+			.func = __func__,                           \
+			.file = __FILE__,                           \
+			.line = __LINE__,                           \
+			.ctx = #mod,                                \
+		};                                                  \
+		if (!render_flags_core(&__ctx_##__LINE__, flags)) { \
+			(void)!write(STDERR_FILENO,		    \
+				__ctx_errstr##__LINE__,		    \
+				sizeof(__ctx_errstr##__LINE__));    \
+		}						    \
+	} while (0)
+
+#define render_fd_flags(mod, fd)					\
+	do {								\
+		char __ctx_render_errstr##__LINE__[]			\
+			= "render_flags() failed!\n";			\
+		char __ctx_fcntl_errstr##__LINE__[]			\
+			= "fcntl() failed!\n";				\
+		int __ctx_flags##__LINE__;				\
+		struct ctf_msg_ctx __ctx_##__LINE__ = {			\
+			.func = __func__,				\
+			.file = __FILE__,				\
+			.line = __LINE__,				\
+			.ctx = #mod,					\
+		};							\
+		if ((__ctx_flags##__LINE__ = fcntl(fd, F_GETFL)) == -1)	\
+			(void)!write(STDERR_FILENO,			\
+				__ctx_fcntl_errstr##__LINE__,		\
+				sizeof(__ctx_fcntl_errstr##__LINE__));	\
+		if (!render_flags_core(&__ctx_##__LINE__,		\
+					__ctx_flags##__LINE__)) {	\
+			(void)!write(STDERR_FILENO,			\
+				__ctx_render_errstr##__LINE__,		\
+				sizeof(__ctx_render_errstr##__LINE__));	\
+		}							\
+	} while (0)
