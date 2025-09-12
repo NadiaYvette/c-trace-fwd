@@ -55,9 +55,12 @@ struct metrics_resp {
 	struct metrics_resp_elem *metrics_resp_metrics;
 };
 
+/* a done msg is an empty resp
+ * array w/len 1 contains only a type tag
+ * this may complicate sending empty replies */
 enum metrics_msg_type {
-	metrics_req,
-	metrics_resp,
+	metrics_req  = 0,
+	metrics_resp = 1,
 };
 
 #define METRICS_MSG_TYPE_MIN MIN(metrics_req, metrics_resp)

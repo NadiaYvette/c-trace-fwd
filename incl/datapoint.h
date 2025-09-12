@@ -20,12 +20,15 @@ struct datapoint_resp {
 };
 
 enum datapoint_msg_type {
-	datapoint_req,
-	datapoint_resp,
+	datapoint_req  = 1,
+	datapoint_done = 2,
+	datapoint_resp = 3,
 };
 
-#define DATAPOINT_MSG_TYPE_MIN MIN(datapoint_req, datapoint_resp)
-#define DATAPOINT_MSG_TYPE_MAX MAX(datapoint_req, datapoint_resp)
+#define DATAPOINT_MSG_TYPE_MIN						\
+	MIN(datapoint_req, MIN(datapoint_done, datapoint_resp))
+#define DATAPOINT_MSG_TYPE_MAX						\
+	MAX(datapoint_req, MIN(datapoint_done, datapoint_resp))
 #define DATAPOINT_MSG_TYPE_VALID(value)					\
 	({								\
 		enum datapoint_msg_type __ctx_dmt##__LINE__ = (value);	\
