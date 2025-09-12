@@ -2,6 +2,8 @@
 #include <time.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
+#include "datapoint.h"
+#include "metrics.h"
 #include "proto_stk.h"
 #include "sdu.h"
 #include "tof.h"
