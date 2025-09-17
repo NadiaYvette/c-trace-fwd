@@ -300,6 +300,10 @@ ctf_proto_stk_encode(enum mini_protocol_num mpn, const union msg *msg, size_t *r
 	switch (mpn) {
 	case mpn_trace_objects:
 		return tof_proto_stk_encode(&msg->tof_msg, ret_sz);
+	case mpn_EKG_metrics:
+		return build_empty_metrics_resp();
+	case mpn_data_points:
+		return build_empty_datapoint_resp();
 	default:
 		return NULL;
 	}

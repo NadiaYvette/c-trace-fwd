@@ -79,3 +79,7 @@ struct metrics_msg {
 		struct metrics_req metrics_req;
 	} metrics_msg_body;
 };
+
+struct cbor_item_t;
+struct cbor_item_t *build_empty_metrics_resp(void);
+void *metrics_encode_empty_resp(void);
