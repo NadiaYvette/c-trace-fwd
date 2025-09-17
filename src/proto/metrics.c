@@ -2,7 +2,7 @@
 #include "datapoint.h"
 
 cbor_item_t *
-build_empty_datapoint_resp(void)
+build_empty_metrics_resp(void)
 {
 	cbor_item_t *arr, *tag, *val;
 

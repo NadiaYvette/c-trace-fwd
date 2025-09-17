@@ -91,7 +91,7 @@ send_tof(struct tof_msg *tof, int fd)
 	size_t sz, cur_sz;
 	ssize_t ret_sz;
 
-	if (!(buf = ctf_proto_stk_encode(tof, &sz)))
+	if (!(buf = ctf_proto_stk_encode(mpn_trace_objects, (union msg *)tof, &sz)))
 		return RETVAL_FAILURE;
 	/* This is an awkward enough pattern that the API should change. */
 	cur_buf = buf;
@@ -167,7 +167,7 @@ send_empty_reply(int fd)
 		},
 	};
 
-	if (!(buf = ctf_proto_stk_encode(&empty_reply, &sz)))
+	if (!(buf = ctf_proto_stk_encode(mpn_trace_objects, (union msg *)&empty_reply, &sz)))
 		return RETVAL_FAILURE;
 	/* This is an awkward enough pattern that the API should change. */
 	cur_buf = buf;
@@ -261,7 +261,7 @@ loop:
 		mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num;
 		if (mpn != mpn_trace_objects) {
 			struct handshake *handshake
-				= cpsdr->proto_stk_decode_result_body.handshake_msg;
+				= &cpsdr->proto_stk_decode_result_body->handshake_msg;
 			if (mpn == mpn_handshake) {
 				if (!handshake)
 					ctf_msg(empty_loop, "NULL handshake?\n");
@@ -278,7 +278,7 @@ loop:
 					(int)mpn);
 			goto release_cpsdr;
 		}
-		tof = cpsdr->proto_stk_decode_result_body.tof_msg;
+		tof = &cpsdr->proto_stk_decode_result_body->tof_msg;
 		if (tof->tof_msg_type == tof_done)
 			ctf_set_agency(empty_loop, &agency, agency_nobody);
 		else if (tof->tof_msg_type == tof_request) {

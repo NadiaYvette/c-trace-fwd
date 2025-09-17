@@ -51,7 +51,7 @@ service_issue_request(struct c_trace_fwd_state *state)
 	};
 	int flg = MSG_CONFIRM | MSG_NOSIGNAL;
 
-	if (!(buf = ctf_proto_stk_encode(&tof_msg, &sz))) {
+	if (!(buf = ctf_proto_stk_encode(mpn_trace_objects, (union msg *)&tof_msg, &sz))) {
 		ctf_msg(service, "ctf_proto_stk_encode() failed\n");
 		return false;
 	}

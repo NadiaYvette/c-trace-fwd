@@ -89,36 +89,55 @@ continue_for_loop:
 			cpsdr_free(result);
 			goto continue_for_loop;
 		}
-		mpn = result->sdu.sdu_proto_un.sdu_proto_num;
-		if (mpn != mpn_trace_objects) {
+		switch (mpn = result->sdu.sdu_proto_un.sdu_proto_num) {
+		case mpn_handshake:
+		case mpn_EKG_metrics:
+		case mpn_data_points:
+			break;
+		case mpn_trace_objects:
+			struct tof_msg *tof_msg;
+
+			tof_msg = &result->proto_stk_decode_result_body->tof_msg;
+			switch (tof_msg->tof_msg_type) {
+			case tof_request:
+			case tof_done:
+				tof_free(&result->proto_stk_decode_result_body->tof_msg);
+				cpsdr_free(result);
+				continue;
+			case tof_reply:
+				for (k = 0; k < tof_msg->tof_msg_body.reply.tof_nr_replies; ++k) {
+					if (to_enqueue(&state->unix_io.in_queue, tof_msg->tof_msg_body.reply.tof_replies[k]) == RETVAL_SUCCESS)
+						continue;
+					ctf_msg(state, "enqueue failed\n");
+					tof_free(&result->proto_stk_decode_result_body->tof_msg);
+					cpsdr_free(result);
+					goto out_close_fd;
+				}
+				break;
+			default:
+				ctf_msg(state,
+					"unrecognized tof_msg_type %d\n",
+					(int)tof_msg->tof_msg_type);
+				break;
+			}
+			break;
+		default:
 			ctf_msg(state, "skipping trace object for "
 					"protocol %s\n",
 					mini_protocol_string(mpn));
-			if (!!result->proto_stk_decode_result_body.undecoded) {
+			if (!!result->proto_stk_decode_result_body) {
 
-				ctf_msg(state, "undecoded %p not NULL? should we cbor_decref() it?\n", result->proto_stk_decode_result_body.undecoded);
+				ctf_msg(state, "->proto_stk_decode_result_body %p not NULL? should we cbor_decref() it?\n", result->proto_stk_decode_result_body);
 				if (result->load_result.error.code != CBOR_ERR_NONE)
 					ctf_msg(state, "load result error code =%d != CBOR_ERR_NONE, not decref'ing\n", result->load_result.error.code);
-				else {
-					ctf_msg(state, "load result error code == CBOR_ERR_NONE, decref'ing it now\n");
-					ctf_cbor_decref(state, &result->proto_stk_decode_result_body.undecoded);
-				}
+				else if (!!result->proto_stk_decode_result_body->undecoded) {
+					ctf_msg(state, "load result error code == CBOR_ERR_NONE, ->undecoded != NULL, decref'ing %p now\n", &result->proto_stk_decode_result_body->undecoded);
+					ctf_cbor_decref(state, &result->proto_stk_decode_result_body->undecoded);
+				} else
+					ctf_msg(state, "load result error code == CBOR_ERR_NONE, ->undecoded == NULL, doing nothing\n");
 			}
 			cpsdr_free(result);
 			continue;
-		}
-		if (result->proto_stk_decode_result_body.tof_msg->tof_msg_type != tof_reply) {
-			tof_free(result->proto_stk_decode_result_body.tof_msg);
-			cpsdr_free(result);
-			continue;
-		}
-		for (k = 0; k < result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_nr_replies; ++k) {
-			if (to_enqueue(&state->unix_io.in_queue, result->proto_stk_decode_result_body.tof_msg->tof_msg_body.reply.tof_replies[k]) == RETVAL_SUCCESS)
-				continue;
-			ctf_msg(state, "enqueue failed\n");
-			tof_free(result->proto_stk_decode_result_body.tof_msg);
-			cpsdr_free(result);
-			goto out_close_fd;
 		}
 	}
 	close(fd);

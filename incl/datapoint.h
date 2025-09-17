@@ -26,9 +26,9 @@ enum datapoint_msg_type {
 };
 
 #define DATAPOINT_MSG_TYPE_MIN						\
-	MIN(datapoint_req, MIN(datapoint_done, datapoint_resp))
+		MIN(datapoint_req, MIN(datapoint_done, datapoint_resp))
 #define DATAPOINT_MSG_TYPE_MAX						\
-	MAX(datapoint_req, MIN(datapoint_done, datapoint_resp))
+		MAX(datapoint_req, MAX(datapoint_done, datapoint_resp))
 #define DATAPOINT_MSG_TYPE_VALID(value)					\
 	({								\
 		enum datapoint_msg_type __ctx_dmt##__LINE__ = (value);	\

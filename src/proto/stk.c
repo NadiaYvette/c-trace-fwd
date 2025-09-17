@@ -12,18 +12,17 @@ static void
 cpsdr_release_memory(void *p)
 {
 	struct ctf_proto_stk_decode_result *cpsdr = p;
+	union msg *msg;
 
 	if (cpsdr->load_result.error.code != CBOR_ERR_NONE)
 		return;
-	if (cpsdr->sdu.sdu_proto_un.sdu_proto_num == mpn_trace_objects) {
-		if (cpsdr->proto_stk_decode_result_body.tof_msg != NULL) {
-			tof_free(cpsdr->proto_stk_decode_result_body.tof_msg);
-			cpsdr->proto_stk_decode_result_body.tof_msg = NULL;
-		}
-	} else if (cpsdr->proto_stk_decode_result_body.undecoded != NULL) {
-		cbor_decref(&cpsdr->proto_stk_decode_result_body.undecoded);
-		cpsdr->proto_stk_decode_result_body.undecoded = NULL;
-	}
+	if (!(msg = cpsdr->proto_stk_decode_result_body))
+		return;
+	if (cpsdr->sdu.sdu_proto_un.sdu_proto_num == mpn_trace_objects)
+		tof_free(&msg->tof_msg);
+	else if (!!msg->undecoded)
+		cbor_decref(&msg->undecoded);
+	cpsdr->proto_stk_decode_result_body = NULL;
 }
 
 void
@@ -206,16 +205,16 @@ ctf_proto_stk_decode(int fd)
 	ctf_msg(stk, "checking miniprotocol nr\n");
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_handshake:
-		cpsdr->proto_stk_decode_result_body.handshake_msg
-			= handshake_decode(tof_cbor);
-		if (!cpsdr->proto_stk_decode_result_body.handshake_msg) {
+		cpsdr->proto_stk_decode_result_body
+			= (union msg *)handshake_decode(tof_cbor);
+		if (!cpsdr->proto_stk_decode_result_body) {
 			ctf_msg(stk, "handshake_decode() failed\n");
 			goto out_free_tof_cbor;
 		}
 		ctf_cbor_decref(stk, &tof_cbor);
 		break;
 	case mpn_trace_objects:
-		if (!(cpsdr->proto_stk_decode_result_body.tof_msg = tof_decode(tof_cbor))) {
+		if (!(cpsdr->proto_stk_decode_result_body = (union msg *)tof_decode(tof_cbor))) {
 			ctf_msg(stk, "tof_decode() failed\n");
 			goto out_free_tof_cbor;
 		}
@@ -234,7 +233,10 @@ ctf_proto_stk_decode(int fd)
 		if (!MPN_VALID(cpsdr->sdu.sdu_proto_un.sdu_proto_num))
 			ctf_msg(stk, "packet w/unhandled miniprotocol %d\n",
 				(int)cpsdr->sdu.sdu_proto_un.sdu_proto_num);
-		cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor;
+		ctf_msg(stk, "cpsdr = %p\n", cpsdr);
+		ctf_msg(stk, "cpsdr->proto_stk_decode_result_body = %p\n",
+				cpsdr->proto_stk_decode_result_body);
+		cpsdr->proto_stk_decode_result_body = (union msg *)tof_cbor;
 		break;
 	}
 	ctf_msg(stk, "past miniprotocol nr check\n");
@@ -255,7 +257,7 @@ out_free_cpsdr:
 }
 
 void *
-ctf_proto_stk_encode(const struct tof_msg *msg, size_t *ret_sz)
+tof_proto_stk_encode(const struct tof_msg *msg, size_t *ret_sz)
 {
 	char *buf;
 	size_t buf_sz, cbor_sz;
@@ -290,4 +292,15 @@ out_free_buf:
 out_free_cbor:
 	ctf_cbor_decref(stk, &tof_cbor);
 	return NULL;
+}
+
+void *
+ctf_proto_stk_encode(enum mini_protocol_num mpn, const union msg *msg, size_t *ret_sz)
+{
+	switch (mpn) {
+	case mpn_trace_objects:
+		return tof_proto_stk_encode(&msg->tof_msg, ret_sz);
+	default:
+		return NULL;
+	}
 }

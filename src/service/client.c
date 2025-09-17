@@ -39,7 +39,7 @@ service_send_tof(struct c_trace_fwd_state *state, struct tof_msg *tof, int fd)
 	size_t sz, cur_sz;
 	ssize_t ret_sz;
 
-	if (!(buf = ctf_proto_stk_encode(tof, &sz)))
+	if (!(buf = ctf_proto_stk_encode(mpn_trace_objects, (union msg *)tof, &sz)))
 		return RETVAL_FAILURE;
 	/* This is an awkward enough pattern that the API should change. */
 	cur_buf = buf;
@@ -100,7 +100,7 @@ service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 		return RETVAL_FAILURE;
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_trace_objects:
-		tof = cpsdr->proto_stk_decode_result_body.tof_msg;
+		tof = &cpsdr->proto_stk_decode_result_body->tof_msg;
 		/* It could be break, but the label's name is descriptive. */
 		goto tof_msg_type_switch;
 	default:
@@ -113,8 +113,8 @@ service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 	case mpn_data_points:
 		/* These protocols' CBOR contents aren't decoded. */
 		tof = NULL;
-		if (!!cpsdr->proto_stk_decode_result_body.undecoded)
-			ctf_cbor_decref(client, &cpsdr->proto_stk_decode_result_body.undecoded);
+		if (!!cpsdr->proto_stk_decode_result_body->undecoded)
+			ctf_cbor_decref(client, &cpsdr->proto_stk_decode_result_body->undecoded);
 		goto out_free_cpsdr;
 	}
 tof_msg_type_switch:
