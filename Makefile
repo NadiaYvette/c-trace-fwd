@@ -38,7 +38,7 @@ CTF_LIBS:=c_trace_fwd
 # The placement of the library is assumed in-place for the moment.
 # Installation directories should follow.
 PKGCONF_LIST:=libcbor glib-2.0
-LDFLAGS:=-v -L$(OBJLIBDIR) \
+LDFLAGS:=-L$(OBJLIBDIR) \
 		$(foreach PKG,$(PKGCONF_LIST), \
 			$(shell pkgconf --libs --keep-system-libs $(PKG)))
 LIBS:=$(CBOR_LIBS)
