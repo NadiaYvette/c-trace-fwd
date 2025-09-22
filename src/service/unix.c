@@ -118,6 +118,8 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 	struct ctf_proto_stk_decode_result *cpsdr;
 	struct tof_msg *tof;
 	struct tof_reply *reply;
+	size_t ret_sz;
+	char *ret_buf;
 
 	ctf_msg(unix, "enter\n");
 	/* receive */
@@ -136,14 +138,26 @@ service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
 		tof = (struct tof_msg *)cpsdr->proto_stk_decode_result_body;
 		/* It could be break, but the label's name is descriptive. */
 		goto tof_msg_type_switch;
+	case mpn_EKG_metrics:
+		ctf_msg(unix, "got metrics msg sending empty reply\n");
+		if (!(ret_buf = ctf_proto_stk_encode(mpn_EKG_metrics, NULL, &ret_sz)))
+			goto out_free_cpsdr;
+		write(fd, ret_buf, ret_sz);
+		retval = svc_progress_recv;
+		goto out_free_cpsdr;
+	case mpn_data_points:
+		ctf_msg(unix, "got datapoint msg sending empty reply\n");
+		if (!(ret_buf = ctf_proto_stk_encode(mpn_EKG_metrics, NULL, &ret_sz)))
+			goto out_free_cpsdr;
+		write(fd, ret_buf, ret_sz);
+		retval = svc_progress_recv;
+		goto out_free_cpsdr;
 	default:
 		ctf_msg(client, "bad sdu_proto_num %d\n",
 				cpsdr->sdu.sdu_proto_un.sdu_proto_num);
 		/* Deliberate fall-through; more properly, the other
 		 * cases are skipping over the log message from the
 		 * default case. */
-	case mpn_EKG_metrics:
-	case mpn_data_points:
 		/* These protocols' CBOR contents aren't decoded. */
 		/* Is a reply needed? */
 		tof = NULL;
@@ -193,7 +207,7 @@ out_free_cpsdr:
 	cpsdr_free(cpsdr);
 out_msg:
 	ctf_msg(service_unix, "at out_msg label\n");
-	if (retval != RETVAL_SUCCESS)
+	if (retval == svc_progress_fail)
 		ctf_msg(service_unix, "service_unix_sock_recv() failed!\n");
 	ctf_msg(unix, "service_unix_sock_recv(): return\n");
 	return retval;
@@ -203,6 +217,7 @@ enum svc_result
 service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 {
 	ctf_msg(unix, "service_unix_sock() enter\n");
+	ctf_msg(unix, "pollfd->revents = 0x%x\n", pollfd->revents);
 	render_fd_flags(unix, pollfd->fd);
 	switch (state->unix_io.agency) {
 	case agency_nobody:

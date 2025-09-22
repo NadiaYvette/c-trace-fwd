@@ -113,8 +113,10 @@ service_loop_core(struct c_trace_fwd_state *state)
 		return RETVAL_FAILURE;
 	}
 	ctf_msg(service, "service_loop_core() about to poll()\n");
-	for (k = 0; k < state->nr_clients + 2; ++k)
+	for (k = 0; k < state->nr_clients + 2; ++k) {
 		pollfds[k].revents = 0;
+		pollfds[k].events = POLLIN|POLLPRI|POLLOUT|POLLERR|POLLHUP;
+	}
 	nr_ready = poll(pollfds, state->nr_clients + 2, 0);
 	if (nr_ready < 0) {
 		ctf_msg(service, "poll() failed\n");
