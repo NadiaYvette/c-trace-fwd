@@ -1,18 +1,104 @@
 #include <pthread.h>
+#include "agency.h"
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
+#include "proto_stk.h"
+#include "sdu.h"
 
 struct ctf_thread_arg {
 	struct c_trace_fwd_conf *conf;
 	struct c_trace_fwd_state *state;
 };
 
+static bool
+service_unix_sock_thread_data_points(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+{
+	(void)!!conf;
+	(void)!!state;
+	return true;
+}
+
+static bool
+service_unix_sock_thread_metrics(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+{
+	(void)!!conf;
+	(void)!!state;
+	return true;
+}
+
+static bool
+service_unix_sock_thread_trace_objects(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+{
+	(void)!!conf;
+	(void)!!state;
+	return true;
+}
+
+static bool
+service_unix_sock_thread_core(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+{
+	int retval = false;
+	struct ctf_proto_stk_decode_result *cpsdr;
+	enum mini_protocol_num mpn;
+
+	(void)!!conf;
+	ctf_msg(thread, "entered\n");
+	if (!(cpsdr = ctf_proto_stk_decode(state->unix_io.fd)))
+		goto out_free_cpsdr;
+	switch (mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
+	case mpn_data_points:
+		if (!service_unix_sock_thread_data_points(conf, state))
+			goto out_free_cpsdr;
+		break;
+	case mpn_EKG_metrics:
+		if (!service_unix_sock_thread_metrics(conf, state))
+			goto out_free_cpsdr;
+		break;
+	case mpn_trace_objects:
+		if (!service_unix_sock_thread_trace_objects(conf, state))
+			goto out_free_cpsdr;
+		break;
+	default:
+		ctf_msg(thread, "unrecognized protocol %s\n",
+				mini_protocol_string(mpn));
+		break;
+	}
+	retval = true;
+out_free_cpsdr:
+	cpsdr_free(cpsdr);
+	return retval;
+}
+
 static void *
 service_unix_sock_thread(void *pthread_arg)
 {
 	struct ctf_thread_arg *arg = pthread_arg;
+	struct c_trace_fwd_conf *conf;
+	struct c_trace_fwd_state *state;
 
-	(void)!!arg;
+	if (!arg)
+		return NULL;
+	conf = arg->conf;
+	state = arg->state;
+	if (!conf || !state)
+		return NULL;
+	for (;;) {
+		bool ret;
+
+		if (!!pthread_mutex_lock(&state->state_lock)) {
+			ctf_msg(thread, "locking state failed!\n");
+			break;
+		}
+		ret = service_unix_sock_thread_core(conf, state);
+		if (!!pthread_mutex_unlock(&state->state_lock)) {
+			ctf_msg(thread, "unlocking state failed!\n");
+			break;
+		}
+		if (ret)
+			continue;
+		ctf_msg(thread, "service_unix_sock_thread_core() failed!\n");
+		break;
+	}
 	return NULL;
 }
 
