@@ -15,7 +15,7 @@ void ctf_null(void *ctx)
 
 void ctf_boolean(void *ctx, bool val)
 {
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_state *state = ctx;
 	cbor_item_t *item;
 
 	(*cbor_empty_callbacks.boolean)(ctx, val);
@@ -31,7 +31,7 @@ out_decref:
 
 void ctf_indef_break(void *ctx)
 {
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_state *state = ctx;
 	cbor_item_t *item;
 
 	(*cbor_empty_callbacks.indef_break)(ctx);
@@ -50,7 +50,7 @@ void ctf_indef_break(void *ctx)
 
 void ctf_tag(void *ctx, uint64_t val)
 {
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_state *state = ctx;
 	cbor_item_t *item;
 
 	/* What does the tag get attached to? */

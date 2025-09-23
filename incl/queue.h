@@ -4,7 +4,7 @@
 #include "agency.h"
 #include "svc_enum.h"
 
-struct c_trace_fwd_state;
+struct ctf_state;
 struct trace_object;
 struct tof_msg;
 struct tof_request;

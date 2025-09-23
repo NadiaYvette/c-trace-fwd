@@ -34,7 +34,7 @@ static void copy_optarg(struct sockaddr_un *unix_sock, const char *s)
 static void
 conf_free_memory(void *p)
 {
-	struct c_trace_fwd_conf *conf = p;
+	struct ctf_conf *conf = p;
 
 	if (!!conf->preload_queue)
 		g_rc_box_release(conf->preload_queue);
@@ -45,11 +45,11 @@ conf_free_memory(void *p)
 }
 
 int
-setup_conf(struct c_trace_fwd_conf **conf, int argc, char *argv[])
+setup_conf(struct ctf_conf **conf, int argc, char *argv[])
 {
 	int opt, retval = RETVAL_FAILURE;
 
-	if (!(*conf = g_rc_box_new0(struct c_trace_fwd_conf)))
+	if (!(*conf = g_rc_box_new0(struct ctf_conf)))
 		goto exit_failure;
 	while ((opt = getopt(argc, argv, "f:q:u:")) != -1) {
 		switch (opt) {
@@ -88,7 +88,7 @@ exit_failure:
 	return retval;
 }
 
-void teardown_conf(struct c_trace_fwd_conf **conf)
+void teardown_conf(struct ctf_conf **conf)
 {
 	g_rc_box_release_full(*conf, conf_free_memory);
 	*conf = NULL;

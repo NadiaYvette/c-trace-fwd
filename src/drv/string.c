@@ -5,7 +5,7 @@
 
 void ctf_string_start(void *ctx)
 {
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_state *state = ctx;
 	cbor_item_t *item;
 
 	(*cbor_empty_callbacks.string_start)(ctx);

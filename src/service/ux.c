@@ -5,7 +5,7 @@
 #include "c_trace_fwd.h"
 
 int
-service_ux_sock(struct c_trace_fwd_state *state)
+service_ux_sock(struct ctf_state *state)
 {
 	int new_fd = accept(state->ux_sock_fd, NULL, NULL);
 	struct io_queue *new_ux_io;

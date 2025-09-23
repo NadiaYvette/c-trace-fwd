@@ -17,14 +17,14 @@
 #include "sdu.h"
 
 static int
-state_handshake(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
+state_handshake(struct ctf_state *state, struct ctf_conf *conf)
 {
 	(void)!conf;
 	return handshake_xmit(state->unix_io.fd);
 }
 
 static bool
-setup_queue(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
+setup_queue(struct ctf_state *state, struct ctf_conf *conf)
 {
 	int fd;
 
@@ -170,7 +170,7 @@ setup_unix_sock(int *fd, struct sockaddr *sockaddr)
 
 /* This may be worth separating the components of for readability's sake. */
 int
-setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
+setup_state(struct ctf_state **state, struct ctf_conf *conf)
 {
 	pthread_mutexattr_t state_lock_attr;
 	struct addrinfo *ux_addr;
@@ -180,7 +180,7 @@ setup_state(struct c_trace_fwd_state **state, struct c_trace_fwd_conf *conf)
 	int ai_family, ai_socktype, ai_protocol, page_size,
 		retval = RETVAL_FAILURE;
 
-	if (!(*state = g_rc_box_new0(struct c_trace_fwd_state))) {
+	if (!(*state = g_rc_box_new0(struct ctf_state))) {
 		ctf_msg(state, "g_rc_box_new0() failed\n");
 		return RETVAL_FAILURE;
 	}
@@ -253,7 +253,7 @@ exit_failure:
 static void
 state_release_memory(void *p)
 {
-	struct c_trace_fwd_state *state = p;
+	struct ctf_state *state = p;
 
 	(void)!shutdown(state->unix_io.fd, SHUT_RDWR);
 	(void)!close(state->unix_io.fd);
@@ -264,7 +264,7 @@ state_release_memory(void *p)
 	free(state->ux_io);
 }
 
-void teardown_state(struct c_trace_fwd_state **state)
+void teardown_state(struct ctf_state **state)
 {
 	g_rc_box_release_full(*state, state_release_memory);
 	*state = NULL;

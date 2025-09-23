@@ -12,7 +12,7 @@
 #include "tof.h"
 
 static enum svc_result
-service_unix_sock_send_done(struct c_trace_fwd_state *state, int fd)
+service_unix_sock_send_done(struct ctf_state *state, int fd)
 {
 	struct tof_msg done_msg = {
 		.tof_msg_type = tof_done,
@@ -33,7 +33,7 @@ service_unix_sock_send_done(struct c_trace_fwd_state *state, int fd)
 }
 
 static enum svc_result
-service_unix_sock_send_empty_reply(struct c_trace_fwd_state *state, int fd)
+service_unix_sock_send_empty_reply(struct ctf_state *state, int fd)
 {
 	struct tof_msg reply_msg = {
 		.tof_msg_type = tof_reply,
@@ -57,7 +57,7 @@ service_unix_sock_send_empty_reply(struct c_trace_fwd_state *state, int fd)
 /* here "nonremote" means local or nobody
  * It's unclear when it would ever be nobody. */
 static enum svc_result
-service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
+service_unix_sock_send(struct ctf_state *state, int fd)
 {
 	struct tof_request request = {
 		.tof_blocking = true,
@@ -112,7 +112,7 @@ service_unix_sock_send(struct c_trace_fwd_state *state, int fd)
 }
 
 static enum svc_result
-service_unix_sock_recv(struct c_trace_fwd_state *state, int fd)
+service_unix_sock_recv(struct ctf_state *state, int fd)
 {
 	enum svc_result retval = svc_progress_fail;
 	struct ctf_proto_stk_decode_result *cpsdr;
@@ -214,7 +214,7 @@ out_msg:
 }
 
 enum svc_result
-service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
+service_unix_sock(struct ctf_state *state, struct pollfd *pollfd)
 {
 	ctf_msg(unix, "service_unix_sock() enter\n");
 	ctf_msg(unix, "pollfd->revents = 0x%x\n", pollfd->revents);
@@ -262,7 +262,7 @@ service_unix_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
 }
 
 int
-service_unix_sock2(struct c_trace_fwd_state *state)
+service_unix_sock2(struct ctf_state *state)
 {
 	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
 	struct ctf_proto_stk_decode_result *cpsdr;

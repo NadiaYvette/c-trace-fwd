@@ -15,7 +15,7 @@
 #include "tof.h"
 
 struct ctf_proto_stk_decode_result *
-service_recv_tof(struct c_trace_fwd_state *state, int fd)
+service_recv_tof(struct ctf_state *state, int fd)
 {
 	struct ctf_proto_stk_decode_result *cpsdr = NULL;
 
@@ -32,7 +32,7 @@ service_recv_tof(struct c_trace_fwd_state *state, int fd)
 }
 
 int
-service_send_tof(struct c_trace_fwd_state *state, struct tof_msg *tof, int fd)
+service_send_tof(struct ctf_state *state, struct tof_msg *tof, int fd)
 {
 	int retval = RETVAL_FAILURE;
 	unsigned char *buf, *cur_buf;
@@ -65,7 +65,7 @@ out_free_buf:
 }
 
 static struct tof_msg *
-service_build_reply(struct c_trace_fwd_state *state, struct tof_request *req)
+service_build_reply(struct ctf_state *state, struct tof_request *req)
 {
 	struct tof_msg *msg = NULL;
 
@@ -75,7 +75,7 @@ service_build_reply(struct c_trace_fwd_state *state, struct tof_request *req)
 }
 
 void
-service_client_destroy(struct c_trace_fwd_state *state, int fd)
+service_client_destroy(struct ctf_state *state, int fd)
 {
 	(void)!shutdown(fd, SHUT_RDWR);
 	(void)!close(fd);
@@ -84,7 +84,7 @@ service_client_destroy(struct c_trace_fwd_state *state, int fd)
 }
 
 int
-service_client_sock(struct c_trace_fwd_state *state, struct pollfd *pollfd)
+service_client_sock(struct ctf_state *state, struct pollfd *pollfd)
 {
 	int retval = RETVAL_FAILURE;
 	struct ctf_proto_stk_decode_result *cpsdr;

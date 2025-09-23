@@ -19,13 +19,13 @@
 struct cbor_item_t;
 struct tof_msg;
 
-struct c_trace_fwd_conf {
+struct ctf_conf {
 	/* The path length is limited by this structure. */
 	struct addrinfo *ux_addr;
 	struct sockaddr_un unix_sock;
 	char *preload_queue;
 };
-struct c_trace_fwd_state {
+struct ctf_state {
 	int ux_sock_fd;
 	struct io_queue unix_io;
 	struct io_queue *ux_io;
@@ -40,7 +40,7 @@ struct ctf_stk_state {
 	struct cbor_item_t **stack; /* to parse nested structures */
 };
 
-int setup_conf(struct c_trace_fwd_conf **, int, char *[]);
-int setup_state(struct c_trace_fwd_state **, struct c_trace_fwd_conf *);
-void teardown_state(struct c_trace_fwd_state **);
-void teardown_conf(struct c_trace_fwd_conf **);
+int setup_conf(struct ctf_conf **, int, char *[]);
+int setup_state(struct ctf_state **, struct ctf_conf *);
+void teardown_state(struct ctf_state **);
+void teardown_conf(struct ctf_conf **);

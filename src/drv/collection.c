@@ -5,7 +5,7 @@
 
 void ctf_indef_array_start(void *ctx)
 {
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_state *state = ctx;
 	cbor_item_t *array;
 
 	(*cbor_empty_callbacks.indef_array_start)(ctx);
@@ -17,7 +17,7 @@ void ctf_indef_array_start(void *ctx)
 
 void ctf_array_start(void *ctx, uint16_t len)
 {
-	struct c_trace_fwd_state *state = ctx;
+	struct ctf_state *state = ctx;
 	cbor_item_t *array;
 
 	(*cbor_empty_callbacks.array_start)(ctx, len);

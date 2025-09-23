@@ -6,12 +6,12 @@
 #include "sdu.h"
 
 struct ctf_thread_arg {
-	struct c_trace_fwd_conf *conf;
-	struct c_trace_fwd_state *state;
+	struct ctf_conf *conf;
+	struct ctf_state *state;
 };
 
 static bool
-service_unix_sock_thread_data_points(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *state)
 {
 	(void)!!conf;
 	(void)!!state;
@@ -19,7 +19,7 @@ service_unix_sock_thread_data_points(struct c_trace_fwd_conf *conf, struct c_tra
 }
 
 static bool
-service_unix_sock_thread_metrics(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state)
 {
 	(void)!!conf;
 	(void)!!state;
@@ -27,7 +27,7 @@ service_unix_sock_thread_metrics(struct c_trace_fwd_conf *conf, struct c_trace_f
 }
 
 static bool
-service_unix_sock_thread_trace_objects(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *state)
 {
 	(void)!!conf;
 	(void)!!state;
@@ -35,7 +35,7 @@ service_unix_sock_thread_trace_objects(struct c_trace_fwd_conf *conf, struct c_t
 }
 
 static bool
-service_unix_sock_thread_core(struct c_trace_fwd_conf *conf, struct c_trace_fwd_state *state)
+service_unix_sock_thread_core(struct ctf_conf *conf, struct ctf_state *state)
 {
 	int retval = false;
 	struct ctf_proto_stk_decode_result *cpsdr;
@@ -73,8 +73,8 @@ static void *
 service_unix_sock_thread(void *pthread_arg)
 {
 	struct ctf_thread_arg *arg = pthread_arg;
-	struct c_trace_fwd_conf *conf;
-	struct c_trace_fwd_state *state;
+	struct ctf_conf *conf;
+	struct ctf_state *state;
 
 	if (!arg)
 		return NULL;
@@ -112,8 +112,8 @@ service_user_sock_thread(void *pthread_arg)
 }
 
 bool
-service_thread_spawn(struct c_trace_fwd_conf *conf,
-			struct c_trace_fwd_state *state)
+service_thread_spawn(struct ctf_conf *conf,
+			struct ctf_state *state)
 {
 	pthread_t unix_thread, user_thread;
 	pthread_attr_t attr;

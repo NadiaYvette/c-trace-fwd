@@ -9,8 +9,8 @@
 int main(int argc, char *argv[])
 {
 	int exit_status = EXIT_FAILURE;
-	struct c_trace_fwd_conf *conf = NULL;
-	struct c_trace_fwd_state *state = NULL;
+	struct ctf_conf *conf = NULL;
+	struct ctf_state *state = NULL;
 
 	if (setup_conf(&conf, argc, argv))
 		goto exit_failure;

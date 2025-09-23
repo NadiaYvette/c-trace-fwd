@@ -15,7 +15,7 @@
 #include "tof.h"
 
 static struct pollfd *
-service_create_pollfds(struct c_trace_fwd_state *state)
+service_create_pollfds(struct ctf_state *state)
 {
 	int k, m;
 	struct pollfd *pollfds;
@@ -34,7 +34,7 @@ service_create_pollfds(struct c_trace_fwd_state *state)
 }
 
 static bool
-service_issue_request(struct c_trace_fwd_state *state)
+service_issue_request(struct ctf_state *state)
 {
 	bool status = true;
 	char *buf, *cur_buf;
@@ -78,7 +78,7 @@ out_free_buf:
 }
 
 static int
-service_loop_move(struct c_trace_fwd_state *state)
+service_loop_move(struct ctf_state *state)
 {
 	struct trace_object **to_move = NULL;
 	size_t k, nr_to_move = 1024;
@@ -98,7 +98,7 @@ service_loop_move(struct c_trace_fwd_state *state)
 }
 
 static int
-service_loop_core(struct c_trace_fwd_state *state)
+service_loop_core(struct ctf_state *state)
 {
 	int nr_ready, k, retval = RETVAL_FAILURE;
 	struct pollfd *pollfds;
@@ -211,7 +211,7 @@ exit_free_pollfds:
 }
 
 int
-service_loop(struct c_trace_fwd_state *state, struct c_trace_fwd_conf *conf)
+service_loop(struct ctf_state *state, struct ctf_conf *conf)
 {
 	unsigned failure_count = 64;
 	int retval;
