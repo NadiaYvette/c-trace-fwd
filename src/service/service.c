@@ -9,8 +9,8 @@
 #include <sys/param.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
+#include "mpn.h"
 #include "proto_stk.h"
-#include "sdu.h"
 #include "service.h"
 #include "tof.h"
 
