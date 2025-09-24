@@ -24,7 +24,9 @@ struct ctf_conf {
 	struct addrinfo *ux_addr;
 	struct sockaddr_un unix_sock;
 	char *preload_queue;
+	bool threaded_service;
 };
+
 struct ctf_state {
 	int ux_sock_fd;
 	struct io_queue unix_io;

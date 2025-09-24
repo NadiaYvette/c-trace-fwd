@@ -216,7 +216,9 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 	unsigned failure_count = 64;
 	int retval;
 
-	(void)!conf;
+	if (conf->threaded_service)
+		return service_thread_spawn(conf, state) ? RETVAL_SUCCESS
+							 : RETVAL_FAILURE;
 	ctf_msg(service, "entered service_loop()\n");
 	for (;;) {
 		bool status;

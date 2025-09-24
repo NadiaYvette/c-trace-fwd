@@ -64,6 +64,9 @@ setup_conf(struct ctf_conf **conf, int argc, char *argv[])
 				goto exit_cleanup;
 			}
 			break;
+		case 't':
+			(*conf)->threaded_service = true;
+			break;
 		case 'u':
 			if (split_addrinfo(&(*conf)->ux_addr, optarg))
 				goto exit_cleanup;
