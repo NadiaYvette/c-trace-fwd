@@ -46,4 +46,4 @@ struct datapoint_msg {
 
 struct cbor_item_t;
 struct cbor_item_t *build_empty_datapoint_resp(void);
-void *datapoint_encode_empty_resp(void);
+void *datapoint_encode_empty_resp(size_t *);

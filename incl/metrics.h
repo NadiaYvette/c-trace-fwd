@@ -82,4 +82,4 @@ struct metrics_msg {
 
 struct cbor_item_t;
 struct cbor_item_t *build_empty_metrics_resp(void);
-void *metrics_encode_empty_resp(void);
+void *metrics_encode_empty_resp(size_t *);

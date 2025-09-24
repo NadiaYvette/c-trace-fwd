@@ -34,7 +34,7 @@ service_unix_sock_send_done(struct ctf_state *state, int fd)
 	return svc_progress_send;
 }
 
-static enum svc_result
+enum svc_result
 service_unix_sock_send_empty_reply(struct ctf_state *state, int fd)
 {
 	struct tof_msg reply_msg = {

@@ -11,7 +11,7 @@ struct ctf_thread_arg {
 };
 
 static bool
-service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *state)
+service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	(void)!!conf;
 	(void)!!state;
@@ -19,7 +19,7 @@ service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *st
 }
 
 static bool
-service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state)
+service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	(void)!!conf;
 	(void)!!state;
@@ -27,11 +27,64 @@ service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state)
 }
 
 static bool
-service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *state)
+service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	(void)!!conf;
 	(void)!!state;
 	return true;
+}
+
+static bool
+service_unix_reply_datapoint(struct ctf_conf *conf, struct ctf_state *state)
+{
+	char *buf;
+	size_t size;
+	ssize_t send_ret;
+
+	if (!(buf = datapoint_encode_empty_resp(&size)))
+		return false;
+	if ((send_ret = send(state->unix_io.fd, buf, size, MSG_NOSIGNAL)) < 0)
+		return false;
+	return send_ret == (ssize_t)size;
+}
+
+static bool
+service_unix_reply_metric(struct ctf_conf *conf, struct ctf_state *state)
+{
+	char *buf;
+	size_t size;
+	ssize_t send_ret;
+
+	if (!(buf = metrics_encode_empty_resp(&size)))
+		return false;
+	if ((send_ret = send(state->unix_io.fd, buf, size, MSG_NOSIGNAL)) < 0)
+		return false;
+	return send_ret == (ssize_t)size;
+}
+
+static bool
+service_unix_sock_send_local(struct ctf_conf *conf, struct ctf_state *state)
+{
+	enum mini_protocol_num mpn;
+
+	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
+		if (!MPN_VALID(mpn))
+			continue;
+		if (state->unix_io.agencies[mpn - MPN_MIN] == agency_local)
+			goto out_send_local;
+	}
+	return false;
+out_send_local:
+	switch (mpn) {
+	case mpn_data_points:
+		return service_unix_reply_datapoint(conf, state);
+	case mpn_EKG_metrics:
+		return service_unix_reply_metric(conf, state);
+	case mpn_trace_objects:
+		return service_unix_sock_send_empty_reply(state, state->unix_io.fd) == svc_progress_send;
+	default:
+		return false;
+	}
 }
 
 /*
@@ -53,15 +106,15 @@ service_unix_sock_thread_core(struct ctf_conf *conf, struct ctf_state *state)
 		goto out_free_cpsdr;
 	switch (mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_data_points:
-		if (!service_unix_sock_thread_data_points(conf, state))
+		if (!service_unix_sock_thread_data_points(conf, state, cpsdr))
 			goto out_free_cpsdr;
 		break;
 	case mpn_EKG_metrics:
-		if (!service_unix_sock_thread_metrics(conf, state))
+		if (!service_unix_sock_thread_metrics(conf, state, cpsdr))
 			goto out_free_cpsdr;
 		break;
 	case mpn_trace_objects:
-		if (!service_unix_sock_thread_trace_objects(conf, state))
+		if (!service_unix_sock_thread_trace_objects(conf, state, cpsdr))
 			goto out_free_cpsdr;
 		break;
 	default:
@@ -95,7 +148,10 @@ service_unix_sock_thread(void *pthread_arg)
 			ctf_msg(thread, "locking state failed!\n");
 			break;
 		}
-		ret = service_unix_sock_thread_core(conf, state);
+		if (io_queue_agency_all_nonlocal(&state->unix_io))
+			ret = service_unix_sock_thread_core(conf, state);
+		else
+			ret = service_unix_sock_send_local(conf, state);
 		if (!!pthread_mutex_unlock(&state->state_lock)) {
 			ctf_msg(thread, "unlocking state failed!\n");
 			break;

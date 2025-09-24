@@ -7,7 +7,7 @@
 #include "sdu.h"
 
 void *
-metrics_encode_empty_resp(void)
+metrics_encode_empty_resp(size_t *size)
 {
 	cbor_item_t *payload;
 	size_t cbor_buf_sz = 0;
@@ -31,6 +31,7 @@ metrics_encode_empty_resp(void)
 	sdu.sdu_init_or_resp = true;
 	if (sdu_encode(&sdu, sdu_ptr) != RETVAL_SUCCESS)
 		goto out_free_buf;
+	*size = cbor_buf_sz + 2*sizeof(uint32_t);
 	memcpy(&buf[2*sizeof(uint32_t)], cbor_buf, cbor_buf_sz);
 	free(cbor_buf);
 	return buf;
