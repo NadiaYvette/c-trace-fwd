@@ -4,6 +4,7 @@
 #include "ctf_util.h"
 #include "proto_stk.h"
 #include "sdu.h"
+#include "service.h"
 
 struct ctf_thread_arg {
 	struct ctf_conf *conf;
@@ -14,7 +15,17 @@ static bool
 service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	(void)!!conf;
-	(void)!!state;
+	switch (state->unix_io.agencies[mpn_data_points]) {
+	case agency_local:
+		/* demanded replies sent elsewhere */
+		ctf_msg(thread, "unexpected agency\n");
+		break;
+	case agency_remote:
+	case agency_nobody:
+	default:
+		/* never make requests */
+		break;
+	}
 	return true;
 }
 
@@ -22,7 +33,17 @@ static bool
 service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	(void)!!conf;
-	(void)!!state;
+	switch (state->unix_io.agencies[mpn_EKG_metrics]) {
+	case agency_local:
+		/* demanded replies sent elsewhere */
+		ctf_msg(thread, "unexpected agency\n");
+		break;
+	case agency_remote:
+	case agency_nobody:
+	default:
+		/* never make requests */
+		break;
+	}
 	return true;
 }
 
@@ -30,7 +51,17 @@ static bool
 service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	(void)!!conf;
-	(void)!!state;
+	switch (state->unix_io.agencies[mpn_trace_objects]) {
+	case agency_local:
+		/* demanded replies sent elsewhere */
+		ctf_msg(thread, "unexpected agency\n");
+		break;
+	case agency_remote:
+	case agency_nobody:
+	default:
+		/* relaying user socket data goes here */
+		break;
+	}
 	return true;
 }
 
@@ -63,6 +94,19 @@ service_unix_reply_metric(struct ctf_conf *conf, struct ctf_state *state)
 }
 
 static bool
+service_unix_reply_tof(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
+{
+	struct tof_msg *reply_msg = NULL;
+	struct tof_msg *tof_msg = &cpsdr->proto_stk_decode_result_body->tof_msg;
+	struct tof_request *request;
+
+	request = &tof_msg->tof_msg_body.request;
+	if (to_queue_answer_request(&state->unix_io.out_queue, request, &tof_msg) != svc_req_success)
+		return false;
+	return service_send_tof(state, reply_msg, state->unix_io.fd) == RETVAL_SUCCESS;
+}
+
+static bool
 service_unix_sock_send_local(struct ctf_conf *conf, struct ctf_state *state)
 {
 	enum mini_protocol_num mpn;
@@ -81,7 +125,7 @@ out_send_local:
 	case mpn_EKG_metrics:
 		return service_unix_reply_metric(conf, state);
 	case mpn_trace_objects:
-		return service_unix_sock_send_empty_reply(state, state->unix_io.fd) == svc_progress_send;
+		return service_unix_reply_tof(conf, state, (struct ctf_proto_stk_decode_result *)NULL);
 	default:
 		return false;
 	}
