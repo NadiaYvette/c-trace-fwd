@@ -179,6 +179,7 @@ setup_state(struct ctf_state **state, struct ctf_conf *conf)
 	socklen_t ai_addrlen;
 	int ai_family, ai_socktype, ai_protocol, page_size,
 		retval = RETVAL_FAILURE;
+	enum mini_protocol_num mpn;
 
 	if (!(*state = g_rc_box_new0(struct ctf_state))) {
 		ctf_msg(state, "g_rc_box_new0() failed\n");
@@ -230,7 +231,11 @@ setup_state(struct ctf_state **state, struct ctf_conf *conf)
 		goto exit_shutdown_ux;
 	retval = state_handshake(*state, conf);
 	/* (*state)->agency = agency_local; */
-	ctf_set_agency(state, &(*state)->unix_io, agency_local);
+	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
+		if (!MPN_VALID(mpn))
+			continue;
+		ctf_set_agency(state, &(*state)->unix_io, agency_local, mpn);
+	}
 	ctf_msg(state, "state_handshake() returned %d\n", retval);
 	return retval;
 exit_shutdown_ux:

@@ -196,10 +196,11 @@ out_free_buf:
 static bool
 empty_svc_loop(int fd)
 {
-	struct { enum agency agency; } agency = { .agency = agency_local, };
+	struct { enum agency __agency; } agency = { .__agency = agency_local, };
 	bool is_reply_pending = false;
 	struct ctf_proto_stk_decode_result *cpsdr;
 	uintmax_t loop_ctr = 0;
+	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
 
 redo_handshake:
 	(void)!fd_wait_writable(fd);
@@ -208,21 +209,21 @@ redo_handshake:
 loop:
 	++loop_ctr;
 	ctf_msg(empty_loop, "entering loop %jd agency = %s\n",
-			loop_ctr, agency_string(agency.agency));
-	switch (agency.agency) {
+			loop_ctr, agency_string(agency.__agency));
+	switch (agency.__agency) {
 	case agency_local:
 	case agency_nobody:
 		if (!is_reply_pending) {
 			ctf_msg(empty_loop, "%s, no pending reply\n",
-					agency_string(agency.agency));
+					agency_string(agency.__agency));
 			/* if busy, receiving done errors */
-			if (agency.agency == agency_nobody) {
+			if (agency.__agency == agency_nobody) {
 				ctf_msg(empty_loop, "sending tof_done %s\n",
-						agency_string(agency.agency));
+						agency_string(agency.__agency));
 				if (send_done(fd) == svc_progress_fail)
 					goto out;
 				ctf_set_agency(empty_loop, &agency,
-						agency_remote);
+						agency_remote, mpn);
 			} else {
 				/* This doesn't entirely make sense
 				 * within the protocol, but sending an
@@ -232,21 +233,20 @@ loop:
 				if (!send_empty_reply(fd))
 					goto out;
 				ctf_set_agency(empty_loop, &agency,
-						agency_remote);
+						agency_remote, mpn);
 			}
 		} else /* is_reply_pending == true */ {
 			ctf_msg(empty_loop, "%s, reply pending, "
 					"sending empty reply\n",
-					agency_string(agency.agency));
+					agency_string(agency.__agency));
 			is_reply_pending = false;
 			if (!send_empty_reply(fd))
 				goto out;
-			ctf_set_agency(empty_loop, &agency, agency_remote);
+			ctf_set_agency(empty_loop, &agency, agency_remote, mpn);
 		}
 		goto loop;
 	case agency_remote:
 		struct tof_msg *tof;
-		enum mini_protocol_num mpn;
 
 		ctf_msg(empty_loop, "remote agency, doing recv()\n");
 		(void)!fd_wait_readable(fd);
@@ -280,10 +280,10 @@ loop:
 		}
 		tof = &cpsdr->proto_stk_decode_result_body->tof_msg;
 		if (tof->tof_msg_type == tof_done)
-			ctf_set_agency(empty_loop, &agency, agency_nobody);
+			ctf_set_agency(empty_loop, &agency, agency_nobody, mpn);
 		else if (tof->tof_msg_type == tof_request) {
 			is_reply_pending = true;
-			ctf_set_agency(empty_loop, &agency, agency_local);
+			ctf_set_agency(empty_loop, &agency, agency_local, mpn);
 			if (tof->tof_msg_body.request.tof_blocking)
 				ctf_msg(empty_loop,
 					"error! blocking request!\n");
@@ -294,11 +294,12 @@ loop:
 		cpsdr = NULL;
 		goto loop;
 	default:
+		mpn = (enum mini_protocol_num)(-1);
 		ctf_msg(empty_loop, "unrecognized agency %d, polling\n",
-				(int)agency.agency);
+				(int)agency.__agency);
 		(void)!fd_wait_readable(fd);
 		/* it's unclear what to set the agency to, if anything */
-		ctf_set_agency(empty_loop, &agency, agency_remote);
+		ctf_set_agency(empty_loop, &agency, agency_remote, mpn);
 		/* just go back and retry */
 		goto loop;
 	}

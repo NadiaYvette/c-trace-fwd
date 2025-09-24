@@ -105,6 +105,6 @@ io_queue_init(struct io_queue *ioq, int fd)
 	g_queue_init(&ioq->in_queue);
 	g_queue_init(&ioq->out_queue);
 	ioq->fd = fd;
-	ioq->agency = agency_remote;
+	ioq->__agency = agency_remote;
 	return true;
 }

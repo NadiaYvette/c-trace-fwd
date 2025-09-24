@@ -73,11 +73,13 @@ do {									\
 		}						   \
 	} while (0)
 
-#define ctf_set_agency(mod, io_point, new_agency)			\
+#define ctf_set_agency(mod, io_queue, new_agency, mpn)			\
 do {									\
 	enum agency *__ctx_old_agency_ptr##__LINE__			\
-			= &(io_point)->agency,				\
+			= &(io_queue)->__agency,			\
 		__ctx_new_agency##__LINE__ = new_agency;		\
+	enum mini_protocol_num __ctx_mpn##__LINE__ = mpn;		\
+	(void)!__ctx_mpn##__LINE__;					\
 	if (AGENCY_VALID(*(__ctx_old_agency_ptr##__LINE__)) &&		\
 		AGENCY_VALID(__ctx_new_agency##__LINE__))		\
 		ctf_msg(mod, "agency %s -> %s\n",			\

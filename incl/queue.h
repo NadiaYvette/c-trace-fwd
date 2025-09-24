@@ -2,6 +2,7 @@
 
 #include <glib.h>
 #include "agency.h"
+#include "mpn.h"
 #include "svc_enum.h"
 
 struct ctf_state;
@@ -12,7 +13,7 @@ struct tof_request;
 struct io_queue {
 	GQueue in_queue, out_queue;
 	int fd;
-	enum agency agency;
+	enum agency __agency;
 	bool reply_pending;
 };
 
@@ -25,3 +26,5 @@ enum svc_req_result
 to_queue_answer_request(GQueue *,
 		const struct tof_request *, struct tof_msg **);
 bool io_queue_init(struct io_queue *, int);
+enum agency io_queue_agency_get(struct io_queue *, enum mini_protocol_num);
+void io_queue_agency_set(struct io_queue *, enum mini_protocol_num, enum agency);

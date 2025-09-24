@@ -23,12 +23,14 @@ service_unix_sock_send_done(struct ctf_state *state, int fd)
 			},
 		},
 	};
+	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
+
 	if (service_send_tof(state, &done_msg, fd) != RETVAL_SUCCESS) {
 		ctf_msg(unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
-	ctf_set_agency(unix, &state->unix_io, agency_remote);
+	ctf_set_agency(unix, &state->unix_io, agency_remote, mpn);
 	return svc_progress_send;
 }
 
@@ -44,12 +46,14 @@ service_unix_sock_send_empty_reply(struct ctf_state *state, int fd)
 			},
 		},
 	};
+	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
+
 	if (service_send_tof(state, &reply_msg, fd) != RETVAL_SUCCESS) {
 		ctf_msg(unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
-	ctf_set_agency(unix, &state->unix_io, agency_remote);
+	ctf_set_agency(unix, &state->unix_io, agency_remote, mpn);
 	state->unix_io.reply_pending = false;
 	return svc_progress_send;
 }
@@ -66,6 +70,7 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 	struct tof_msg *msg = NULL;
 	enum svc_result retval;
 	enum svc_req_result svc_req_ret;
+	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
 
 	ctf_msg(unix, "calling to_queue_answer_request()\n");
 	switch (svc_req_ret = to_queue_answer_request(&state->unix_io.in_queue, &request, &msg)) {
@@ -79,13 +84,13 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 		state->unix_io.reply_pending = false;
 		tof_free(msg);
 		/* will this work? */
-		if (state->unix_io.agency == agency_nobody) {
+		if (io_queue_agency_get(&state->unix_io, mpn_trace_objects) == agency_nobody) {
 			ctf_msg(unix, "sending done\n");
 			(void)!service_unix_sock_send_done(state, fd);
 		}
 		/* change agency to remote */
 		/* state->agency = agency_remote; */
-		ctf_set_agency(unix, &state->unix_io, agency_remote);
+		ctf_set_agency(unix, &state->unix_io, agency_remote, mpn);
 		break;
 	case svc_req_must_block:
 	case svc_req_none_available:
@@ -93,7 +98,7 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 			svc_req_ret == svc_req_must_block ? "must_block"
 							: "none_available");
 		retval = svc_progress_none;
-		if (state->unix_io.agency != agency_nobody)
+		if (io_queue_agency_get(&state->unix_io, mpn) != agency_nobody)
 			break;
 		ctf_msg(unix, "sending done\n");
 		if (service_unix_sock_send_done(state, fd) == svc_progress_fail)
@@ -120,6 +125,7 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 	struct tof_reply *reply;
 	size_t ret_sz;
 	char *ret_buf;
+	enum mini_protocol_num mpn;
 
 	ctf_msg(unix, "enter\n");
 	/* receive */
@@ -131,9 +137,10 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 	}
 	ctf_msg(unix, "back from service_recv_tof()\n");
 	/* state->agency = agency_local; */
-	ctf_set_agency(unix, &state->unix_io, agency_local);
+	mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num;
+	ctf_set_agency(unix, &state->unix_io, agency_local, mpn);
 	ctf_msg(unix, "about to check miniprotocol nr\n");
-	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
+	switch (mpn) {
 	case mpn_trace_objects:
 		tof = (struct tof_msg *)cpsdr->proto_stk_decode_result_body;
 		/* It could be break, but the label's name is descriptive. */
@@ -177,7 +184,7 @@ tof_msg_type_switch:
 		nr_replies = reply->tof_nr_replies;
 		if (!to_queue_fillarray(&reply->tof_replies, &state->unix_io.in_queue, &nr_replies))
 			ctf_msg(service_unix, "to_queue_fillarray() failed\n");
-		state->unix_io.agency = agency_local;
+		ctf_set_agency(state, &state->unix_io, agency_local, mpn_trace_objects);
 		break;
 	case tof_request:
 		/* struct tof_request *req = &tof->tof_msg_body.request;
@@ -187,13 +194,13 @@ tof_msg_type_switch:
 		ctf_msg(service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
 		/* state->agency = agency_local; */
-		ctf_set_agency(unix, &state->unix_io, agency_local);
+		ctf_set_agency(unix, &state->unix_io, agency_local, mpn);
 		state->unix_io.reply_pending = true;
 		break;
 	case tof_done:
 		ctf_msg(service_unix, "tof_done case no-op\n");
 		/* state->agency = agency_local; */
-		ctf_set_agency(unix, &state->unix_io, agency_local);
+		ctf_set_agency(unix, &state->unix_io, agency_local, mpn);
 		retval = svc_progress_recv;
 		break;
 	default:
@@ -216,10 +223,12 @@ out_msg:
 enum svc_result
 service_unix_sock(struct ctf_state *state, struct pollfd *pollfd)
 {
+	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
+
 	ctf_msg(unix, "service_unix_sock() enter\n");
 	ctf_msg(unix, "pollfd->revents = 0x%x\n", pollfd->revents);
 	render_fd_flags(unix, pollfd->fd);
-	switch (state->unix_io.agency) {
+	switch (io_queue_agency_get(&state->unix_io, mpn)) {
 	case agency_nobody:
 		if (!!(pollfd->revents & POLLIN)) {
 			ctf_msg(unix, "agency_nobody "
@@ -232,7 +241,7 @@ service_unix_sock(struct ctf_state *state, struct pollfd *pollfd)
 			return service_unix_sock_send_done(state, pollfd->fd);
 		}
 		if (!(pollfd->revents & (POLLIN|POLLOUT)))
-			ctf_msg(unix, "svc neither POLLIN|POLLOUT agency %s\n", agency_string(state->unix_io.agency));
+			ctf_msg(unix, "svc neither POLLIN|POLLOUT agency %s\n", agency_string(io_queue_agency_get(&state->unix_io, mpn)));
 		ctf_msg(unix, "agency_nobody no events\n");
 		return svc_progress_none;
 	case agency_local:
@@ -256,7 +265,7 @@ service_unix_sock(struct ctf_state *state, struct pollfd *pollfd)
 		return svc_progress_none;
 	default:
 		ctf_msg(service, "unrecognized agency %d\n",
-				state->unix_io.agency);
+				io_queue_agency_get(&state->unix_io, mpn));
 		return svc_progress_fail;
 	}
 }
