@@ -28,3 +28,5 @@ to_queue_answer_request(GQueue *,
 bool io_queue_init(struct io_queue *, int);
 enum agency io_queue_agency_get(struct io_queue *, enum mini_protocol_num);
 void io_queue_agency_set(struct io_queue *, enum mini_protocol_num, enum agency);
+bool io_queue_agency_any_local(struct io_queue *);
+bool io_queue_agency_all_nonlocal(struct io_queue *);

@@ -30,3 +30,29 @@ io_queue_agency_set(struct io_queue *q, enum mini_protocol_num mpn, enum agency 
 	(void)!mpn;
 	q->__agency = agency;
 }
+
+bool io_queue_agency_any_local(struct io_queue *q)
+{
+	enum mini_protocol_num mpn;
+
+	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
+		if (!MPN_VALID(mpn))
+			continue;
+		if (q->__agency == agency_local)
+			return true;
+	}
+	return false;
+}
+
+bool io_queue_agency_all_nonlocal(struct io_queue *q)
+{
+	enum mini_protocol_num mpn;
+
+	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
+		if (!MPN_VALID(mpn))
+			continue;
+		if (q->__agency == agency_local)
+			return false;
+	}
+	return true;
+}

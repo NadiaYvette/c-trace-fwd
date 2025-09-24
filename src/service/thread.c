@@ -34,6 +34,12 @@ service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *
 	return true;
 }
 
+/*
+ * 1: all agencies idle (nobody) or remote
+ * 2: some agencies local i.e. response demanded
+ * 3: SDU header received, awaiting payload
+ * 4: blocked in packet send
+ */
 static bool
 service_unix_sock_thread_core(struct ctf_conf *conf, struct ctf_state *state)
 {
