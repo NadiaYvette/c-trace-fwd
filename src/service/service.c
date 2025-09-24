@@ -222,6 +222,7 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 	ctf_msg(service, "entered service_loop()\n");
 	for (;;) {
 		bool status;
+		enum agency agency;
 		enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
 		/* The request-issuing half of the service loop.
 		 * We always keep requests in flight.
@@ -233,7 +234,8 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 		if (g_queue_get_length(&state->unix_io.in_queue) > 0)
 			ctf_msg(service, "%d in queue\n",
 				g_queue_get_length(&state->unix_io.in_queue));
-		switch (io_queue_agency_get(&state->unix_io, mpn)) {
+		agency = io_queue_agency_get(&state->unix_io, mpn);
+		switch (agency) {
 		case agency_nobody:
 			ctf_msg(service, "about to service_issue_request()\n");
 			status = service_issue_request(state);
@@ -244,7 +246,7 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 			break;
 		default:
 			ctf_msg(service, "unrecognized agency value %d\n",
-					(int)state->unix_io.__agency);
+					(int)agency);
 			/* fall through */
 		case agency_local:
 			status = true;

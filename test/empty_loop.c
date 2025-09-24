@@ -222,8 +222,7 @@ loop:
 						agency_string(agency.__agency));
 				if (send_done(fd) == svc_progress_fail)
 					goto out;
-				ctf_set_agency(empty_loop, &agency,
-						agency_remote, mpn);
+				agency.__agency = agency_remote;
 			} else {
 				/* This doesn't entirely make sense
 				 * within the protocol, but sending an
@@ -232,8 +231,7 @@ loop:
 				 * gags on tof_done */
 				if (!send_empty_reply(fd))
 					goto out;
-				ctf_set_agency(empty_loop, &agency,
-						agency_remote, mpn);
+				agency.__agency = agency_remote;
 			}
 		} else /* is_reply_pending == true */ {
 			ctf_msg(empty_loop, "%s, reply pending, "
@@ -242,7 +240,7 @@ loop:
 			is_reply_pending = false;
 			if (!send_empty_reply(fd))
 				goto out;
-			ctf_set_agency(empty_loop, &agency, agency_remote, mpn);
+			agency.__agency = agency_remote;
 		}
 		goto loop;
 	case agency_remote:
@@ -280,10 +278,10 @@ loop:
 		}
 		tof = &cpsdr->proto_stk_decode_result_body->tof_msg;
 		if (tof->tof_msg_type == tof_done)
-			ctf_set_agency(empty_loop, &agency, agency_nobody, mpn);
+			agency.__agency = agency_nobody;
 		else if (tof->tof_msg_type == tof_request) {
 			is_reply_pending = true;
-			ctf_set_agency(empty_loop, &agency, agency_local, mpn);
+			agency.__agency = agency_local;
 			if (tof->tof_msg_body.request.tof_blocking)
 				ctf_msg(empty_loop,
 					"error! blocking request!\n");
@@ -299,7 +297,7 @@ loop:
 				(int)agency.__agency);
 		(void)!fd_wait_readable(fd);
 		/* it's unclear what to set the agency to, if anything */
-		ctf_set_agency(empty_loop, &agency, agency_remote, mpn);
+		agency.__agency = agency_remote;
 		/* just go back and retry */
 		goto loop;
 	}

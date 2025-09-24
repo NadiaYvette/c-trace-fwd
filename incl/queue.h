@@ -13,7 +13,7 @@ struct tof_request;
 struct io_queue {
 	GQueue in_queue, out_queue;
 	int fd;
-	enum agency __agency;
+	enum agency agencies[MPN_NR];
 	bool reply_pending;
 };
 

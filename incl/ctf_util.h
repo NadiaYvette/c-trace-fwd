@@ -73,32 +73,37 @@ do {									\
 		}						   \
 	} while (0)
 
-#define ctf_set_agency(mod, io_queue, new_agency, mpn)			\
+#define ctf_set_agency(mod, ioq, new_agency, mpn)			\
 do {									\
-	enum agency *__ctx_old_agency_ptr##__LINE__			\
-			= &(io_queue)->__agency,			\
-		__ctx_new_agency##__LINE__ = new_agency;		\
+	int __ctx_mpn_off##__LINE__;					\
+	struct io_queue *__ctx_q##__LINE__ = ioq;			\
 	enum mini_protocol_num __ctx_mpn##__LINE__ = mpn;		\
-	(void)!__ctx_mpn##__LINE__;					\
-	if (AGENCY_VALID(*(__ctx_old_agency_ptr##__LINE__)) &&		\
+	enum agency *__ctx_agency_ary##__LINE__,			\
+		__ctx_old_agency##__LINE__,				\
+		__ctx_new_agency##__LINE__ = new_agency;		\
+	__ctx_mpn_off##__LINE__ = __ctx_mpn##__LINE__ - MPN_MIN;	\
+	__ctx_agency_ary##__LINE__ = (__ctx_q##__LINE__)->agencies;	\
+	__ctx_old_agency##__LINE__					\
+		= (__ctx_agency_ary##__LINE__)[__ctx_mpn_off##__LINE__];\
+	if (AGENCY_VALID(__ctx_old_agency##__LINE__) &&			\
 		AGENCY_VALID(__ctx_new_agency##__LINE__))		\
 		ctf_msg(mod, "agency %s -> %s\n",			\
-			agency_string(*(__ctx_old_agency_ptr##__LINE__)),\
+			agency_string(__ctx_old_agency##__LINE__),	\
 			agency_string(__ctx_new_agency##__LINE__));	\
-	else if (AGENCY_VALID(*(__ctx_old_agency_ptr##__LINE__)))	\
+	else if (AGENCY_VALID(__ctx_old_agency##__LINE__))		\
 		ctf_msg(mod, "agency %s -> <unknown> %d\n",		\
-			agency_string(*(__ctx_old_agency_ptr##__LINE__)),\
+			agency_string(__ctx_old_agency##__LINE__),	\
 			__ctx_new_agency##__LINE__);			\
 	else if (AGENCY_VALID(__ctx_new_agency##__LINE__))		\
 		ctf_msg(mod, "agency <unknown> %d -> %s\n",		\
-			*(__ctx_old_agency_ptr##__LINE__),		\
+			__ctx_old_agency##__LINE__,			\
 			agency_string(__ctx_new_agency##__LINE__));	\
 	else								\
 		ctf_msg(mod, "agency <unknown> %d -> <unknown> %d\n",	\
-			*(__ctx_old_agency_ptr##__LINE__),		\
+			__ctx_old_agency##__LINE__,			\
 			__ctx_new_agency##__LINE__);			\
-	*__ctx_old_agency_ptr##__LINE__					\
-		= __ctx_new_agency##__LINE__;				\
+	io_queue_agency_set(__ctx_q##__LINE__, __ctx_mpn##__LINE__,	\
+			__ctx_new_agency##__LINE__);			\
 } while (0)
 
 #define render_flags(mod, flags)				    \

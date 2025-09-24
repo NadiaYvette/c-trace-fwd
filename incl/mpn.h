@@ -36,6 +36,7 @@ enum mini_protocol_num {
 
 #define MPN_MIN MIN(MPN_MIN_0_to_4, MPN_MIN_5_to_8)
 #define MPN_MAX MAX(MPN_MAX_0_to_4, MPN_MAX_5_to_8)
+#define MPN_NR  (MPN_MAX - MPN_MIN + 1)
 #define MPN_VALID(value)						\
 	({								\
 		enum mini_protocol_num __ctx_mpn##__LINE__ = (value);	\

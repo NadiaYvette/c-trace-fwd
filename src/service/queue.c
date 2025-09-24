@@ -102,9 +102,15 @@ out_free_replies:
 bool
 io_queue_init(struct io_queue *ioq, int fd)
 {
+	enum mini_protocol_num mpn;
+
 	g_queue_init(&ioq->in_queue);
 	g_queue_init(&ioq->out_queue);
 	ioq->fd = fd;
-	ioq->__agency = agency_remote;
+	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
+		if (!MPN_VALID(mpn))
+			continue;
+		ioq->agencies[mpn - MPN_MIN] = agency_remote;
+	}
 	return true;
 }
