@@ -51,7 +51,7 @@ setup_conf(struct ctf_conf **conf, int argc, char *argv[])
 
 	if (!(*conf = g_rc_box_new0(struct ctf_conf)))
 		goto exit_failure;
-	while ((opt = getopt(argc, argv, "f:q:u:")) != -1) {
+	while ((opt = getopt(argc, argv, "f:q:tu:")) != -1) {
 		switch (opt) {
 		case 'f':
 			copy_optarg(&(*conf)->unix_sock, optarg);
