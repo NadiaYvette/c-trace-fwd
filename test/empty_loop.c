@@ -196,7 +196,9 @@ out_free_buf:
 static bool
 empty_svc_loop(int fd)
 {
-	struct { enum agency __agency; } agency = { .__agency = agency_local, };
+	struct { enum relative_agency __agency; } agency = {
+		.__agency = relative_agency_we_have,
+	};
 	bool is_reply_pending = false;
 	struct ctf_proto_stk_decode_result *cpsdr;
 	uintmax_t loop_ctr = 0;
@@ -209,20 +211,20 @@ redo_handshake:
 loop:
 	++loop_ctr;
 	ctf_msg(empty_loop, "entering loop %jd agency = %s\n",
-			loop_ctr, agency_string(agency.__agency));
+			loop_ctr, relative_agency_string(agency.__agency));
 	switch (agency.__agency) {
-	case agency_local:
-	case agency_nobody:
+	case relative_agency_we_have:
+	case relative_agency_nobody_has:
 		if (!is_reply_pending) {
 			ctf_msg(empty_loop, "%s, no pending reply\n",
-					agency_string(agency.__agency));
+				relative_agency_string(agency.__agency));
 			/* if busy, receiving done errors */
-			if (agency.__agency == agency_nobody) {
+			if (agency.__agency == relative_agency_nobody_has) {
 				ctf_msg(empty_loop, "sending tof_done %s\n",
-						agency_string(agency.__agency));
+					relative_agency_string(agency.__agency));
 				if (send_done(fd) == svc_progress_fail)
 					goto out;
-				agency.__agency = agency_remote;
+				agency.__agency = relative_agency_they_have;
 			} else {
 				/* This doesn't entirely make sense
 				 * within the protocol, but sending an
@@ -231,19 +233,19 @@ loop:
 				 * gags on tof_done */
 				if (!send_empty_reply(fd))
 					goto out;
-				agency.__agency = agency_remote;
+				agency.__agency = relative_agency_they_have;
 			}
 		} else /* is_reply_pending == true */ {
 			ctf_msg(empty_loop, "%s, reply pending, "
 					"sending empty reply\n",
-					agency_string(agency.__agency));
+				relative_agency_string(agency.__agency));
 			is_reply_pending = false;
 			if (!send_empty_reply(fd))
 				goto out;
-			agency.__agency = agency_remote;
+			agency.__agency = relative_agency_they_have;
 		}
 		goto loop;
-	case agency_remote:
+	case relative_agency_they_have:
 		struct tof_msg *tof;
 
 		ctf_msg(empty_loop, "remote agency, doing recv()\n");
@@ -278,10 +280,10 @@ loop:
 		}
 		tof = &cpsdr->proto_stk_decode_result_body->tof_msg;
 		if (tof->tof_msg_type == tof_done)
-			agency.__agency = agency_nobody;
+			agency.__agency = relative_agency_nobody_has;
 		else if (tof->tof_msg_type == tof_request) {
 			is_reply_pending = true;
-			agency.__agency = agency_local;
+			agency.__agency = relative_agency_we_have;
 			if (tof->tof_msg_body.request.tof_blocking)
 				ctf_msg(empty_loop,
 					"error! blocking request!\n");
@@ -297,7 +299,7 @@ loop:
 				(int)agency.__agency);
 		(void)!fd_wait_readable(fd);
 		/* it's unclear what to set the agency to, if anything */
-		agency.__agency = agency_remote;
+		agency.__agency = relative_agency_they_have;
 		/* just go back and retry */
 		goto loop;
 	}

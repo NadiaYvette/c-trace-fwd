@@ -30,7 +30,7 @@ service_unix_sock_send_done(struct ctf_state *state, int fd)
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
-	ctf_set_agency(unix, &state->unix_io, agency_remote, mpn);
+	ctf_set_agency(unix, &state->unix_io, relative_agency_they_have, mpn);
 	return svc_progress_send;
 }
 
@@ -53,7 +53,7 @@ service_unix_sock_send_empty_reply(struct ctf_state *state, int fd)
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
-	ctf_set_agency(unix, &state->unix_io, agency_remote, mpn);
+	ctf_set_agency(unix, &state->unix_io, relative_agency_they_have, mpn);
 	state->unix_io.reply_pending = false;
 	return svc_progress_send;
 }
@@ -84,13 +84,13 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 		state->unix_io.reply_pending = false;
 		tof_free(msg);
 		/* will this work? */
-		if (io_queue_agency_get(&state->unix_io, mpn_trace_objects) == agency_nobody) {
+		if (io_queue_agency_get(&state->unix_io, mpn_trace_objects) == relative_agency_we_have) {
 			ctf_msg(unix, "sending done\n");
 			(void)!service_unix_sock_send_done(state, fd);
 		}
 		/* change agency to remote */
 		/* state->agency = agency_remote; */
-		ctf_set_agency(unix, &state->unix_io, agency_remote, mpn);
+		ctf_set_agency(unix, &state->unix_io, relative_agency_they_have, mpn);
 		break;
 	case svc_req_must_block:
 	case svc_req_none_available:
@@ -98,7 +98,7 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 			svc_req_ret == svc_req_must_block ? "must_block"
 							: "none_available");
 		retval = svc_progress_none;
-		if (io_queue_agency_get(&state->unix_io, mpn) != agency_nobody)
+		if (io_queue_agency_get(&state->unix_io, mpn) != relative_agency_we_have)
 			break;
 		ctf_msg(unix, "sending done\n");
 		if (service_unix_sock_send_done(state, fd) == svc_progress_fail)
@@ -138,7 +138,7 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 	ctf_msg(unix, "back from service_recv_tof()\n");
 	/* state->agency = agency_local; */
 	mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num;
-	ctf_set_agency(unix, &state->unix_io, agency_local, mpn);
+	ctf_set_agency(unix, &state->unix_io, relative_agency_we_have, mpn);
 	ctf_msg(unix, "about to check miniprotocol nr\n");
 	switch (mpn) {
 	case mpn_trace_objects:
@@ -184,23 +184,20 @@ tof_msg_type_switch:
 		nr_replies = reply->tof_nr_replies;
 		if (!to_queue_fillarray(&reply->tof_replies, &state->unix_io.in_queue, &nr_replies))
 			ctf_msg(service_unix, "to_queue_fillarray() failed\n");
-		ctf_set_agency(state, &state->unix_io, agency_local, mpn_trace_objects);
+		ctf_set_agency(state, &state->unix_io,
+				relative_agency_we_have, mpn_trace_objects);
 		break;
 	case tof_request:
-		/* struct tof_request *req = &tof->tof_msg_body.request;
-		struct tof_msg *reply_msg = NULL;
-		int ret; */
-
 		ctf_msg(service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
-		/* state->agency = agency_local; */
-		ctf_set_agency(unix, &state->unix_io, agency_local, mpn);
+		ctf_set_agency(unix, &state->unix_io,
+				relative_agency_we_have, mpn);
 		state->unix_io.reply_pending = true;
 		break;
 	case tof_done:
 		ctf_msg(service_unix, "tof_done case no-op\n");
-		/* state->agency = agency_local; */
-		ctf_set_agency(unix, &state->unix_io, agency_local, mpn);
+		ctf_set_agency(unix, &state->unix_io,
+				relative_agency_we_have, mpn);
 		retval = svc_progress_recv;
 		break;
 	default:
@@ -241,7 +238,7 @@ service_unix_sock(struct ctf_state *state, struct pollfd *pollfd)
 			return service_unix_sock_send_done(state, pollfd->fd);
 		}
 		if (!(pollfd->revents & (POLLIN|POLLOUT)))
-			ctf_msg(unix, "svc neither POLLIN|POLLOUT agency %s\n", agency_string(io_queue_agency_get(&state->unix_io, mpn)));
+			ctf_msg(unix, "svc neither POLLIN|POLLOUT agency %s\n", relative_agency_string(io_queue_agency_get(&state->unix_io, mpn)));
 		ctf_msg(unix, "agency_nobody no events\n");
 		return svc_progress_none;
 	case agency_local:

@@ -234,7 +234,8 @@ setup_state(struct ctf_state **state, struct ctf_conf *conf)
 	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
 		if (!MPN_VALID(mpn))
 			continue;
-		ctf_set_agency(state, &(*state)->unix_io, agency_local, mpn);
+		ctf_set_agency(state, &(*state)->unix_io,
+				relative_agency_we_have, mpn);
 	}
 	ctf_msg(state, "state_handshake() returned %d\n", retval);
 	return retval;

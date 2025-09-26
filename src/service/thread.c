@@ -119,7 +119,7 @@ service_unix_sock_send_local(struct ctf_conf *conf, struct ctf_state *state)
 	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
 		if (!MPN_VALID(mpn))
 			continue;
-		if (state->unix_io.agencies[mpn - MPN_MIN] == agency_local)
+		if (state->unix_io.agencies[mpn - MPN_MIN] == relative_agency_we_have)
 			goto out_send_local;
 	}
 	return false;

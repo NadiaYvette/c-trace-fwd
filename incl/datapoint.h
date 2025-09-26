@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 struct datapoint_req {
 	int datapoint_nr_req;
 	const char **datapoint_req_names;

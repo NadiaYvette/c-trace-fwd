@@ -222,7 +222,7 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 	ctf_msg(service, "entered service_loop()\n");
 	for (;;) {
 		bool status;
-		enum agency agency;
+		enum relative_agency agency;
 		enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
 		/* The request-issuing half of the service loop.
 		 * We always keep requests in flight.

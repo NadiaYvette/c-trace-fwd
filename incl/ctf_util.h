@@ -78,26 +78,26 @@ do {									\
 	int __ctx_mpn_off##__LINE__;					\
 	struct io_queue *__ctx_q##__LINE__ = ioq;			\
 	enum mini_protocol_num __ctx_mpn##__LINE__ = mpn;		\
-	enum agency *__ctx_agency_ary##__LINE__,			\
+	enum relative_agency *__ctx_agency_ary##__LINE__,		\
 		__ctx_old_agency##__LINE__,				\
 		__ctx_new_agency##__LINE__ = new_agency;		\
 	__ctx_mpn_off##__LINE__ = __ctx_mpn##__LINE__ - MPN_MIN;	\
 	__ctx_agency_ary##__LINE__ = (__ctx_q##__LINE__)->agencies;	\
 	__ctx_old_agency##__LINE__					\
 		= (__ctx_agency_ary##__LINE__)[__ctx_mpn_off##__LINE__];\
-	if (AGENCY_VALID(__ctx_old_agency##__LINE__) &&			\
-		AGENCY_VALID(__ctx_new_agency##__LINE__))		\
+	if (RELATIVE_AGENCY_VALID(__ctx_old_agency##__LINE__) &&	\
+		RELATIVE_AGENCY_VALID(__ctx_new_agency##__LINE__))	\
 		ctf_msg(mod, "agency %s -> %s\n",			\
-			agency_string(__ctx_old_agency##__LINE__),	\
-			agency_string(__ctx_new_agency##__LINE__));	\
-	else if (AGENCY_VALID(__ctx_old_agency##__LINE__))		\
+			relative_agency_string(__ctx_old_agency##__LINE__),\
+			relative_agency_string(__ctx_new_agency##__LINE__));\
+	else if (RELATIVE_AGENCY_VALID(__ctx_old_agency##__LINE__))	\
 		ctf_msg(mod, "agency %s -> <unknown> %d\n",		\
-			agency_string(__ctx_old_agency##__LINE__),	\
+			relative_agency_string(__ctx_old_agency##__LINE__),\
 			__ctx_new_agency##__LINE__);			\
-	else if (AGENCY_VALID(__ctx_new_agency##__LINE__))		\
+	else if (RELATIVE_AGENCY_VALID(__ctx_new_agency##__LINE__))	\
 		ctf_msg(mod, "agency <unknown> %d -> %s\n",		\
 			__ctx_old_agency##__LINE__,			\
-			agency_string(__ctx_new_agency##__LINE__));	\
+			relative_agency_string(__ctx_new_agency##__LINE__));\
 	else								\
 		ctf_msg(mod, "agency <unknown> %d -> <unknown> %d\n",	\
 			__ctx_old_agency##__LINE__,			\

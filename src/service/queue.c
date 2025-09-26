@@ -110,7 +110,7 @@ io_queue_init(struct io_queue *ioq, int fd)
 	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
 		if (!MPN_VALID(mpn))
 			continue;
-		ioq->agencies[mpn - MPN_MIN] = agency_remote;
+		ioq->agencies[mpn - MPN_MIN] = relative_agency_they_have;
 	}
 	return true;
 }
