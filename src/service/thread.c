@@ -97,9 +97,14 @@ static bool
 service_unix_reply_tof(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	struct tof_msg *reply_msg = NULL;
-	struct tof_msg *tof_msg = &cpsdr->proto_stk_decode_result_body->tof_msg;
+	struct tof_msg *tof_msg;
 	struct tof_request *request;
 
+	if (!cpsdr)
+		return false;
+	if (!cpsdr->proto_stk_decode_result_body)
+		return false;
+	tof_msg = &cpsdr->proto_stk_decode_result_body->tof_msg;
 	request = &tof_msg->tof_msg_body.request;
 	if (to_queue_answer_request(&state->unix_io.out_queue, request, &tof_msg) != svc_req_success)
 		return false;
