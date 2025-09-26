@@ -49,21 +49,19 @@ relative_agency_string(enum relative_agency agency)
 	return default_string;
 }
 
-enum relative_agency
-io_queue_agency_get(struct io_queue *q, enum mini_protocol_num mpn)
+bool
+io_queue_agency_get(struct io_queue *q, enum mini_protocol_num mpn, enum relative_agency *agency)
 {
-	enum relative_agency agency;
-
 	if (!MPN_VALID(mpn)) {
 		ctf_msg(agency, "invalid mpn %d\n", (int)mpn);
-		return (enum relative_agency)(-1);
+		return false;
 	}
-	agency = q->agencies[mpn - MPN_MIN];
-	if (!RELATIVE_AGENCY_VALID(agency)) {
-		ctf_msg(agency, "invalid agency %d\n", (int)agency);
-		return (enum relative_agency)(-1);
+	if (!RELATIVE_AGENCY_VALID(q->agencies[mpn - MPN_MIN])) {
+		ctf_msg(agency, "invalid agency %d\n", (int)(*agency));
+		return false;
 	}
-	return q->agencies[mpn - MPN_MIN];
+	*agency = q->agencies[mpn - MPN_MIN];
+	return true;
 }
 
 void

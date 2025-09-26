@@ -26,7 +26,7 @@ enum svc_req_result
 to_queue_answer_request(GQueue *,
 		const struct tof_request *, struct tof_msg **);
 bool io_queue_init(struct io_queue *, int);
-enum relative_agency io_queue_agency_get(struct io_queue *, enum mini_protocol_num);
+bool io_queue_agency_get(struct io_queue *, enum mini_protocol_num, enum relative_agency *);
 void io_queue_agency_set(struct io_queue *, enum mini_protocol_num, enum relative_agency);
 bool io_queue_agency_any_local(struct io_queue *);
 bool io_queue_agency_all_nonlocal(struct io_queue *);

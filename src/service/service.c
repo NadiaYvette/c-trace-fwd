@@ -234,7 +234,11 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 		if (g_queue_get_length(&state->unix_io.in_queue) > 0)
 			ctf_msg(service, "%d in queue\n",
 				g_queue_get_length(&state->unix_io.in_queue));
-		agency = io_queue_agency_get(&state->unix_io, mpn);
+		if (!io_queue_agency_get(&state->unix_io, mpn, &agency)) {
+			ctf_msg(service, "io_queue_agency_get() failed\n");
+			retval = RETVAL_FAILURE;
+			break;
+		}
 		switch (agency) {
 		case agency_nobody:
 			ctf_msg(service, "about to service_issue_request()\n");
