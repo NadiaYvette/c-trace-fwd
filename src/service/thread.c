@@ -18,7 +18,7 @@ service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *st
 	switch (state->unix_io.agencies[mpn_data_points]) {
 	case agency_local:
 		/* demanded replies sent elsewhere */
-		ctf_msg(thread, "unexpected agency\n");
+		ctf_msg(ctf_alert, thread, "unexpected agency\n");
 		break;
 	case agency_remote:
 	case agency_nobody:
@@ -36,7 +36,7 @@ service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state,
 	switch (state->unix_io.agencies[mpn_EKG_metrics]) {
 	case agency_local:
 		/* demanded replies sent elsewhere */
-		ctf_msg(thread, "unexpected agency\n");
+		ctf_msg(ctf_alert, thread, "unexpected agency\n");
 		break;
 	case agency_remote:
 	case agency_nobody:
@@ -54,7 +54,7 @@ service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *
 	switch (state->unix_io.agencies[mpn_trace_objects]) {
 	case agency_local:
 		/* demanded replies sent elsewhere */
-		ctf_msg(thread, "unexpected agency\n");
+		ctf_msg(ctf_alert, thread, "unexpected agency\n");
 		break;
 	case agency_remote:
 	case agency_nobody:
@@ -150,7 +150,7 @@ service_unix_sock_thread_core(struct ctf_conf *conf, struct ctf_state *state)
 	enum mini_protocol_num mpn;
 
 	(void)!!conf;
-	ctf_msg(thread, "entered\n");
+	ctf_msg(ctf_debug, thread, "entered\n");
 	if (!(cpsdr = ctf_proto_stk_decode(state->unix_io.fd)))
 		goto out_free_cpsdr;
 	switch (mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
@@ -167,7 +167,7 @@ service_unix_sock_thread_core(struct ctf_conf *conf, struct ctf_state *state)
 			goto out_free_cpsdr;
 		break;
 	default:
-		ctf_msg(thread, "unrecognized protocol %s\n",
+		ctf_msg(ctf_alert, thread, "unrecognized protocol %s\n",
 				mini_protocol_string(mpn));
 		break;
 	}
@@ -194,7 +194,8 @@ service_unix_sock_thread(void *pthread_arg)
 		bool ret;
 
 		if (!!pthread_mutex_lock(&state->state_lock)) {
-			ctf_msg(thread, "locking state failed!\n");
+			ctf_msg(ctf_alert, thread,
+					"locking state failed!\n");
 			break;
 		}
 		if (io_queue_agency_all_nonlocal(&state->unix_io))
@@ -202,12 +203,14 @@ service_unix_sock_thread(void *pthread_arg)
 		else
 			ret = service_unix_sock_send_local(conf, state);
 		if (!!pthread_mutex_unlock(&state->state_lock)) {
-			ctf_msg(thread, "unlocking state failed!\n");
+			ctf_msg(ctf_alert, thread,
+					"unlocking state failed!\n");
 			break;
 		}
 		if (ret)
 			continue;
-		ctf_msg(thread, "service_unix_sock_thread_core() failed!\n");
+		ctf_msg(ctf_alert, thread,
+			"service_unix_sock_thread_core() failed!\n");
 		break;
 	}
 	return NULL;
@@ -236,7 +239,8 @@ service_thread_spawn(struct ctf_conf *conf,
 	if (!!pthread_attr_init(&attr))
 		return false;
 	if (!!pthread_attr_destroy(&attr))
-		ctf_msg(thread, "pthread_attr_destroy() failed\n");
+		ctf_msg(ctf_alert, thread,
+				"pthread_attr_destroy() failed\n");
 	if (!!pthread_create(&unix_thread, &attr, service_unix_sock_thread, &arg))
 		goto out_destroy_attr;
 	if (!!pthread_create(&user_thread, &attr, service_user_sock_thread, &arg))
@@ -244,9 +248,10 @@ service_thread_spawn(struct ctf_conf *conf,
 	return true;
 out_cancel_unix_thread:
 	if (!!pthread_cancel(unix_thread))
-		ctf_msg(thread, "pthread_cancel() failed!\n");
+		ctf_msg(ctf_alert, thread, "pthread_cancel() failed!\n");
 out_destroy_attr:
 	if (!!pthread_attr_destroy(&attr))
-		ctf_msg(thread, "pthread_attr_destroy() failed\n");
+		ctf_msg(ctf_alert, thread,
+				"pthread_attr_destroy() failed\n");
 	return false;
 }

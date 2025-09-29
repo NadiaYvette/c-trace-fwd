@@ -53,11 +53,13 @@ bool
 io_queue_agency_get(struct io_queue *q, enum mini_protocol_num mpn, enum relative_agency *agency)
 {
 	if (!MPN_VALID(mpn)) {
-		ctf_msg(agency, "invalid mpn %d\n", (int)mpn);
+		ctf_msg(ctf_alert, agency, "invalid mpn %d\n",
+				(int)mpn);
 		return false;
 	}
 	if (!RELATIVE_AGENCY_VALID(q->agencies[mpn - MPN_MIN])) {
-		ctf_msg(agency, "invalid agency %d\n", (int)(*agency));
+		ctf_msg(ctf_alert, agency, "invalid agency %d\n",
+				(int)(*agency));
 		return false;
 	}
 	*agency = q->agencies[mpn - MPN_MIN];
@@ -68,11 +70,13 @@ void
 io_queue_agency_set(struct io_queue *q, enum mini_protocol_num mpn, enum relative_agency agency)
 {
 	if (!RELATIVE_AGENCY_VALID(agency)) {
-		ctf_msg(agency, "invalid agency %d\n", (int)agency);
+		ctf_msg(ctf_alert, agency, "invalid agency %d\n",
+				(int)agency);
 		return;
 	}
 	if (!MPN_VALID(mpn)) {
-		ctf_msg(agency, "invalid mpn %d\n", (int)mpn);
+		ctf_msg(ctf_alert, agency, "invalid mpn %d\n",
+				(int)mpn);
 		return;
 	}
 	q->agencies[mpn - MPN_MIN] = agency;

@@ -88,7 +88,8 @@ to_queue_answer_request( GQueue *queue
 	msg->tof_msg_type = tof_reply;
 	to = &msg->tof_msg_body.reply.tof_replies;
 	if (!to_queue_fillarray(to, queue, &req_obj)) {
-		ctf_msg(queue, "to_dequeue_fillarray() failed!\n");
+		ctf_msg(ctf_alert, queue,
+				"to_dequeue_fillarray() failed!\n");
 		goto out_free_replies;
 	}
 	msg->tof_msg_body.reply.tof_nr_replies = req_obj;

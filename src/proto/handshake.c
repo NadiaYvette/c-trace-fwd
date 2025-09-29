@@ -44,7 +44,8 @@ bool
 cbor_get_uint(const cbor_item_t *item, uintmax_t *value)
 {
 	if (cbor_typeof(item) != CBOR_TYPE_UINT) {
-		ctf_msg(handshake, "item %d not UINT\n", cbor_typeof(item));
+		ctf_msg(ctf_alert, handshake, "item %d not UINT\n",
+				cbor_typeof(item));
 		cbor_describe((cbor_item_t *)item, stderr);
 		return false;
 	}
@@ -62,7 +63,7 @@ cbor_get_uint(const cbor_item_t *item, uintmax_t *value)
 		*value = (uintmax_t)cbor_get_uint64(item);
 		break;
 	default:
-		ctf_msg(handshake, "unrecognized uint width\n");
+		ctf_msg(ctf_alert, handshake, "unrecognized uint width\n");
 		cbor_describe((cbor_item_t *)item, stderr);
 		return false;
 	}
@@ -289,11 +290,13 @@ handshake_release_memory(void *p)
 			g_rc_box_release(hr->refusal_message.refused.handshake_refusal_refused_string);
 			break;
 		default:
-			ctf_msg(handshake, "unrecognized handshake refusal\n");
+			ctf_msg(ctf_alert, handshake,
+					"unrecognized handshake refusal\n");
 		}
 		break;
 	default:
-		ctf_msg(handshake, "freeing handshake of unrecognized type\n");
+		ctf_msg(ctf_alert, handshake,
+				"freeing handshake of unrecognized type\n");
 	}
 }
 
@@ -318,85 +321,98 @@ propose_versions_encode(const struct handshake_propose_versions *propose_version
 		goto out_free_proposal_array;
 	if (!cbor_array_set(proposal_array, 0, array_zero_element))
 		goto out_free_array_zero_element;
-	ctf_msg(handshake, "about to build proposal map\n");
+	ctf_msg(ctf_debug, handshake, "about to build proposal map\n");
 	if (!(proposal_map = cbor_new_definite_map(propose_versions->handshake_propose_versions_len))) {
-		ctf_msg(handshake, "allocation of proposal map of length "
-				   "%zd failed!\n",
-				   propose_versions->handshake_propose_versions_len);
+		ctf_msg(ctf_debug, handshake,
+			"allocation of proposal "
+			"map of length %zd failed!\n",
+			propose_versions->handshake_propose_versions_len);
 		goto out_free_array_zero_element;
 	}
-	ctf_msg(handshake, "about to check proposal map type\n");
+	ctf_msg(ctf_debug, handshake, "about to check proposal map type\n");
 	if (cbor_typeof(proposal_map) != CBOR_TYPE_MAP) {
-		ctf_msg(handshake, "wrong type of proposal_map\n");
+		ctf_msg(ctf_debug, handshake, "wrong type of proposal_map\n");
 		goto out_free_proposal_map;
 	}
-	ctf_msg(handshake, "about to check proposal map length\n");
+	ctf_msg(ctf_debug, handshake, "about to check proposal map length\n");
 	if (!len) {
-		ctf_msg(handshake, "zero length proposal_map\n");
+		ctf_msg(ctf_alert, handshake, "zero length proposal_map\n");
 		goto out_free_proposal_map;
 	}
-	ctf_msg(handshake, "about to do proposal map loop\n");
+	ctf_msg(ctf_debug, handshake, "about to do proposal map loop\n");
 	for (k = 0; k < len; ++k) {
 		struct cbor_pair pair;
 		uintmax_t key, value;
 
-		ctf_msg(handshake, "doing proposal map loop iter %u\n", k);
+		ctf_msg(ctf_debug, handshake,
+				"doing proposal map loop iter %u\n", k);
 		/* what are these keys? */
 		if (!(pair.key = cbor_build_encode_word(handshake_propose_versions[k].propose_version_key))) {
-			ctf_msg(handshake, "[%u] cbor_build_encode_word() "
-					   "failed!\n", k);
+			ctf_msg(ctf_alert, handshake,
+					"[%u] cbor_build_encode_word() "
+					"failed!\n", k);
 			goto out_free_proposal_map;
 		}
 		/* validity check? */
-		ctf_msg(handshake, "value NULL check proposal map loop iter %u\n", k);
+		ctf_msg(ctf_debug, handshake,
+				"value NULL check proposal "
+				"map loop iter %u\n", k);
 		if (!(pair.value = handshake_propose_versions[k].propose_version_value)) {
-			ctf_msg(handshake, "handshake_propose_versions[%u] "
-					   "NULL!\n", k);
+			ctf_msg(ctf_alert, handshake,
+					"handshake_propose_versions[%u] "
+					"NULL!\n", k);
 			goto out_free_proposal_map;
 		}
-		ctf_msg(handshake, "getting value proposal map loop iter %u\n", k);
+		ctf_msg(ctf_debug, handshake,
+				"getting value proposal map "
+				"loop iter %u\n", k);
 		if (!cbor_get_uint(pair.value, &value)) {
-			ctf_msg(handshake, "handshake_propose_versions[%u] "
-					   "CBOR uint decoding failed!\n", k);
+			ctf_msg(ctf_alert, handshake,
+					"handshake_propose_versions[%u] "
+					"CBOR uint decoding failed!\n", k);
 			goto out_free_proposal_map;
 		}
 		key = (uintmax_t)
 			handshake_propose_versions[k].propose_version_key;
-		ctf_msg(handshake, "proposal map key = 0x%jx,"
+		ctf_msg(ctf_debug, handshake, "proposal map key = 0x%jx,"
 				   " value = 0x%jx\n", key, value);
-		ctf_msg(handshake, "adding to proposal map loop iter %u\n", k);
+		ctf_msg(ctf_debug, handshake,
+				"adding to proposal map loop iter %u\n", k);
 		if (!cbor_map_add(proposal_map, pair)) {
-			ctf_msg(handshake, "cbor_map_add() of pair %u "
-					   "failed!\n", k);
+			ctf_msg(ctf_alert, handshake,
+					"cbor_map_add() of pair %u "
+					"failed!\n", k);
 			goto out_free_proposal_map;
 		}
-		ctf_msg(handshake, "finished proposal map loop iter %u\n", k);
+		ctf_msg(ctf_debug, handshake,
+				"finished proposal map loop iter %u\n", k);
 	}
 	if (!cbor_array_set(proposal_array, 1, proposal_map)) {
-		ctf_msg(handshake, "setting proposal_array[1] to "
+		ctf_msg(ctf_alert, handshake, "setting proposal_array[1] to "
 				   "proposal_map failed!\n");
 		goto out_free_proposal_map;
 	}
 	if (cbor_typeof(proposal_map) != CBOR_TYPE_MAP) {
-		ctf_msg(handshake, "proposal_map changed type!\n");
+		ctf_msg(ctf_alert, handshake, "proposal_map changed type!\n");
 		goto out_free_proposal_map;
 	}
 	cbor_describe(proposal_array, stderr);
 	fflush(stderr);
 	return proposal_array;
 out_free_proposal_map:
-	ctf_msg(handshake, "out_free_proposal_map "
+	ctf_msg(ctf_debug, handshake, "out_free_proposal_map "
 			   "propose_versions_encode() goto label\n");
 	ctf_cbor_decref(handshake, &proposal_map);
 out_free_array_zero_element:
-	ctf_msg(handshake, "out_free_array_zero_element "
+	ctf_msg(ctf_debug, handshake, "out_free_array_zero_element "
 			   "propose_versions_encode() goto label\n");
 	ctf_cbor_decref(handshake, &array_zero_element);
 out_free_proposal_array:
-	ctf_msg(handshake, "out_free_proposal_array "
+	ctf_msg(ctf_debug, handshake, "out_free_proposal_array "
 			   "propose_versions_encode() goto label\n");
 	ctf_cbor_decref(handshake, &proposal_array);
-	ctf_msg(handshake, "propose_versions_encode() failure return!\n");
+	ctf_msg(ctf_debug, handshake,
+			"propose_versions_encode() failure return!\n");
 	return NULL;
 }
 
@@ -556,32 +572,30 @@ cbor_item_t *
 handshake_encode(const struct handshake *handshake)
 {
 	cbor_item_t *retval = NULL;
-	ctf_msg(handshake, "entering handshake_encode()\n");
-	/* fprintf(stderr, "entering handshake_encode()\n");
-	exit(EXIT_FAILURE); */
+	ctf_msg(ctf_debug, handshake, "entering handshake_encode()\n");
 	switch (handshake->handshake_type) {
 	case handshake_propose_versions:
-		ctf_msg(handshake, "calling propose_versions_encode()\n");
-		fprintf(stderr, "calling propose_versions_encode()\n");
+		ctf_msg(ctf_debug, handshake,
+				"calling propose_versions_encode()\n");
 		retval = propose_versions_encode(&handshake->handshake_message.propose_versions);
 		break;
 	case handshake_accept_version:
-		ctf_msg(handshake, "calling accept_version_encode()\n");
-		fprintf(stderr, "calling accept_version_encode()\n");
+		ctf_msg(ctf_debug, handshake,
+				"calling accept_version_encode()\n");
 		retval = accept_version_encode(&handshake->handshake_message.accept_version);
 		break;
 	case handshake_refusal:
-		ctf_msg(handshake, "calling refusal_encode()\n");
-		fprintf(stderr, "calling refusal_encode()\n");
+		ctf_msg(ctf_debug, handshake, "calling refusal_encode()\n");
 		retval = refusal_encode(&handshake->handshake_message.refusal);
 		break;
 	case handshake_query_reply:
-		ctf_msg(handshake, "calling query_reply_encode()\n");
+		ctf_msg(ctf_debug, handshake, "calling query_reply_encode()\n");
 		fprintf(stderr, "calling query_reply_encode()\n");
 		retval = query_reply_encode(&handshake->handshake_message.query_reply);
 		break;
 	default:
-		ctf_msg(handshake, "unrecognized handshake_type %d\n",
+		ctf_msg(ctf_alert, handshake,
+				"unrecognized handshake_type %d\n",
 				(int)handshake->handshake_type);
 		break;
 	}
@@ -612,7 +626,7 @@ sig_action(int sig, siginfo_t *info, void *data)
 {
 	(void)!info;
 	(void)!data;
-	ctf_msg(handshake, "received signal %d\n", sig);
+	ctf_msg(ctf_notice, handshake, "received signal %d\n", sig);
 }
 
 int
@@ -635,48 +649,61 @@ handshake_xmit(int fd)
 		.revents = 0,
 	};
 
-	ctf_msg(handshake, "entering\n");
-	ctf_msg(handshake, "different message\n");
+	ctf_msg(ctf_debug, handshake, "entering\n");
+	ctf_msg(ctf_debug, handshake, "different message\n");
 	handshake_versions[0].propose_version_key = 1;
 	if (!handshake_versions[0].propose_version_value) {
 		handshake_versions[0].propose_version_value
 			= cbor_build_uint32( 764824073 /* 19 */ );
 		if (!handshake_versions[0].propose_version_value) {
-			ctf_msg(handshake, "version value alloc failed\n");
+			ctf_msg(ctf_alert, handshake,
+					"version value alloc failed\n");
 			return RETVAL_FAILURE;
 		}
 	}
-	ctf_msg(handshake, "past checking version value, about to cbor encode\n");
+	ctf_msg(ctf_debug, handshake,
+			"past checking version value, "
+			"about to cbor encode\n");
 	if (!(handshake_proposal_cbor = handshake_encode(&handshake_proposal))) {
-		ctf_msg(handshake, "handshake_encode() returned NULL & failed!\n");
+		ctf_msg(ctf_debug, handshake,
+				"handshake_encode() returned "
+				"NULL & failed!\n");
 		return RETVAL_FAILURE;
 	}
-	ctf_msg(handshake, "handshake_encode() succeeded\n");
+	ctf_msg(ctf_debug, handshake, "handshake_encode() succeeded\n");
 	cbor_describe(handshake_proposal_cbor, stderr);
 	if (!cbor_serialize_alloc(handshake_proposal_cbor, &buf, &buf_sz)) {
-		ctf_msg(handshake, "cbor_serialize_alloc failed\n");
+		ctf_msg(ctf_alert, handshake,
+				"cbor_serialize_alloc failed\n");
 		return RETVAL_FAILURE;
 	}
 	if (cbor_typeof(handshake_proposal_cbor) != CBOR_TYPE_ARRAY) {
-		ctf_msg(handshake, "handshake_encode() didn't return array!\n");
+		ctf_msg(ctf_alert, handshake,
+				"handshake_encode() didn't return array!\n");
 		return RETVAL_FAILURE;
 	}
 	if (cbor_array_size(handshake_proposal_cbor) != 2) {
-		ctf_msg(handshake, "handshake_encode() returned wrong size array!\n");
+		ctf_msg(ctf_alert, handshake,
+				"handshake_encode() returned "
+				"wrong size array!\n");
 		return RETVAL_FAILURE;
 	}
 	if (!(handshake_proposal_map = cbor_array_get(handshake_proposal_cbor, 1))) {
-		ctf_msg(handshake, "handshake_encode() lacked [1] array entry!\n");
+		ctf_msg(ctf_alert, handshake,
+				"handshake_encode() lacked "
+				"[1] array entry!\n");
 		return RETVAL_FAILURE;
 
 	}
 	if (cbor_typeof(handshake_proposal_map) != CBOR_TYPE_MAP) {
-		ctf_msg(handshake, "handshake_encode() [1] array entry not CBOR_TYPE_MAP!\n");
+		ctf_msg(ctf_alert, handshake,
+				"handshake_encode() [1] array entry "
+				"not CBOR_TYPE_MAP!\n");
 		return RETVAL_FAILURE;
 	}
 	sdu_buf_sz = buf_sz + 2*sizeof(uint32_t);
 	if (!(sdu_buf = calloc(sdu_buf_sz, sizeof(unsigned char)))) {
-		ctf_msg(handshake, "sdu_buf calloc failed\n");
+		ctf_msg(ctf_alert, handshake, "sdu_buf calloc failed\n");
 		goto out_free_buf;
 	}
 	sdu.sdu_xmit = (uint32_t)time(NULL);
@@ -688,34 +715,40 @@ handshake_xmit(int fd)
 	memcpy(&sdu_buf[2*sizeof(uint32_t)], buf, buf_sz);
 	sdu_ptr.sdu8 = (uint8_t *)sdu_buf;
 	if (sdu_encode(&sdu, sdu_ptr) != RETVAL_SUCCESS) {
-		ctf_msg(handshake, "sdu_encode failed\n");
+		ctf_msg(ctf_alert, handshake, "sdu_encode failed\n");
 		goto out_free_sdu;
 	}
 	send_len = buf_sz + 2*sizeof(uint32_t);
 	(void)!poll(&pollfd, 1, -1);
 	if ((send_ret = send(fd, sdu_buf, send_len, flg)) <= 0 && errno != 0) {
-		ctf_msg(handshake, "write error in handshake\n");
-		ctf_msg(handshake, "send(%d, %p, %zd, 0x%x) = %zd, errno=%d (%s)\n",
-				fd, sdu_buf, send_len, flg, send_ret, errno, strerror(errno));
+		ctf_msg(ctf_alert, handshake,
+				"write error in handshake\n");
+		ctf_msg(ctf_debug, handshake,
+				"send(%d, %p, %zd, 0x%x) = %zd, "
+				"errno=%d (%s)\n",
+				fd, sdu_buf, send_len, flg,
+				send_ret, errno, strerror(errno));
 		goto out_free_buf;
 	}
 	if (buf_sz < 64 * 1024) {
 		unsigned char *new_buf;
 
-		ctf_msg(handshake, "reallocating buffer\n");
+		ctf_msg(ctf_debug, handshake, "reallocating buffer\n");
 		if (!(new_buf = realloc(buf, 64 * 1024)))
 			goto out_free_buf;
 		buf_sz = 64 * 1024;
 		buf = new_buf;
-		ctf_msg(handshake, "buffer successfully reallocated\n");
+		ctf_msg(ctf_debug, handshake,
+				"buffer successfully reallocated\n");
 	}
-	ctf_msg(handshake, "about to try to read for handshake reply\n");
+	ctf_msg(ctf_debug, handshake,
+			"about to try to read for handshake reply\n");
 	sigemptyset(&sig_mask);
 	sigemptyset(&old_sig_mask);
 	sigaddset(&sig_mask, SIGALRM);
 	sigaddset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
-		ctf_msg(handshake, "sigprocmask failed\n");
+		ctf_msg(ctf_alert, handshake, "sigprocmask failed\n");
 	sigaddset(&old_sig_mask, SIGPIPE);
 	new_sigact.sa_sigaction = sig_action;
 	sigemptyset(&new_sigact.sa_mask);
@@ -724,113 +757,140 @@ handshake_xmit(int fd)
 	new_sigact.sa_flags = SA_SIGINFO;
 	new_sigact.sa_restorer = NULL;
 	if (!!sigaction(SIGALRM, &new_sigact, &old_sigact))
-		ctf_msg(handshake, "sigaction failed\n");
+		ctf_msg(ctf_alert, handshake, "sigaction failed\n");
 	/* The alarm is to interrupt stalled reads to restart them. */
 	alarm(1);
 	sigdelset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_UNBLOCK, &sig_mask, &old_sig_mask))
-		ctf_msg(handshake, "sigprocmask failed\n");
+		ctf_msg(ctf_alert, handshake, "sigprocmask failed\n");
 	while ((reply_len = recv(fd, buf, buf_sz, 0)) <= 0) {
 		/* Cancel any pending alarms. */
 		alarm(0);
 		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
-			ctf_msg(handshake, "handshake read got errno %d\n", errno);
+			ctf_msg(ctf_alert, handshake,
+					"handshake read got "
+					"errno %d\n", errno);
 			break;
 		}
 		errno = 0;
-		ctf_msg(handshake, "read zero data, looping\n");
+		ctf_msg(ctf_debug, handshake, "read zero data, looping\n");
 		sleep(1);
 		alarm(1);
 	}
 	alarm(0);
 	sigaddset(&sig_mask, SIGPIPE);
 	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
-		ctf_msg(handshake, "sigprocmask failed\n");
+		ctf_msg(ctf_alert, handshake, "sigprocmask failed\n");
 	if (!!sigaction(SIGALRM, &old_sigact, NULL))
-		ctf_msg(handshake, "sigaction cleanup failed\n");
+		ctf_msg(ctf_alert, handshake, "sigaction cleanup failed\n");
 	if (!errno)
-		ctf_msg(handshake, "got past reading for handshake reply\n");
+		ctf_msg(ctf_debug, handshake,
+				"got past reading for handshake reply\n");
 	else
-		ctf_msg(handshake, "error reading for handshake reply\n");
+		ctf_msg(ctf_alert, handshake,
+				"error reading for handshake reply\n");
 	if (reply_len < 0) {
-		ctf_msg(handshake, "negative reply length, exiting\n");
+		ctf_msg(ctf_alert, handshake,
+				"negative reply length, exiting\n");
 		goto out_free_buf;
 	}
-	ctf_msg(handshake, "attempting sdu_decode()\n");
+	ctf_msg(ctf_debug, handshake, "attempting sdu_decode()\n");
 	sdu_ptr.sdu8 = (uint8_t *)buf;
 	if (sdu_decode(sdu_ptr, &reply_sdu) != RETVAL_SUCCESS) {
-		ctf_msg(handshake, "saw sdu_decode() failure, now goto "
+		ctf_msg(ctf_alert, handshake,
+				"saw sdu_decode() failure, now goto "
 				"out_free_buf\n");
 		goto out_free_buf;
 	}
-	ctf_msg(handshake, "got past sdu_decode(), checking reply_sdu.sdu_len\n");
+	ctf_msg(ctf_debug, handshake, "got past sdu_decode(), "
+			"checking reply_sdu.sdu_len\n");
 	if (reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t)) {
-		ctf_msg(handshake, "SDU length unexpected was 0x%x expected"
+		ctf_msg(ctf_alert, handshake,
+				"SDU length unexpected was 0x%x expected"
 			       " 0x%zx\n", reply_sdu.sdu_len,
 			       (size_t)reply_len);
 		reply_sdu.sdu_len = reply_len - 2*sizeof(uint32_t);
 	}
-	ctf_msg(handshake, "got past reply_sdu.sdu_len check trying cbor_load()\n");
+	ctf_msg(ctf_debug, handshake,
+			"got past reply_sdu.sdu_len check "
+			"trying cbor_load()\n");
 	if (!(reply_cbor = cbor_load(&buf[2*sizeof(uint32_t)], reply_sdu.sdu_len, &cbor_load_result))) {
-		ctf_msg(handshake, "cbor_load() failed, freeing buffer\n");
+		ctf_msg(ctf_alert, handshake,
+				"cbor_load() failed, freeing buffer\n");
 		goto out_free_buf;
 	}
-	ctf_msg(handshake, "got past cbor_load(), checking result\n");
+	ctf_msg(ctf_debug, handshake,
+			"got past cbor_load(), checking result\n");
 	switch (cbor_load_result.error.code) {
 	case CBOR_ERR_NONE:
-		ctf_msg(handshake, "got CBOR_ERR_NONE, continuing\n");
+		ctf_msg(ctf_debug, handshake,
+				"got CBOR_ERR_NONE, continuing\n");
 		break;
 	case CBOR_ERR_NOTENOUGHDATA:
-		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		ctf_msg(ctf_alert, handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
 		goto out_decref_reply;
 		break;
 	case CBOR_ERR_NODATA:
-		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		ctf_msg(ctf_alert, handshake, "got CBOR_ERR_NODATA\n");
 		goto out_decref_reply;
 		break;
 	case CBOR_ERR_MALFORMATED:
-		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		ctf_msg(ctf_alert, handshake, "got CBOR_ERR_MALFORMATED\n");
 		goto out_decref_reply;
 		break;
 	case CBOR_ERR_MEMERROR:
-		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		ctf_msg(ctf_alert, handshake, "got CBOR_ERR_MEMERROR\n");
 		goto out_decref_reply;
 		break;
 	case CBOR_ERR_SYNTAXERROR:
-		ctf_msg(handshake, "got CBOR_ERR_NOTENOUGHDATA\n");
+		ctf_msg(ctf_alert, handshake, "got CBOR_ERR_SYNTAXERROR\n");
 		goto out_decref_reply;
 		break;
 	default:
-		ctf_msg(handshake, "got unrecognized CBOR error code\n");
+		ctf_msg(ctf_alert, handshake,
+				"got unrecognized CBOR error code\n");
 		goto out_decref_reply;
 		break;
 	}
-	ctf_msg(handshake, "got past checking cbor_load() result, "
+	ctf_msg(ctf_debug, handshake,
+			"got past checking cbor_load() result, "
 		       "doing handshake_decode()\n");
 	if (!(handshake_reply = handshake_decode(reply_cbor))) {
-		ctf_msg(handshake, "handshake_decode() failed decref(&reply_cbor)\n");
+		ctf_msg(ctf_alert, handshake,
+				"handshake_decode() failed "
+				"decref(&reply_cbor)\n");
 		goto out_decref_reply;
 	}
-	ctf_msg(handshake, "got past handshake_decode(), checking reply type\n");
+	ctf_msg(ctf_debug, handshake,
+			"got past handshake_decode(), "
+			"checking reply type\n");
 	if (handshake_reply->handshake_type != handshake_accept_version) {
-		ctf_msg(handshake, "reply type not acceptance, decref(&reply_cbor)\n");
+		ctf_msg(ctf_warning, handshake,
+				"reply type not acceptance, "
+				"decref(&reply_cbor)\n");
 		goto out_handshake_free;
 	}
-	ctf_msg(handshake, "handshake_xmit() succeeded, returning RETVAL_SUCCESS\n");
+	ctf_msg(ctf_debug, handshake,
+			"handshake_xmit() succeeded, "
+			"returning RETVAL_SUCCESS\n");
 	retval = RETVAL_SUCCESS;
 out_handshake_free:
 	handshake_free(handshake_reply);
 out_decref_reply:
 	if (!!retval)
-		ctf_msg(handshake, "out_decref_reply: label of handshake_xmit()\n");
+		ctf_msg(ctf_debug, handshake,
+				"out_decref_reply: label "
+				"of handshake_xmit()\n");
 	ctf_cbor_decref(state, &reply_cbor);
 out_free_sdu:
 	if (!!retval)
-		ctf_msg(handshake, "out_free_sdu: label of handshake_xmit()\n");
+		ctf_msg(ctf_debug, handshake, "out_free_sdu: label "
+				"of handshake_xmit()\n");
 	free(sdu_buf);
 out_free_buf:
 	if (!!retval)
-		ctf_msg(handshake, "out_free_buf: label of handshake_xmit()\n");
+		ctf_msg(ctf_debug, handshake, "out_free_buf: label "
+				"of handshake_xmit()\n");
 	free(buf);
 	return retval;
 }

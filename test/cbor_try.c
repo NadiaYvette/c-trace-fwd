@@ -50,7 +50,7 @@ main(int argc, char *argv[])
 	unsigned char *buf;
 
 	if (argc - 1 != 4) {
-		ctf_msg(cbor_try, "argc = %d wrong\n", argc);
+		ctf_msg(ctf_alert, cbor_try, "argc = %d wrong\n", argc);
 		return EXIT_FAILURE;
 	}
 	if (!(buf = calloc(1024, 1024)))

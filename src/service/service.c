@@ -52,7 +52,7 @@ service_issue_request(struct ctf_state *state)
 	int flg = MSG_CONFIRM | MSG_NOSIGNAL;
 
 	if (!(buf = ctf_proto_stk_encode(mpn_trace_objects, (union msg *)&tof_msg, &sz))) {
-		ctf_msg(service, "ctf_proto_stk_encode() failed\n");
+		ctf_msg(ctf_alert, service, "ctf_proto_stk_encode() failed\n");
 		return false;
 	}
 	cur_buf = buf;
@@ -61,12 +61,14 @@ restart_write:
 	if ((ret = send(state->unix_io.fd, cur_buf, cur_sz, flg)) == cur_sz)
 		goto out_free_buf;
 	if (ret < 0) {
-		ctf_msg(service, "send() failed, errno = %d\n", errno);
+		ctf_msg(ctf_alert, service,
+				"send() failed, errno = %d\n", errno);
 		status = false;
 	} else {
 		cur_buf = &cur_buf[ret];
 		cur_sz -= ret;
-		ctf_msg(service, "wrote %zd, looping to write another "
+		ctf_msg(ctf_alert, service,
+				"wrote %zd, looping to write another "
 				"%zu, errno = %d\n",
 				ret, cur_sz, errno);
 		errno = 0;
@@ -85,13 +87,13 @@ service_loop_move(struct ctf_state *state)
 	bool retval = true;
 
 	if (!to_queue_fillarray(&to_move, &state->unix_io.out_queue, &nr_to_move)) {
-		ctf_msg(service, "to_queue_fillarray() failed\n");
+		ctf_msg(ctf_alert, service, "to_queue_fillarray() failed\n");
 		return false;
 	}
 	for (k = 0; k < state->nr_clients; ++k) {
 		if (to_queue_putarray(&state->ux_io[k].in_queue, to_move, nr_to_move))
 			continue;
-		ctf_msg(service, "to_queue_putarray() failed\n");
+		ctf_msg(ctf_alert, service, "to_queue_putarray() failed\n");
 		retval = false;
 	}
 	return retval;
@@ -103,66 +105,75 @@ service_loop_core(struct ctf_state *state)
 	int nr_ready, k, retval = RETVAL_FAILURE;
 	struct pollfd *pollfds;
 
-	ctf_msg(service, "entered service_loop_core()\n");
+	ctf_msg(ctf_debug, service, "entered service_loop_core()\n");
 	if (!service_loop_move(state)) {
-		ctf_msg(service, "service_loop_move() failed\n");
+		ctf_msg(ctf_alert, service, "service_loop_move() failed\n");
 		return RETVAL_FAILURE;
 	}
 	if (!(pollfds = service_create_pollfds(state))) {
-		ctf_msg(service, "service_create_pollfds() failed\n");
+		ctf_msg(ctf_alert, service,
+				"service_create_pollfds() failed\n");
 		return RETVAL_FAILURE;
 	}
-	ctf_msg(service, "service_loop_core() about to poll()\n");
+	ctf_msg(ctf_debug, service, "service_loop_core() about to poll()\n");
 	for (k = 0; k < state->nr_clients + 2; ++k) {
 		pollfds[k].revents = 0;
 		pollfds[k].events = POLLIN|POLLPRI|POLLOUT|POLLERR|POLLHUP;
 	}
 	nr_ready = poll(pollfds, state->nr_clients + 2, 0);
 	if (nr_ready < 0) {
-		ctf_msg(service, "poll() failed\n");
+		ctf_msg(ctf_alert, service, "poll() failed\n");
 		goto exit_free_pollfds;
 	}
 	if (!nr_ready) {
-		ctf_msg(service, "poll() returned zero ready fds\n");
+		ctf_msg(ctf_debug, service,
+				"poll() returned zero ready fds\n");
 		goto exit_free_pollfds;
 	}
 	for (k = 0; k < state->nr_clients + 2; ++k) {
 		if (!pollfds[k].revents)
 			continue;
 		else if (pollfds[k].fd == state->ux_sock_fd) {
-			ctf_msg(service, "ux_sock_fd ready\n");
+			ctf_msg(ctf_debug, service, "ux_sock_fd ready\n");
 			if (service_ux_sock(state)) {
-				ctf_msg(service, "service_ux_sock() failed\n");
+				ctf_msg(ctf_debug, service,
+						"service_ux_sock() failed\n");
 				goto exit_free_pollfds;
 			}
 		} else if (pollfds[k].fd == state->unix_io.fd) {
-			ctf_msg(service, "unix_sock_fd ready "
+			ctf_msg(ctf_debug, service,
+					"unix_sock_fd ready "
 					"revents = 0x%x "
 					"state->nr_to = %d\n",
 					pollfds[k].revents,
 					g_queue_get_length(&state->unix_io.in_queue));
 			if (service_unix_sock(state, &pollfds[k]) == svc_progress_fail) {
-				ctf_msg(service, "service_unix_sock() "
+				ctf_msg(ctf_alert, service,
+						"service_unix_sock() "
 						"failed, continuing\n");
-				ctf_msg(service, "need to reconnect or "
+				ctf_msg(ctf_alert, service,
+						"need to reconnect or "
 						"otherwise propagate "
 						"the error upward()\n");
 				continue;
 			}
 			if (!!(pollfds[k].revents & POLLHUP)) {
-				ctf_msg(service, "big trouble! lost "
+				ctf_msg(ctf_emergency, service,
+						"big trouble! lost "
 						"upstream socket "
 						"connection!\n");
 				goto exit_free_pollfds;
 			}
 		} else if (service_client_sock(state, &pollfds[k])) {
-			ctf_msg(service, "other socket (TCP?) ready\n");
+			ctf_msg(ctf_debug, service,
+					"other socket (TCP?) ready\n");
 			switch (errno) {
 			case EINTR:
 			case ERESTART:
 			case EWOULDBLOCK:
 				/* transient error; continue */
-				ctf_msg(service, "transient network "
+				ctf_msg(ctf_alert, service,
+						"transient network "
 						"error\n");
 				errno = 0;
 				break;
@@ -189,21 +200,25 @@ service_loop_core(struct ctf_state *state)
 				 * error has happened, so close the
 				 * connection, update state, reset errno.
 				 */
-				ctf_msg(service, "unrecoverable network "
+				ctf_msg(ctf_emergency, service,
+						"unrecoverable network "
 						"error\n");
 				service_client_destroy(state, pollfds[k].fd);
 				errno = 0;
 				break;
 			default:
-				ctf_msg(service, "service_client_sock() "
+				ctf_msg(ctf_alert, service,
+						"service_client_sock() "
 						"failed errno = %d\n", errno);
 				goto exit_free_pollfds;
 			}
 		} else {
-			ctf_msg(service, "fell through if chain, unclear\n");
+			ctf_msg(ctf_error, service,
+					"fell through if chain, unclear\n");
 		}
 	}
-	ctf_msg(service, "got past for () loop in service_loop_core()\n");
+	ctf_msg(ctf_debug, service,
+			"got past for () loop in service_loop_core()\n");
 	retval = RETVAL_SUCCESS;
 exit_free_pollfds:
 	free(pollfds);
@@ -219,7 +234,7 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 	if (conf->threaded_service)
 		return service_thread_spawn(conf, state) ? RETVAL_SUCCESS
 							 : RETVAL_FAILURE;
-	ctf_msg(service, "entered service_loop()\n");
+	ctf_msg(ctf_debug, service, "entered service_loop()\n");
 	for (;;) {
 		bool status;
 		enum relative_agency agency;
@@ -231,16 +246,17 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 			break;
 		}
 		if (g_queue_get_length(&state->unix_io.in_queue) > 0)
-			ctf_msg(service, "%d in queue\n",
+			ctf_msg(ctf_debug, service, "%d in queue\n",
 				g_queue_get_length(&state->unix_io.in_queue));
 		if (!io_queue_agency_get(&state->unix_io, mpn_trace_objects, &agency)) {
-			ctf_msg(service, "io_queue_agency_get() failed\n");
+			ctf_msg(ctf_alert, service, "io_queue_agency_get() failed\n");
 			retval = RETVAL_FAILURE;
 			break;
 		}
 		switch (agency) {
 		case agency_nobody:
-			ctf_msg(service, "about to service_issue_request()\n");
+			ctf_msg(ctf_debug, service,
+					"about to service_issue_request()\n");
 			status = service_issue_request(state);
 			break;
 		case agency_remote:
@@ -248,7 +264,8 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 			status = !usleep(10 * 1000);
 			break;
 		default:
-			ctf_msg(service, "unrecognized agency value %d\n",
+			ctf_msg(ctf_alert, service,
+					"unrecognized agency value %d\n",
 					(int)agency);
 			/* fall through */
 		case agency_local:
@@ -257,9 +274,11 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 		}
 		(void)!pthread_mutex_unlock(&state->state_lock);
 		if (!status) {
-			ctf_msg(service, "service_issue_request() failed\n");
+			ctf_msg(ctf_alert, service,
+					"service_issue_request() failed\n");
 			if (!--failure_count) {
-				ctf_msg(service, "too many failures, "
+				ctf_msg(ctf_critical, service,
+						"too many failures, "
 						"exiting\n");
 				retval = RETVAL_FAILURE;
 				break;
@@ -271,7 +290,8 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 			retval = RETVAL_FAILURE;
 			break;
 		}
-		ctf_msg(service, "about to service_loop_core()\n");
+		ctf_msg(ctf_debug, service,
+				"about to service_loop_core()\n");
 		retval = service_loop_core(state);
 		/*
 		 * This is to give other threads a chance to acquire the
@@ -284,16 +304,18 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 		 */
 		(void)!pthread_mutex_unlock(&state->state_lock);
 		if (retval != RETVAL_SUCCESS) {
-			ctf_msg(service, "service_loop_core() failed\n");
+			ctf_msg(ctf_alert, service,
+					"service_loop_core() failed\n");
 			if (!--failure_count) {
-				ctf_msg(service, "too many failures, "
+				ctf_msg(ctf_critical, service,
+						"too many failures, "
 						"exiting\n");
 				break;
 			}
 		}
 		(void)!sched_yield();
 	}
-	ctf_msg(service, "fell out of service_loop()\n");
+	ctf_msg(ctf_debug, service, "fell out of service_loop()\n");
 	/*
 	 * Always abnormally terminating is a sign that some sort of
 	 * control interface is needed.

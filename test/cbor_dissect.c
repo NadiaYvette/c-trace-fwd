@@ -23,56 +23,67 @@ main(void)
 	struct cbor_load_result result;
 
 	if (sizeof(sdu_buf) != 8) {
-		ctf_msg(cbor_dissect, "SDU header structure size %z "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"SDU header structure size %z "
 				     "unexpected\n", sizeof(sdu_buf));
 		return EXIT_FAILURE;
 	}
 	if (!!fstat(STDIN_FILENO, &stat_buf)) {
-		ctf_msg(cbor_dissect, "fstat(2) failed, errno = %d\n",
+		ctf_msg(ctf_alert, cbor_dissect,
+				"fstat(2) failed, errno = %d\n",
 				     errno);
 		return EXIT_FAILURE;
 	}
 	if (!(buf = calloc((size_t)1U << 8, (size_t)1U << 8))) {
-		ctf_msg(cbor_dissect, "calloc(3) failed, errno = %d\n",
+		ctf_msg(ctf_alert, cbor_dissect,
+				"calloc(3) failed, errno = %d\n",
 				errno);
 		return EXIT_FAILURE;
 	}
 	switch (stat_buf.st_mode & S_IFMT) {
 	case S_IFBLK:
-		ctf_msg(cbor_dissect, "fatal: block device unexpected "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"fatal: block device unexpected "
 				"as input file\n");
 		goto exit_free_buf;
 	case S_IFCHR:
-		ctf_msg(cbor_dissect, "fatal: character device "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"fatal: character device "
 				"unexpected as input file\n");
 		goto exit_free_buf;
 	case S_IFDIR:
-		ctf_msg(cbor_dissect, "fatal: directory unexpected as "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"fatal: directory unexpected as "
 				     "input file\n");
 		goto exit_free_buf;
 	case S_IFIFO:
-		ctf_msg(cbor_dissect, "FIFO unexpected as "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"FIFO unexpected as "
 				     "input file\n");
 		break;
 	case S_IFLNK:
-		ctf_msg(cbor_dissect, "symlink unexpected as "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"symlink unexpected as "
 				     "input file\n");
 		break;
 	case S_IFREG:
 		/* This is the expected file type. */
 		break;
 	case S_IFSOCK:
-		ctf_msg(cbor_dissect, "socket unexpected as "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"socket unexpected as "
 				     "input file\n");
 		break;
 	default:
-		ctf_msg(cbor_dissect, "fatal: undocumented input file "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"fatal: undocumented input file "
 				"type\n");
 		goto exit_free_buf;
 	}
 restart_loop_from_tell:
 	if ((cur_off = lseek(STDIN_FILENO, 0, SEEK_CUR)) < 0) {
-		ctf_msg(cbor_dissect, "tell failure, errno = %d\n", errno);
+		ctf_msg(ctf_alert, cbor_dissect,
+				"tell failure, errno = %d\n", errno);
 		goto exit_free_buf;
 	}
 restart_loop:
@@ -81,29 +92,34 @@ restart_loop:
 			/* This is the EOF condition. */
 			retval = EXIT_SUCCESS;
 		else
-			ctf_msg(cbor_dissect, "SDU header read() failure, "
+			ctf_msg(ctf_alert, cbor_dissect,
+					"SDU header read() failure, "
 					  "ret = %d, errno = %d\n",
 					  ret, errno);
 		goto exit_free_buf;
 	}
 	if (sdu_decode(sdu_buf, &sdu) != RETVAL_SUCCESS) {
-		ctf_msg(cbor_dissect, "SDU header sdu_decode() failure\n");
+		ctf_msg(ctf_alert, cbor_dissect,
+				"SDU header sdu_decode() failure\n");
 		goto exit_free_buf;
 	}
 	printf("SDU header at off=0x%jx\n", (intmax_t)cur_off);
 	sdu_print(&sdu);
 	if (sdu.sdu_len < sizeof(sdu_buf)) {
-		ctf_msg(cbor_dissect, "sdu_len < sizeof(struct sdu), "
+		ctf_msg(ctf_warning, cbor_dissect,
+				"sdu_len < sizeof(struct sdu), "
 				     "trying to keep going anyway\n");
 		if (0)
 			goto restart_loop_from_tell;
-		ctf_msg(cbor_dissect, "omitting recovery attempt; "
+		ctf_msg(ctf_warning, cbor_dissect,
+				"omitting recovery attempt; "
 				     "it may merely reflect a small datum\n");
 	}
 	/* The tell was done before the read. */
 	dst_off = cur_off + sdu.sdu_len;
 	if (dst_off > stat_buf.st_size) {
-		ctf_msg(cbor_dissect, "sdu_len runs past EOF, "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"sdu_len runs past EOF, "
 				"dst_off = 0x%jx, "
 				"st_size = 0x%jx\n",
 				(intmax_t)dst_off,
@@ -111,7 +127,8 @@ restart_loop:
 		goto exit_free_buf;
 	}
 	if ((ret = read(STDIN_FILENO, buf, sdu.sdu_len)) != (ssize_t)sdu.sdu_len || ret <= 0) {
-		ctf_msg(cbor_dissect, "read failure, errno = %d, "
+		ctf_msg(ctf_alert, cbor_dissect,
+				"read failure, errno = %d, "
 				      "ret = 0x%zx, "
 				      "sdu_len = "PRIx16"\n",
 				      errno, ret, sdu.sdu_len);
@@ -119,16 +136,19 @@ restart_loop:
 	}
 	cur_off = lseek(STDIN_FILENO, 0, SEEK_CUR);
 	if (cur_off != dst_off) {
-		ctf_msg(cbor_dissect, "short read or offset mis-match"
+		ctf_msg(ctf_alert, cbor_dissect,
+				"short read or offset mis-match"
 				     "/calculation, "
 				     "ret = 0x%zx, "
 				     "dst_off = 0x%jx, "
 				     "cur_off = 0x%jx\n",
 				     ret, (intmax_t)dst_off, (intmax_t)cur_off);
-		if (0) goto exit_free_buf;
+		if (0)
+			goto exit_free_buf;
 	}
 	if (!(item = cbor_load(buf, sdu.sdu_len, &result))) {
-		ctf_msg(cbor_dissect, "cbor_load failure, errno = %d\n",
+		ctf_msg(ctf_alert, cbor_dissect,
+				"cbor_load failure, errno = %d\n",
 				      errno);
 		goto exit_free_buf;
 	}

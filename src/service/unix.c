@@ -24,7 +24,7 @@ service_unix_sock_send_done(struct ctf_state *state, int fd)
 		},
 	};
 	if (service_send_tof(state, &done_msg, fd) != RETVAL_SUCCESS) {
-		ctf_msg(unix, "service_send_tof() failed\n");
+		ctf_msg(ctf_alert, unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
@@ -46,7 +46,7 @@ service_unix_sock_send_empty_reply(struct ctf_state *state, int fd)
 		},
 	};
 	if (service_send_tof(state, &reply_msg, fd) != RETVAL_SUCCESS) {
-		ctf_msg(unix, "service_send_tof() failed\n");
+		ctf_msg(ctf_alert, unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
@@ -70,10 +70,10 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 	enum svc_req_result svc_req_ret;
 	enum relative_agency agency;
 
-	ctf_msg(unix, "calling to_queue_answer_request()\n");
+	ctf_msg(ctf_debug, unix, "calling to_queue_answer_request()\n");
 	switch (svc_req_ret = to_queue_answer_request(&state->unix_io.in_queue, &request, &msg)) {
 	case svc_req_success:
-		ctf_msg(unix, "svc_req_success\n");
+		ctf_msg(ctf_debug, unix, "svc_req_success\n");
 		/* send */
 		if (service_send_tof(state, msg, fd) != RETVAL_SUCCESS) {
 			retval = svc_progress_fail;
@@ -88,7 +88,7 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 			break;
 		}
 		if (agency == relative_agency_we_have) {
-			ctf_msg(unix, "sending done\n");
+			ctf_msg(ctf_debug, unix, "sending done\n");
 			(void)!service_unix_sock_send_done(state, fd);
 		}
 		/* change agency to remote */
@@ -99,7 +99,7 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 		break;
 	case svc_req_must_block:
 	case svc_req_none_available:
-		ctf_msg(unix, "svc_req_%s\n",
+		ctf_msg(ctf_debug, unix, "svc_req_%s\n",
 			svc_req_ret == svc_req_must_block ? "must_block"
 							: "none_available");
 		retval = svc_progress_none;
@@ -108,16 +108,17 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 			break;
 		if (agency != relative_agency_we_have)
 			break;
-		ctf_msg(unix, "sending done\n");
+		ctf_msg(ctf_debug, unix, "sending done\n");
 		if (service_unix_sock_send_done(state, fd) == svc_progress_fail)
 			retval = svc_progress_fail;
 		break;
 	case svc_req_failure:
 	default:
 		if (svc_req_ret == svc_req_failure)
-			ctf_msg(unix, "svc_req_failure\n");
+			ctf_msg(ctf_alert, unix, "svc_req_failure\n");
 		else
-			ctf_msg(unix, "svc_req_ret value unknown\n");
+			ctf_msg(ctf_alert, unix,
+					"svc_req_ret value unknown\n");
 		retval = svc_progress_fail;
 		break;
 	}
@@ -135,40 +136,43 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 	char *ret_buf;
 	enum mini_protocol_num mpn;
 
-	ctf_msg(unix, "enter\n");
+	ctf_msg(ctf_debug, unix, "enter\n");
 	/* receive */
 	/* change agency to local */
-	ctf_msg(unix, "about to service_recv_tof()\n");
+	ctf_msg(ctf_debug, unix, "about to service_recv_tof()\n");
 	if (!(cpsdr = service_recv_tof(state, fd))) {
-		ctf_msg(service_unix, "service_recv_tof() failed!\n");
+		ctf_msg(ctf_alert, service_unix,
+				"service_recv_tof() failed!\n");
 		goto out_msg;
 	}
-	ctf_msg(unix, "back from service_recv_tof()\n");
+	ctf_msg(ctf_debug, unix, "back from service_recv_tof()\n");
 	/* state->agency = agency_local; */
 	mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num;
 	ctf_set_agency(unix, &state->unix_io, relative_agency_we_have, mpn);
-	ctf_msg(unix, "about to check miniprotocol nr\n");
+	ctf_msg(ctf_debug, unix, "about to check miniprotocol nr\n");
 	switch (mpn) {
 	case mpn_trace_objects:
 		tof = (struct tof_msg *)cpsdr->proto_stk_decode_result_body;
 		/* It could be break, but the label's name is descriptive. */
 		goto tof_msg_type_switch;
 	case mpn_EKG_metrics:
-		ctf_msg(unix, "got metrics msg sending empty reply\n");
+		ctf_msg(ctf_debug, unix,
+				"got metrics msg sending empty reply\n");
 		if (!(ret_buf = ctf_proto_stk_encode(mpn_EKG_metrics, NULL, &ret_sz)))
 			goto out_free_cpsdr;
 		write(fd, ret_buf, ret_sz);
 		retval = svc_progress_recv;
 		goto out_free_cpsdr;
 	case mpn_data_points:
-		ctf_msg(unix, "got datapoint msg sending empty reply\n");
+		ctf_msg(ctf_debug, unix,
+				"got datapoint msg sending empty reply\n");
 		if (!(ret_buf = ctf_proto_stk_encode(mpn_data_points, NULL, &ret_sz)))
 			goto out_free_cpsdr;
 		write(fd, ret_buf, ret_sz);
 		retval = svc_progress_recv;
 		goto out_free_cpsdr;
 	default:
-		ctf_msg(client, "bad sdu_proto_num %d\n",
+		ctf_msg(ctf_alert, client, "bad sdu_proto_num %d\n",
 				cpsdr->sdu.sdu_proto_un.sdu_proto_num);
 		/* Deliberate fall-through; more properly, the other
 		 * cases are skipping over the log message from the
@@ -180,48 +184,52 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 			ctf_cbor_decref(unix, &cpsdr->proto_stk_decode_result_body->undecoded);
 		goto out_free_cpsdr;
 	}
-	ctf_msg(unix, "finished miniprotocol nr check\n");
+	ctf_msg(ctf_debug, unix, "finished miniprotocol nr check\n");
 tof_msg_type_switch:
-	ctf_msg(unix, "about to check ->tof_msg_type\n");
+	ctf_msg(ctf_debug, unix, "about to check ->tof_msg_type\n");
 	switch (tof->tof_msg_type) {
 	case tof_reply:
 		size_t nr_replies;
 
-		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
+		ctf_msg(ctf_debug, service_unix,
+				"tof_reply case about to_enqueue_multi()\n");
 		reply = &tof->tof_msg_body.reply;
 		nr_replies = reply->tof_nr_replies;
 		if (!to_queue_fillarray(&reply->tof_replies, &state->unix_io.in_queue, &nr_replies))
-			ctf_msg(service_unix, "to_queue_fillarray() failed\n");
+			ctf_msg(ctf_debug, service_unix,
+					"to_queue_fillarray() failed\n");
 		ctf_set_agency(state, &state->unix_io,
 				relative_agency_we_have, mpn_trace_objects);
 		break;
 	case tof_request:
-		ctf_msg(service_unix, "tof_request case to "
+		ctf_msg(ctf_debug, service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
 		ctf_set_agency(unix, &state->unix_io,
 				relative_agency_we_have, mpn_trace_objects);
 		state->unix_io.reply_pending = true;
 		break;
 	case tof_done:
-		ctf_msg(service_unix, "tof_done case no-op\n");
+		ctf_msg(ctf_debug, service_unix, "tof_done case no-op\n");
 		ctf_set_agency(unix, &state->unix_io,
 				relative_agency_we_have, mpn_trace_objects);
 		retval = svc_progress_recv;
 		break;
 	default:
-		ctf_msg(service_unix, "unhandled tof_msg_type %d\n",
+		ctf_msg(ctf_alert, service_unix,
+				"unhandled tof_msg_type %d\n",
 				      tof->tof_msg_type);
 		break;
 	}
-	ctf_msg(unix, "finished ->tof_msg_type check\n");
+	ctf_msg(ctf_debug, unix, "finished ->tof_msg_type check\n");
 out_free_cpsdr:
-	ctf_msg(unix, "at label out_free_cpsdr\n");
+	ctf_msg(ctf_debug, unix, "at label out_free_cpsdr\n");
 	cpsdr_free(cpsdr);
 out_msg:
-	ctf_msg(service_unix, "at out_msg label\n");
+	ctf_msg(ctf_alert, service_unix, "at out_msg label\n");
 	if (retval == svc_progress_fail)
-		ctf_msg(service_unix, "service_unix_sock_recv() failed!\n");
-	ctf_msg(unix, "service_unix_sock_recv(): return\n");
+		ctf_msg(ctf_alert, service_unix,
+				"service_unix_sock_recv() failed!\n");
+	ctf_msg(ctf_alert, unix, "service_unix_sock_recv(): return\n");
 	return retval;
 }
 
@@ -231,50 +239,54 @@ service_unix_sock(struct ctf_state *state, struct pollfd *pollfd)
 	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
 	enum relative_agency agency;
 
-	ctf_msg(unix, "service_unix_sock() enter\n");
-	ctf_msg(unix, "pollfd->revents = 0x%x\n", pollfd->revents);
+	ctf_msg(ctf_debug, unix, "service_unix_sock() enter\n");
+	ctf_msg(ctf_debug, unix, "pollfd->revents = 0x%x\n", pollfd->revents);
 	render_fd_flags(unix, pollfd->fd);
 	if (!io_queue_agency_get(&state->unix_io, mpn, &agency)) {
-		ctf_msg(unix, "io_queue_agency_get() failed\n");
+		ctf_msg(ctf_alert, unix, "io_queue_agency_get() failed\n");
 		return svc_progress_fail;
 	}
 	switch (agency) {
 	case relative_agency_nobody_has:
 		if (!!(pollfd->revents & POLLIN)) {
-			ctf_msg(unix, "agency_nobody "
+			ctf_msg(ctf_debug, unix, "agency_nobody "
 					"service_unix_sock_recv()\n");
 			return service_unix_sock_recv(state, pollfd->fd);
 		}
 		if (!!(pollfd->revents & POLLOUT)) {
-			ctf_msg(unix, "agency_nobody "
+			ctf_msg(ctf_debug, unix, "agency_nobody "
 					"service_unix_sock_send()\n");
 			return service_unix_sock_send_done(state, pollfd->fd);
 		}
 		if (!(pollfd->revents & (POLLIN|POLLOUT)))
-			ctf_msg(unix, "svc neither POLLIN|POLLOUT agency %s\n", relative_agency_string(agency));
-		ctf_msg(unix, "agency_nobody no events\n");
+			ctf_msg(ctf_debug, unix,
+					"svc neither POLLIN|POLLOUT "
+					"agency %s\n",
+					relative_agency_string(agency));
+		ctf_msg(ctf_debug, unix, "agency_nobody no events\n");
 		return svc_progress_none;
 	case relative_agency_we_have:
 		if (!!(pollfd->revents & POLLOUT)) {
-			ctf_msg(unix, "agency_local "
+			ctf_msg(ctf_debug, unix, "agency_local "
 					"service_unix_sock_send()\n");
 			if (!state->unix_io.reply_pending)
 				return service_unix_sock_send_empty_reply(state, pollfd->fd);
 			else
 				return service_unix_sock_send(state, pollfd->fd);
 		}
-		ctf_msg(unix, "agency_local no events\n");
+		ctf_msg(ctf_debug, unix, "agency_local no events\n");
 		return svc_progress_none;
 	case relative_agency_they_have:
 		if (!!(pollfd->revents & POLLIN)) {
-			ctf_msg(unix, "agency_remote "
+			ctf_msg(ctf_debug, unix, "agency_remote "
 					"service_unix_sock_recv()\n");
 			return service_unix_sock_recv(state, pollfd->fd);
 		}
-		ctf_msg(unix, "agency_remote no events\n");
+		ctf_msg(ctf_debug, unix, "agency_remote no events\n");
 		return svc_progress_none;
 	default:
-		ctf_msg(service, "unrecognized agency %d\n", agency);
+		ctf_msg(ctf_debug, service, "unrecognized agency %d\n",
+				agency);
 		return svc_progress_fail;
 	}
 }
@@ -287,9 +299,9 @@ service_unix_sock2(struct ctf_state *state)
 	struct tof_msg *tof;
 	struct tof_reply *reply;
 
-	ctf_msg(service_unix, "entered service_unix_sock()\n");
+	ctf_msg(ctf_debug, service_unix, "entered service_unix_sock()\n");
 	if (!(cpsdr = ctf_proto_stk_decode(state->unix_io.fd))) {
-		ctf_msg(service_unix, "tof decode failed!\n");
+		ctf_msg(ctf_alert, service_unix, "tof decode failed!\n");
 		goto out_free_cpsdr;
 	}
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
@@ -298,7 +310,7 @@ service_unix_sock2(struct ctf_state *state)
 		/* It could be break, but the label's name is descriptive. */
 		goto tof_msg_type_switch;
 	default:
-		ctf_msg(client, "bad sdu_proto_num %d\n",
+		ctf_msg(ctf_alert, client, "bad sdu_proto_num %d\n",
 				cpsdr->sdu.sdu_proto_un.sdu_proto_num);
 		/* Deliberate fall-through; more properly, the other
 		 * cases are skipping over the log message from the
@@ -318,30 +330,32 @@ tof_msg_type_switch:
 
 		reply = &tof->tof_msg_body.reply;
 		nr_replies = reply->tof_nr_replies;
-		ctf_msg(service_unix, "tof_reply case about to_enqueue_multi()\n");
+		ctf_msg(ctf_debug, service_unix,
+			"tof_reply case about to_enqueue_multi()\n");
 		if (!to_queue_fillarray(&reply->tof_replies, &state->unix_io.in_queue, &nr_replies))
-			ctf_msg(service_unix, "to_queue_fillarray() failed\n");
+			ctf_msg(ctf_alert, service_unix,
+					"to_queue_fillarray() failed\n");
 		break;
 	case tof_request:
 		struct tof_request *req = &tof->tof_msg_body.request;
 		struct tof_msg *reply_msg = NULL;
 		int ret;
 
-		ctf_msg(service_unix, "tof_request case to "
+		ctf_msg(ctf_debug, service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
 		switch (ret = to_queue_answer_request(&state->unix_io.in_queue, req, &reply_msg)) {
 		case svc_req_must_block:
-			ctf_msg(service_unix, "returning "
+			ctf_msg(ctf_debug, service_unix, "returning "
 					"svc_req_must_block\n");
 			retval = RETVAL_SUCCESS;
 			break;
 		case svc_req_none_available:
-			ctf_msg(service_unix, "returning "
+			ctf_msg(ctf_debug, service_unix, "returning "
 					"svc_req_none_available\n");
 			retval = RETVAL_SUCCESS;
 			break;
 		case svc_req_failure:
-			ctf_msg(service_unix, "returning "
+			ctf_msg(ctf_error, service_unix, "returning "
 					"svc_req_failure\n");
 			retval = RETVAL_FAILURE;
 			break;
@@ -351,7 +365,8 @@ tof_msg_type_switch:
 
 			if (!(msg_buf = ctf_proto_stk_encode(mpn_trace_objects, (union msg *)reply_msg, &msg_size))) {
 				/* trace_objects to transfer lost here */
-				ctf_msg(service_unix, "svc_req_failure"
+				ctf_msg(ctf_alert, service_unix,
+						"svc_req_failure"
 						"ctf_proto_stk_encode() "
 						"failed\n");
 				tof_free(reply_msg);
@@ -363,7 +378,8 @@ tof_msg_type_switch:
 				/* connection left in bad state, lost
 				 * trace_objects, leaked memory
 				 * could even be a short write */
-				ctf_msg(service_unix, "svc_req_failure"
+				ctf_msg(ctf_alert, service_unix,
+						"svc_req_failure"
 						"write() failed\n");
 				tof_free(reply_msg);
 				retval = RETVAL_FAILURE;
@@ -372,7 +388,8 @@ tof_msg_type_switch:
 			retval = RETVAL_SUCCESS;
 			break;
 		default:
-			ctf_msg(service_unix, "unrecognized "
+			ctf_msg(ctf_alert, service_unix,
+					"unrecognized "
 					"to_queue_answer_request() "
 					"return value %d!\n", ret);
 			tof_free(reply_msg);
@@ -381,18 +398,20 @@ tof_msg_type_switch:
 		}
 		break;
 	case tof_done:
-		ctf_msg(service_unix, "tof_done case no-op\n");
+		ctf_msg(ctf_debug, service_unix, "tof_done case no-op\n");
 		retval = RETVAL_SUCCESS;
 		break;
 	default:
-		ctf_msg(service_unix, "unhandled tof_msg_type %d\n",
+		ctf_msg(ctf_alert, service_unix,
+				"unhandled tof_msg_type %d\n",
 				      tof->tof_msg_type);
 		break;
 	}
 out_free_cpsdr:
 	cpsdr_free(cpsdr);
-	ctf_msg(service_unix, "reached out_free_cpsdr label\n");
+	ctf_msg(ctf_debug, service_unix, "reached out_free_cpsdr label\n");
 	if (!!retval)
-		ctf_msg(service_unix, "service_unix_core() failed!\n");
+		ctf_msg(ctf_alert, service_unix,
+				"service_unix_core() failed!\n");
 	return retval;
 }

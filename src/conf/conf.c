@@ -12,14 +12,14 @@ static int split_addrinfo(struct addrinfo **addrinfo, char *s)
 	int retval = RETVAL_FAILURE;
 
 	if (*addrinfo != NULL)
-		ctf_msg(conf, "addrinfo not NULL\n");
+		ctf_msg(ctf_alert, conf, "addrinfo not NULL\n");
 	token = strsep(&after_colon, ":");
 	if (getaddrinfo(token, after_colon, NULL /* hints */, addrinfo))
 		goto exit_failure;
 	retval = RETVAL_SUCCESS;
 	return retval;
 exit_failure:
-	ctf_msg(conf, "getaddrinfo failed on \"%s\"\n", s);
+	ctf_msg(ctf_error, conf, "getaddrinfo failed on \"%s\"\n", s);
 	free(*addrinfo);
 	*addrinfo = NULL;
 	return retval;
@@ -60,7 +60,7 @@ setup_conf(struct ctf_conf **conf, int argc, char *argv[])
 			size_t optarg_len = strlen(optarg) + 1; /* w/NUL */
 
 			if (!((*conf)->preload_queue = g_rc_box_dup(optarg_len, optarg))) {
-				ctf_msg(conf, "strcpy() failed\n");
+				ctf_msg(ctf_error, conf, "strcpy() failed\n");
 				goto exit_cleanup;
 			}
 			break;

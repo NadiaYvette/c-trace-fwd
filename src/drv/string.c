@@ -28,7 +28,8 @@ void ctf_string(void *ctx, cbor_data buf, uint64_t len)
 		return;
 	if (cbor_string_add_chunk(stack_top, chunk))
 		return;
-	ctf_msg(drv, "failed adding cbor bytestring chunk \"%s\"\n", buf);
+	ctf_msg(ctf_error, drv, "failed adding cbor "
+				"bytestring chunk \"%s\"\n", buf);
 	ctf_cbor_decref(string, &chunk);
 }
 
@@ -57,6 +58,7 @@ void ctf_byte_string(void *ctx, cbor_data buf, uint64_t len)
 		return;
 	if (cbor_bytestring_add_chunk(stack_top, chunk))
 		return;
-	ctf_msg(drv, "failed adding cbor bytestring chunk \"%s\"\n", buf);
+	ctf_msg(ctf_error, drv, "failed adding cbor "
+				"bytestring chunk \"%s\"\n", buf);
 	ctf_cbor_decref(string, &chunk);
 }

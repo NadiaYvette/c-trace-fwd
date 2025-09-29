@@ -19,15 +19,16 @@ service_recv_tof(struct ctf_state *state, int fd)
 {
 	struct ctf_proto_stk_decode_result *cpsdr = NULL;
 
-	ctf_msg(client, "enter\n");
-	ctf_msg(client, "about to ctf_proto_stk_decode()\n");
+	ctf_msg(ctf_debug, client, "enter\n");
+	ctf_msg(ctf_debug, client, "about to ctf_proto_stk_decode()\n");
 	if (!(cpsdr = ctf_proto_stk_decode(fd))) {
-		ctf_msg(client, "ctf_proto_stk_decode() failed so "
+		ctf_msg(ctf_alert, client,
+				"ctf_proto_stk_decode() failed so "
 				"service_recv_tof() failed\n");
 		return NULL;
 	}
-	ctf_msg(client, "got past ctf_proto_stk_decode()\n");
-	ctf_msg(client, "return %p\n", cpsdr);
+	ctf_msg(ctf_debug, client, "got past ctf_proto_stk_decode()\n");
+	ctf_msg(ctf_debug, client, "return %p\n", cpsdr);
 	return cpsdr;
 }
 
@@ -104,7 +105,7 @@ service_client_sock(struct ctf_state *state, struct pollfd *pollfd)
 		/* It could be break, but the label's name is descriptive. */
 		goto tof_msg_type_switch;
 	default:
-		ctf_msg(client, "bad sdu_proto_num %d\n",
+		ctf_msg(ctf_alert, client, "bad sdu_proto_num %d\n",
 				cpsdr->sdu.sdu_proto_un.sdu_proto_num);
 		/* Deliberate fall-through; more properly, the other
 		 * cases are skipping over the log message from the
@@ -137,7 +138,8 @@ tof_msg_type_switch:
 		tof_free(tof_reply_msg);
 		break;
 	default:
-		ctf_msg(client, "bad tof_msg_type %d\n", tof->tof_msg_type);
+		ctf_msg(ctf_alert, client, "bad tof_msg_type %d\n",
+				tof->tof_msg_type);
 		goto out_free_tof;
 	}
 out_free_cpsdr:

@@ -129,12 +129,13 @@ send_done(int fd)
 			},
 		},
 	};
-	ctf_msg(empty_loop, "entered send_done()\n");
+	ctf_msg(ctf_debug, empty_loop, "entered send_done()\n");
 	if (send_tof(&done_msg, fd) != RETVAL_SUCCESS) {
-		ctf_msg(unix, "service_send_tof() failed\n");
+		ctf_msg(ctf_alert, unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
-	ctf_msg(empty_loop, "successful return from send_done()\n");
+	ctf_msg(ctf_debug, empty_loop,
+			"successful return from send_done()\n");
 	return svc_progress_send;
 }
 
@@ -144,7 +145,8 @@ recv_tof(int fd)
 	struct ctf_proto_stk_decode_result *cpsdr = NULL;
 
 	if (!(cpsdr = ctf_proto_stk_decode(fd))) {
-		ctf_msg(empty_loop, "ctf_proto_stk_decode() failed\n");
+		ctf_msg(ctf_alert, empty_loop,
+				"ctf_proto_stk_decode() failed\n");
 		return NULL;
 	}
 	return cpsdr;
@@ -210,17 +212,19 @@ redo_handshake:
 		return false;
 loop:
 	++loop_ctr;
-	ctf_msg(empty_loop, "entering loop %jd agency = %s\n",
+	ctf_msg(ctf_debug, empty_loop, "entering loop %jd agency = %s\n",
 			loop_ctr, relative_agency_string(agency.__agency));
 	switch (agency.__agency) {
 	case relative_agency_we_have:
 	case relative_agency_nobody_has:
 		if (!is_reply_pending) {
-			ctf_msg(empty_loop, "%s, no pending reply\n",
+			ctf_msg(ctf_debug, empty_loop,
+				"%s, no pending reply\n",
 				relative_agency_string(agency.__agency));
 			/* if busy, receiving done errors */
 			if (agency.__agency == relative_agency_nobody_has) {
-				ctf_msg(empty_loop, "sending tof_done %s\n",
+				ctf_msg(ctf_debug, empty_loop,
+					"sending tof_done %s\n",
 					relative_agency_string(agency.__agency));
 				if (send_done(fd) == svc_progress_fail)
 					goto out;
@@ -236,7 +240,8 @@ loop:
 				agency.__agency = relative_agency_they_have;
 			}
 		} else /* is_reply_pending == true */ {
-			ctf_msg(empty_loop, "%s, reply pending, "
+			ctf_msg(ctf_debug, empty_loop,
+					"%s, reply pending, "
 					"sending empty reply\n",
 				relative_agency_string(agency.__agency));
 			is_reply_pending = false;
@@ -248,14 +253,16 @@ loop:
 	case relative_agency_they_have:
 		struct tof_msg *tof;
 
-		ctf_msg(empty_loop, "remote agency, doing recv()\n");
+		ctf_msg(ctf_debug, empty_loop,
+				"remote agency, doing recv()\n");
 		(void)!fd_wait_readable(fd);
 		if (!(cpsdr = recv_tof(fd))) {
-			ctf_msg(empty_loop, "recv_tof() failed\n");
+			ctf_msg(ctf_alert, empty_loop,
+					"recv_tof() failed\n");
 			goto out;
 		}
 		if (cpsdr->load_result.error.code != CBOR_ERR_NONE) {
-			ctf_msg(empty_loop, "got error!\n");
+			ctf_msg(ctf_alert, empty_loop, "got error!\n");
 			goto out;
 		}
 		mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num;
@@ -264,17 +271,22 @@ loop:
 				= &cpsdr->proto_stk_decode_result_body->handshake_msg;
 			if (mpn == mpn_handshake) {
 				if (!handshake)
-					ctf_msg(empty_loop, "NULL handshake?\n");
+					ctf_msg(ctf_alert, empty_loop,
+						"NULL handshake?\n");
 				else
-					ctf_msg(empty_loop, "unexpected handshake type %s\n",
+					ctf_msg(ctf_alert, empty_loop,
+						"unexpected handshake "
+						"type %s\n",
 						handshake_string(handshake->handshake_type));
 				goto redo_handshake;
 			}
 			if (MPN_VALID(mpn))
-				ctf_msg(empty_loop, "sdu_proto_num = %s\n",
+				ctf_msg(ctf_debug, empty_loop,
+					"sdu_proto_num = %s\n",
 					mini_protocol_string(mpn));
 			else
-				ctf_msg(empty_loop, "sdu_proto_num = %d\n",
+				ctf_msg(ctf_alert, empty_loop,
+					"sdu_proto_num = %d\n",
 					(int)mpn);
 			goto release_cpsdr;
 		}
@@ -285,7 +297,7 @@ loop:
 			is_reply_pending = true;
 			agency.__agency = relative_agency_we_have;
 			if (tof->tof_msg_body.request.tof_blocking)
-				ctf_msg(empty_loop,
+				ctf_msg(ctf_alert, empty_loop,
 					"error! blocking request!\n");
 		}
 		tof_free(tof);
@@ -295,7 +307,8 @@ loop:
 		goto loop;
 	default:
 		mpn = (enum mini_protocol_num)(-1);
-		ctf_msg(empty_loop, "unrecognized agency %d, polling\n",
+		ctf_msg(ctf_alert, empty_loop,
+				"unrecognized agency %d, polling\n",
 				(int)agency.__agency);
 		(void)!fd_wait_readable(fd);
 		/* it's unclear what to set the agency to, if anything */
