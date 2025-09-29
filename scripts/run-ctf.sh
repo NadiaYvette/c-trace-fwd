@@ -21,4 +21,5 @@ exec env LD_PRELOAD=./obj/lib/libc_trace_fwd.so \
 			-f ${SOCK_FILE} \
 			-q ./logs/handshake.log.007.A \
 			-t \
-			-u 127.0.0.1:9001
+			-u 127.0.0.1:9001 \
+			-v 0

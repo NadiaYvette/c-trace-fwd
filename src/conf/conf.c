@@ -51,7 +51,7 @@ setup_conf(struct ctf_conf **conf, int argc, char *argv[])
 
 	if (!(*conf = g_rc_box_new0(struct ctf_conf)))
 		goto exit_failure;
-	while ((opt = getopt(argc, argv, "f:q:tu:")) != -1) {
+	while ((opt = getopt(argc, argv, "f:q:tu:v:")) != -1) {
 		switch (opt) {
 		case 'f':
 			copy_optarg(&(*conf)->unix_sock, optarg);
@@ -70,6 +70,9 @@ setup_conf(struct ctf_conf **conf, int argc, char *argv[])
 		case 'u':
 			if (split_addrinfo(&(*conf)->ux_addr, optarg))
 				goto exit_cleanup;
+			break;
+		case 'v':
+			ctf_severity_init(optarg);
 			break;
 		default:
 			fprintf(stderr, "c_trace_fwd: unrecognized "
