@@ -223,7 +223,6 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 	for (;;) {
 		bool status;
 		enum relative_agency agency;
-		enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
 		/* The request-issuing half of the service loop.
 		 * We always keep requests in flight.
 		 */
@@ -234,7 +233,7 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 		if (g_queue_get_length(&state->unix_io.in_queue) > 0)
 			ctf_msg(service, "%d in queue\n",
 				g_queue_get_length(&state->unix_io.in_queue));
-		if (!io_queue_agency_get(&state->unix_io, mpn, &agency)) {
+		if (!io_queue_agency_get(&state->unix_io, mpn_trace_objects, &agency)) {
 			ctf_msg(service, "io_queue_agency_get() failed\n");
 			retval = RETVAL_FAILURE;
 			break;

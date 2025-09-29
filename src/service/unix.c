@@ -23,14 +23,13 @@ service_unix_sock_send_done(struct ctf_state *state, int fd)
 			},
 		},
 	};
-	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
-
 	if (service_send_tof(state, &done_msg, fd) != RETVAL_SUCCESS) {
 		ctf_msg(unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
-	ctf_set_agency(unix, &state->unix_io, relative_agency_they_have, mpn);
+	ctf_set_agency(unix, &state->unix_io, relative_agency_they_have,
+			mpn_trace_objects);
 	return svc_progress_send;
 }
 
@@ -46,14 +45,13 @@ service_unix_sock_send_empty_reply(struct ctf_state *state, int fd)
 			},
 		},
 	};
-	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
-
 	if (service_send_tof(state, &reply_msg, fd) != RETVAL_SUCCESS) {
 		ctf_msg(unix, "service_send_tof() failed\n");
 		return svc_progress_fail;
 	}
 	/* state->agency = agency_remote; */
-	ctf_set_agency(unix, &state->unix_io, relative_agency_they_have, mpn);
+	ctf_set_agency(unix, &state->unix_io, relative_agency_they_have,
+			mpn_trace_objects);
 	state->unix_io.reply_pending = false;
 	return svc_progress_send;
 }
@@ -70,7 +68,6 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 	struct tof_msg *msg = NULL;
 	enum svc_result retval;
 	enum svc_req_result svc_req_ret;
-	enum mini_protocol_num mpn = (enum mini_protocol_num)(-1);
 	enum relative_agency agency;
 
 	ctf_msg(unix, "calling to_queue_answer_request()\n");
@@ -96,7 +93,9 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 		}
 		/* change agency to remote */
 		/* state->agency = agency_remote; */
-		ctf_set_agency(unix, &state->unix_io, relative_agency_they_have, mpn);
+		ctf_set_agency(unix, &state->unix_io,
+				relative_agency_they_have,
+				mpn_trace_objects);
 		break;
 	case svc_req_must_block:
 	case svc_req_none_available:
@@ -104,7 +103,8 @@ service_unix_sock_send(struct ctf_state *state, int fd)
 			svc_req_ret == svc_req_must_block ? "must_block"
 							: "none_available");
 		retval = svc_progress_none;
-		if (!io_queue_agency_get(&state->unix_io, mpn, &agency))
+		if (!io_queue_agency_get(&state->unix_io,
+					mpn_trace_objects, &agency))
 			break;
 		if (agency != relative_agency_we_have)
 			break;
@@ -162,7 +162,7 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 		goto out_free_cpsdr;
 	case mpn_data_points:
 		ctf_msg(unix, "got datapoint msg sending empty reply\n");
-		if (!(ret_buf = ctf_proto_stk_encode(mpn_EKG_metrics, NULL, &ret_sz)))
+		if (!(ret_buf = ctf_proto_stk_encode(mpn_data_points, NULL, &ret_sz)))
 			goto out_free_cpsdr;
 		write(fd, ret_buf, ret_sz);
 		retval = svc_progress_recv;
@@ -199,13 +199,13 @@ tof_msg_type_switch:
 		ctf_msg(service_unix, "tof_request case to "
 				"to_queue_answer_request()\n");
 		ctf_set_agency(unix, &state->unix_io,
-				relative_agency_we_have, mpn);
+				relative_agency_we_have, mpn_trace_objects);
 		state->unix_io.reply_pending = true;
 		break;
 	case tof_done:
 		ctf_msg(service_unix, "tof_done case no-op\n");
 		ctf_set_agency(unix, &state->unix_io,
-				relative_agency_we_have, mpn);
+				relative_agency_we_have, mpn_trace_objects);
 		retval = svc_progress_recv;
 		break;
 	default:
