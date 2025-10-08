@@ -46,7 +46,7 @@ service_send_tof(struct ctf_state *state, struct tof_msg *tof, int fd)
 	cur_buf = buf;
 	cur_sz = sz;
 retry_send:
-	ret_sz = send(fd, cur_buf, cur_sz, MSG_CONFIRM | MSG_NOSIGNAL);
+	ret_sz = write(fd, cur_buf, cur_sz);
 	if (ret_sz == (ssize_t)cur_sz)
 		retval = RETVAL_SUCCESS;
 	else if (!ret_sz && !errno) { /* EOF */

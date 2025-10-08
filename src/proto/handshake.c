@@ -637,7 +637,7 @@ handshake_xmit(int fd)
 	unsigned char *sdu_buf, *buf = NULL;
 	size_t buf_sz, sdu_buf_sz, send_len;
 	ssize_t reply_len, send_ret;
-	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
+	int retval = RETVAL_FAILURE;
 	struct sigaction old_sigact, new_sigact;
 	struct sdu sdu, reply_sdu;
 	struct cbor_load_result cbor_load_result;
@@ -720,13 +720,13 @@ handshake_xmit(int fd)
 	}
 	send_len = buf_sz + 2*sizeof(uint32_t);
 	(void)!poll(&pollfd, 1, -1);
-	if ((send_ret = send(fd, sdu_buf, send_len, flg)) <= 0 && errno != 0) {
+	if ((send_ret = write(fd, sdu_buf, send_len)) <= 0 && errno != 0) {
 		ctf_msg(ctf_alert, handshake,
 				"write error in handshake\n");
 		ctf_msg(ctf_debug, handshake,
-				"send(%d, %p, %zd, 0x%x) = %zd, "
+				"write(%d, %p, %zd) = %zd, "
 				"errno=%d (%s)\n",
-				fd, sdu_buf, send_len, flg,
+				fd, sdu_buf, send_len,
 				send_ret, errno, strerror(errno));
 		goto out_free_buf;
 	}

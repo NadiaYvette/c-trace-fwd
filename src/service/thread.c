@@ -15,7 +15,7 @@ service_unix_sock_thread_data_points_reply(struct ctf_conf *conf, struct ctf_sta
 
 	if (!(buf = datapoint_encode_empty_resp(&size)))
 		return false;
-	if ((send_ret = send(state->unix_io.fd, buf, size, MSG_NOSIGNAL)) < 0)
+	if ((send_ret = write(state->unix_io.fd, buf, size)) < 0)
 		return false;
 	return send_ret == (ssize_t)size;
 }
@@ -24,6 +24,8 @@ static bool
 service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
 	(void)!!conf;
+	(void)!!cpsdr;
+	ctf_msg(ctf_debug, thread, "entering\n");
 	switch (state->unix_io.agencies[mpn_data_points]) {
 	case agency_local:
 	case agency_nobody:
@@ -44,7 +46,7 @@ service_unix_sock_thread_metrics_reply(struct ctf_conf *conf, struct ctf_state *
 
 	if (!(buf = metrics_encode_empty_resp(&size)))
 		return false;
-	if ((send_ret = send(state->unix_io.fd, buf, size, MSG_NOSIGNAL)) < 0)
+	if ((send_ret = write(state->unix_io.fd, buf, size)) < 0)
 		return false;
 	return send_ret == (ssize_t)size;
 }
@@ -54,6 +56,7 @@ service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state,
 {
 	(void)!!conf;
 	(void)!!cpsdr;
+	ctf_msg(ctf_debug, thread, "entering\n");
 	switch (state->unix_io.agencies[mpn_EKG_metrics]) {
 	case agency_local:
 	case agency_nobody:

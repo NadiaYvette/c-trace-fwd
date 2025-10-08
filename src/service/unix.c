@@ -294,7 +294,7 @@ service_unix_sock(struct ctf_state *state, struct pollfd *pollfd)
 int
 service_unix_sock2(struct ctf_state *state)
 {
-	int retval = RETVAL_FAILURE, flg = MSG_CONFIRM | MSG_NOSIGNAL;
+	int retval = RETVAL_FAILURE;
 	struct ctf_proto_stk_decode_result *cpsdr;
 	struct tof_msg *tof;
 	struct tof_reply *reply;
@@ -373,7 +373,7 @@ tof_msg_type_switch:
 				retval = RETVAL_FAILURE;
 				break;
 			}
-			if (send(state->unix_io.fd, msg_buf, msg_size, flg)
+			if (write(state->unix_io.fd, msg_buf, msg_size)
 						!= (ssize_t)msg_size) {
 				/* connection left in bad state, lost
 				 * trace_objects, leaked memory
