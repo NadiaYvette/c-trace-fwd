@@ -106,7 +106,7 @@ service_unix_reply_tof(struct ctf_conf *conf, struct ctf_state *state, struct ct
 		return false;
 	tof_msg = &cpsdr->proto_stk_decode_result_body->tof_msg;
 	request = &tof_msg->tof_msg_body.request;
-	if (to_queue_answer_request(&state->unix_io.out_queue, request, &tof_msg) != svc_req_success)
+	if (to_queue_answer_request(&state->unix_io.out_queue, request, &reply_msg) != svc_req_success)
 		return false;
 	return service_send_tof(state, reply_msg, state->unix_io.fd) == RETVAL_SUCCESS;
 }
