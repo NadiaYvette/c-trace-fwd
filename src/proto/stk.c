@@ -72,6 +72,12 @@ ctf_proto_stk_decode(int fd)
 		} else if (!ret_sz) {
 			ctf_msg(ctf_debug, stk,
 					"zero case retry %u\n", retries);
+			if (errno != EAGAIN && errno != EWOULDBLOCK) {
+				ctf_msg(ctf_alert, stk,
+					"read() failure (%d): %s\n",
+					errno, strerror(errno));
+				goto out_free_cpsdr;
+			}
 			if (++retries >= retry_limit) {
 				ctf_msg(ctf_alert, stk,
 						"retry limit reached!\n");
