@@ -1,4 +1,6 @@
+#include <pthread.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -6,23 +8,32 @@
 #include "ctf_util.h"
 #include "service.h"
 
+static struct ctf_thread_arg ctf_data = {
+	.conf = NULL,
+	.state = NULL,
+};
+
+static void
+teardown_ctf_data(void)
+{
+	teardown_state(&ctf_data.state);
+	teardown_conf(&ctf_data.conf);
+}
+
 int main(int argc, char *argv[])
 {
-	int exit_status = EXIT_FAILURE;
-	struct ctf_conf *conf = NULL;
-	struct ctf_state *state = NULL;
-
-	if (setup_conf(&conf, argc, argv))
+	if (setup_conf(&ctf_data.conf, argc, argv))
 		goto exit_failure;
-	if (setup_state(&state, conf))
+	if (setup_state(&ctf_data.state, ctf_data.conf))
 		goto exit_teardown_conf;
-	if (service_loop(state, conf))
+	if (service_loop(ctf_data.state, ctf_data.conf))
 		goto exit_teardown_state;
-	exit_status = EXIT_SUCCESS;
+	if (!atexit(teardown_ctf_data))
+		pthread_exit(NULL);
 exit_teardown_state:
-	teardown_state(&state);
+	teardown_state(&ctf_data.state);
 exit_teardown_conf:
-	teardown_conf(&conf);
+	teardown_conf(&ctf_data.conf);
 exit_failure:
-	exit(exit_status);
+	exit(EXIT_FAILURE);
 }

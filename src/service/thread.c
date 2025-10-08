@@ -6,67 +6,8 @@
 #include "sdu.h"
 #include "service.h"
 
-struct ctf_thread_arg {
-	struct ctf_conf *conf;
-	struct ctf_state *state;
-};
-
 static bool
-service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
-{
-	(void)!!conf;
-	switch (state->unix_io.agencies[mpn_data_points]) {
-	case agency_local:
-		/* demanded replies sent elsewhere */
-		ctf_msg(ctf_alert, thread, "unexpected agency\n");
-		break;
-	case agency_remote:
-	case agency_nobody:
-	default:
-		/* never make requests */
-		break;
-	}
-	return true;
-}
-
-static bool
-service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
-{
-	(void)!!conf;
-	switch (state->unix_io.agencies[mpn_EKG_metrics]) {
-	case agency_local:
-		/* demanded replies sent elsewhere */
-		ctf_msg(ctf_alert, thread, "unexpected agency\n");
-		break;
-	case agency_remote:
-	case agency_nobody:
-	default:
-		/* never make requests */
-		break;
-	}
-	return true;
-}
-
-static bool
-service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
-{
-	(void)!!conf;
-	switch (state->unix_io.agencies[mpn_trace_objects]) {
-	case agency_local:
-		/* demanded replies sent elsewhere */
-		ctf_msg(ctf_alert, thread, "unexpected agency\n");
-		break;
-	case agency_remote:
-	case agency_nobody:
-	default:
-		/* relaying user socket data goes here */
-		break;
-	}
-	return true;
-}
-
-static bool
-service_unix_reply_datapoint(struct ctf_conf *conf, struct ctf_state *state)
+service_unix_sock_thread_data_points_reply(struct ctf_conf *conf, struct ctf_state *state)
 {
 	char *buf;
 	size_t size;
@@ -80,7 +21,22 @@ service_unix_reply_datapoint(struct ctf_conf *conf, struct ctf_state *state)
 }
 
 static bool
-service_unix_reply_metric(struct ctf_conf *conf, struct ctf_state *state)
+service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
+{
+	(void)!!conf;
+	switch (state->unix_io.agencies[mpn_data_points]) {
+	case agency_local:
+	case agency_nobody:
+		return service_unix_sock_thread_data_points_reply(conf, state);
+	case agency_remote:
+	default:
+		/* never make datapoint requests */
+		return true;
+	}
+}
+
+static bool
+service_unix_sock_thread_metrics_reply(struct ctf_conf *conf, struct ctf_state *state)
 {
 	char *buf;
 	size_t size;
@@ -94,46 +50,65 @@ service_unix_reply_metric(struct ctf_conf *conf, struct ctf_state *state)
 }
 
 static bool
-service_unix_reply_tof(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
+service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
-	struct tof_msg *reply_msg = NULL;
-	struct tof_msg *tof_msg;
-	struct tof_request *request;
-
-	if (!cpsdr)
-		return false;
-	if (!cpsdr->proto_stk_decode_result_body)
-		return false;
-	tof_msg = &cpsdr->proto_stk_decode_result_body->tof_msg;
-	request = &tof_msg->tof_msg_body.request;
-	if (to_queue_answer_request(&state->unix_io.out_queue, request, &reply_msg) != svc_req_success)
-		return false;
-	return service_send_tof(state, reply_msg, state->unix_io.fd) == RETVAL_SUCCESS;
+	(void)!!conf;
+	(void)!!cpsdr;
+	switch (state->unix_io.agencies[mpn_EKG_metrics]) {
+	case agency_local:
+	case agency_nobody:
+		return service_unix_sock_thread_metrics_reply(conf, state);
+	case agency_remote:
+	default:
+		/* never make requests */
+		break;
+	}
+	return true;
 }
 
 static bool
-service_unix_sock_send_local(struct ctf_conf *conf, struct ctf_state *state)
+service_unix_sock_thread_trace_objects_local(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
 {
-	enum mini_protocol_num mpn;
+	/* if we have or can take initiative, send a request */
+	struct tof_msg request_msg = {
+		.tof_msg_type = tof_request,
+		.tof_msg_body = {
+			.request = {
+				.tof_blocking = true,
+				.tof_nr_obj = 100,
+			},
+		},
+	};
+	struct tof_msg *incoming_msg
+		= (struct tof_msg *)cpsdr->proto_stk_decode_result_body;
 
-	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
-		if (!MPN_VALID(mpn))
-			continue;
-		if (state->unix_io.agencies[mpn - MPN_MIN] == relative_agency_we_have)
-			goto out_send_local;
-	}
-	return false;
-out_send_local:
-	switch (mpn) {
-	case mpn_data_points:
-		return service_unix_reply_datapoint(conf, state);
-	case mpn_EKG_metrics:
-		return service_unix_reply_metric(conf, state);
-	case mpn_trace_objects:
-		return service_unix_reply_tof(conf, state, (struct ctf_proto_stk_decode_result *)NULL);
+	switch (incoming_msg->tof_msg_type) {
+	case tof_request:
+		return true;
 	default:
-		return false;
+		ctf_msg(ctf_alert, thread, "unexpected tof_msg_type\n");
+	case tof_done:
+	case tof_reply:
+		return service_send_tof(state, &request_msg, state->unix_io.fd) == RETVAL_SUCCESS;
 	}
+}
+
+static bool
+service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *state, struct ctf_proto_stk_decode_result *cpsdr)
+{
+	(void)!!conf;
+	switch (state->unix_io.agencies[mpn_trace_objects]) {
+	case agency_local:
+	case agency_nobody:
+		return service_unix_sock_thread_trace_objects_local(conf, state, cpsdr);
+	case agency_remote:
+		break;
+	default:
+		/* relaying user socket data goes here */
+		ctf_msg(ctf_alert, thread, "unexpected agency\n");
+		break;
+	}
+	return true;
 }
 
 /*
@@ -198,10 +173,7 @@ service_unix_sock_thread(void *pthread_arg)
 					"locking state failed!\n");
 			break;
 		}
-		if (io_queue_agency_all_nonlocal(&state->unix_io))
-			ret = service_unix_sock_thread_core(conf, state);
-		else
-			ret = service_unix_sock_send_local(conf, state);
+		ret = service_unix_sock_thread_core(conf, state);
 		if (!!pthread_mutex_unlock(&state->state_lock)) {
 			ctf_msg(ctf_alert, thread,
 					"unlocking state failed!\n");
@@ -231,20 +203,21 @@ service_thread_spawn(struct ctf_conf *conf,
 {
 	pthread_t unix_thread, user_thread;
 	pthread_attr_t attr;
-	struct ctf_thread_arg arg = {
-		.conf = conf,
-		.state = state,
-	};
+	struct ctf_thread_arg *ctf_thread_arg;
 
-	if (!!pthread_attr_init(&attr))
+	if (!(ctf_thread_arg = g_rc_box_new0(struct ctf_thread_arg)))
 		return false;
+	ctf_thread_arg->conf = conf;
+	ctf_thread_arg->state = state;
+	if (!!pthread_attr_init(&attr))
+		goto out_free_arg;
+	if (!!pthread_create(&unix_thread, &attr, service_unix_sock_thread, ctf_thread_arg))
+		goto out_destroy_attr;
+	if (!!pthread_create(&user_thread, &attr, service_user_sock_thread, ctf_thread_arg))
+		goto out_cancel_unix_thread;
 	if (!!pthread_attr_destroy(&attr))
 		ctf_msg(ctf_alert, thread,
 				"pthread_attr_destroy() failed\n");
-	if (!!pthread_create(&unix_thread, &attr, service_unix_sock_thread, &arg))
-		goto out_destroy_attr;
-	if (!!pthread_create(&user_thread, &attr, service_user_sock_thread, &arg))
-		goto out_cancel_unix_thread;
 	return true;
 out_cancel_unix_thread:
 	if (!!pthread_cancel(unix_thread))
@@ -253,5 +226,7 @@ out_destroy_attr:
 	if (!!pthread_attr_destroy(&attr))
 		ctf_msg(ctf_alert, thread,
 				"pthread_attr_destroy() failed\n");
+out_free_arg:
+	g_rc_box_release(ctf_thread_arg);
 	return false;
 }

@@ -42,6 +42,11 @@ struct ctf_stk_state {
 	struct cbor_item_t **stack; /* to parse nested structures */
 };
 
+struct ctf_thread_arg {
+	struct ctf_conf *conf;
+	struct ctf_state *state;
+};
+
 int setup_conf(struct ctf_conf **, int, char *[]);
 int setup_state(struct ctf_state **, struct ctf_conf *);
 void teardown_state(struct ctf_state **);
