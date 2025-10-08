@@ -707,7 +707,7 @@ handshake_xmit(int fd)
 		goto out_free_buf;
 	}
 	sdu.sdu_xmit = (uint32_t)time(NULL);
-	sdu.sdu_init_or_resp = false;
+	sdu.sdu_init_or_resp = CTF_INIT_OR_RESP;
 	/* sdu.sdu_proto_un.sdu_proto_word16 = 19; */
 	sdu.sdu_proto_un.sdu_proto_num = mpn_handshake;
 	sdu.sdu_len = buf_sz;

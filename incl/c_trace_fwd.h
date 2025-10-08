@@ -15,6 +15,7 @@
 
 #define RETVAL_SUCCESS EXIT_SUCCESS
 #define RETVAL_FAILURE EXIT_FAILURE
+#define CTF_INIT_OR_RESP false
 
 struct cbor_item_t;
 struct tof_msg;

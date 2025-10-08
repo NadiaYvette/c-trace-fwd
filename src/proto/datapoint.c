@@ -28,7 +28,7 @@ datapoint_encode_empty_resp(size_t *size)
 		goto out_free_cbor_buf;
 	sdu_ptr.sdu8 = (uint8_t *)buf;
 	sdu.sdu_len = cbor_buf_sz;
-	sdu.sdu_init_or_resp = true;
+	sdu.sdu_init_or_resp = CTF_INIT_OR_RESP;
 	if (sdu_encode(&sdu, sdu_ptr) != RETVAL_SUCCESS)
 		goto out_free_buf;
 	*size = cbor_buf_sz + 2*sizeof(uint32_t);

@@ -301,7 +301,7 @@ tof_proto_stk_encode(const struct tof_msg *msg, size_t *ret_sz)
 	/* 0 is used everywhere I can find */
 	sdu.sdu_proto_un.sdu_proto_num = mpn_trace_objects;
 	/* false = initiator, true = responder */
-	sdu.sdu_init_or_resp = true;
+	sdu.sdu_init_or_resp = CTF_INIT_OR_RESP;
 	sdu.sdu_len = cbor_sz;
 	sdu.sdu_data = &buf[2*sizeof(uint32_t)];
 	*ret_sz = buf_sz;
