@@ -246,7 +246,7 @@ ctf_proto_stk_decode(int fd)
 		ctf_msg(ctf_debug, stk, "mpn_EKG_metrics packet\n");
 	case mpn_data_points:
 		if (cpsdr->sdu.sdu_proto_un.sdu_proto_num == mpn_data_points)
-			ctf_msg(ctf_debug, stk, "mpn_EKG_metrics packet\n");
+			ctf_msg(ctf_debug, stk, "mpn_data_points packet\n");
 	default:
 		/* These cases return the CBOR uninterpreted w/elevated
 		 * refcount. Empty replies need to be sent to requests. */
