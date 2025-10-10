@@ -101,8 +101,10 @@ continue_for_loop:
 			break;
 		case mpn_trace_objects:
 			struct tof_msg *tof_msg;
+			union msg *msg;
 
-			tof_msg = &result->proto_stk_decode_result_body->tof_msg;
+			msg = result->proto_stk_decode_result_body;
+			tof_msg = (struct tof_msg *)msg;
 			switch (tof_msg->tof_msg_type) {
 			case tof_request:
 			case tof_done:
@@ -146,14 +148,19 @@ continue_for_loop:
 						"CBOR_ERR_NONE, not "
 						"decref'ing\n",
 						result->load_result.error.code);
-				else if (!!result->proto_stk_decode_result_body->undecoded) {
+				else if (!!result->proto_stk_decode_result_body) {
+					union msg **msg_ref;
+					cbor_item_t **cbor_ref;
+
+					msg_ref = &result->proto_stk_decode_result_body;
+					cbor_ref = (cbor_item_t **)msg_ref;
 					ctf_msg(ctf_debug, state,
 						"load result error "
 						"code == CBOR_ERR_NONE,"
 						" ->undecoded != NULL, "
 						"decref'ing %p now\n",
-						&result->proto_stk_decode_result_body->undecoded);
-					ctf_cbor_decref(state, &result->proto_stk_decode_result_body->undecoded);
+						msg_ref);
+					ctf_cbor_decref(state, cbor_ref);
 				} else
 					ctf_msg(ctf_debug, state,
 						"load result error "

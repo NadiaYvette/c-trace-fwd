@@ -172,6 +172,9 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 		retval = svc_progress_recv;
 		goto out_free_cpsdr;
 	default:
+		union msg **msg_ref;
+		cbor_item_t **cbor_ref;
+
 		ctf_msg(ctf_alert, client, "bad sdu_proto_num %d\n",
 				cpsdr->sdu.sdu_proto_un.sdu_proto_num);
 		/* Deliberate fall-through; more properly, the other
@@ -180,8 +183,12 @@ service_unix_sock_recv(struct ctf_state *state, int fd)
 		/* These protocols' CBOR contents aren't decoded. */
 		/* Is a reply needed? */
 		tof = NULL;
-		if (!!cpsdr->proto_stk_decode_result_body->undecoded)
-			ctf_cbor_decref(unix, &cpsdr->proto_stk_decode_result_body->undecoded);
+		if (!cpsdr->proto_stk_decode_result_body)
+			goto out_free_cpsdr;
+
+		msg_ref = &cpsdr->proto_stk_decode_result_body;
+		cbor_ref = (cbor_item_t **)msg_ref;
+		ctf_cbor_decref(unix, cbor_ref);
 		goto out_free_cpsdr;
 	}
 	ctf_msg(ctf_debug, unix, "finished miniprotocol nr check\n");
@@ -317,10 +324,16 @@ service_unix_sock2(struct ctf_state *state)
 		 * default case. */
 	case mpn_EKG_metrics:
 	case mpn_data_points:
+		union msg **msg_ref;
+		cbor_item_t **cbor_ref;
+
 		/* These protocols' CBOR contents aren't decoded. */
 		tof = NULL;
-		if (!!cpsdr->proto_stk_decode_result_body->undecoded)
-			ctf_cbor_decref(unix, &cpsdr->proto_stk_decode_result_body->undecoded);
+		if (!cpsdr->proto_stk_decode_result_body)
+			goto out_free_cpsdr;
+		msg_ref = &cpsdr->proto_stk_decode_result_body;
+		cbor_ref = (cbor_item_t **)msg_ref;
+		ctf_cbor_decref(unix, cbor_ref);
 		goto out_free_cpsdr;
 	}
 tof_msg_type_switch:

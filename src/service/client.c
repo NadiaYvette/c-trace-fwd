@@ -101,7 +101,7 @@ service_client_sock(struct ctf_state *state, struct pollfd *pollfd)
 		return RETVAL_FAILURE;
 	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_trace_objects:
-		tof = &cpsdr->proto_stk_decode_result_body->tof_msg;
+		tof = (struct tof_msg *)cpsdr->proto_stk_decode_result_body;
 		/* It could be break, but the label's name is descriptive. */
 		goto tof_msg_type_switch;
 	default:
@@ -112,10 +112,16 @@ service_client_sock(struct ctf_state *state, struct pollfd *pollfd)
 		 * default case. */
 	case mpn_EKG_metrics:
 	case mpn_data_points:
+		union msg **msg_ref;
+		cbor_item_t **cbor_ref;
+
 		/* These protocols' CBOR contents aren't decoded. */
 		tof = NULL;
-		if (!!cpsdr->proto_stk_decode_result_body->undecoded)
-			ctf_cbor_decref(client, &cpsdr->proto_stk_decode_result_body->undecoded);
+		if (!cpsdr->proto_stk_decode_result_body)
+			goto out_free_cpsdr;
+		msg_ref = &cpsdr->proto_stk_decode_result_body;
+		cbor_ref = (cbor_item_t **)msg_ref;
+		ctf_cbor_decref(client, cbor_ref);
 		goto out_free_cpsdr;
 	}
 tof_msg_type_switch:

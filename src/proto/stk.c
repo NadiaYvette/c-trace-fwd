@@ -18,10 +18,30 @@ cpsdr_release_memory(void *p)
 		return;
 	if (!(msg = cpsdr->proto_stk_decode_result_body))
 		return;
-	if (cpsdr->sdu.sdu_proto_un.sdu_proto_num == mpn_trace_objects)
+	switch (cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
+	case mpn_handshake:
+		handshake_free((struct handshake *)msg);
+		break;
+	case mpn_trace_objects:
 		tof_free(&msg->tof_msg);
-	else if (!!msg->undecoded)
-		cbor_decref(&msg->undecoded);
+		break;
+	case mpn_EKG_metrics:
+	case mpn_data_points:
+	case mpn_node_tx_submit:
+	case mpn_chain_sync:
+	case mpn_client_tx_submit:
+	case mpn_state_query:
+	case mpn_keepalive:
+		union msg **cbor_ref;
+
+		cbor_ref = &cpsdr->proto_stk_decode_result_body;
+		ctf_cbor_decref(stk, (cbor_item_t **)cbor_ref);
+		break;
+	default:
+		ctf_msg(ctf_alert, stk, "bad mpn %d\n",
+			(int)cpsdr->sdu.sdu_proto_un.sdu_proto_num);
+		break;
+	}
 	cpsdr->proto_stk_decode_result_body = NULL;
 }
 
@@ -157,7 +177,6 @@ ctf_proto_stk_decode(int fd)
 					tof_cbor);
 			goto out_free_tof_cbor;
 		}
-		/* cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor; */
 		return cpsdr;
 	case CBOR_ERR_NODATA:
 		ctf_msg(ctf_alert, stk,
@@ -184,7 +203,6 @@ ctf_proto_stk_decode(int fd)
 					tof_cbor);
 			goto out_free_tof_cbor;
 		}
-		/* cpsdr->proto_stk_decode_result_body.undecoded = tof_cbor; */
 		return cpsdr;
 	case CBOR_ERR_MEMERROR:
 		ctf_msg(ctf_alert, stk,
@@ -261,11 +279,11 @@ ctf_proto_stk_decode(int fd)
 					"packet w/unhandled "
 					"miniprotocol %d\n",
 				(int)cpsdr->sdu.sdu_proto_un.sdu_proto_num);
+		cpsdr->proto_stk_decode_result_body = (union msg *)tof_cbor;
 		ctf_msg(ctf_alert, stk, "cpsdr = %p\n", cpsdr);
 		ctf_msg(ctf_alert, stk,
 				"cpsdr->proto_stk_decode_result_body = %p\n",
 				cpsdr->proto_stk_decode_result_body);
-		cpsdr->proto_stk_decode_result_body = (union msg *)tof_cbor;
 		break;
 	}
 	ctf_msg(ctf_debug, stk, "past miniprotocol nr check\n");
