@@ -30,3 +30,4 @@ bool io_queue_agency_get(struct io_queue *, enum mini_protocol_num, enum relativ
 void io_queue_agency_set(struct io_queue *, enum mini_protocol_num, enum relative_agency);
 bool io_queue_agency_any_local(struct io_queue *);
 bool io_queue_agency_all_nonlocal(struct io_queue *);
+void io_queue_show_agencies(struct io_queue *);

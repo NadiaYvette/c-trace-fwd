@@ -115,3 +115,25 @@ io_queue_init(struct io_queue *ioq, int fd)
 	}
 	return true;
 }
+
+void
+io_queue_show_agencies(struct io_queue *queue)
+{
+	enum mini_protocol_num mpn;
+	const char boundary[]
+		= "========================================"
+		  "========================================";
+
+	ctf_msg(ctf_debug, queue, "%s\n", boundary);
+	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
+		enum relative_agency agency;
+		const char *mpn_str, *agency_str;
+
+		if (!io_queue_agency_get(queue, mpn, &agency))
+			break;
+		mpn_str = mini_protocol_string(mpn);
+		agency_str = relative_agency_string(agency);
+		ctf_msg(ctf_debug, queue, "[%s] = %s,\n", mpn_str, agency_str);
+	}
+	ctf_msg(ctf_debug, queue, "%s\n", boundary);
+}
