@@ -34,6 +34,7 @@ enum ctf_severity {
 #define CTF_SEV_MAX_6_to_7 MAX(ctf_alert, ctf_emergency)
 #define CTF_SEV_MAX_4_to_7 MAX(CTF_SEV_MAX_4_to_5, CTF_SEV_MAX_6_to_7)
 #define CTF_SEV_MAX        MAX(CTF_SEV_MAX_0_to_3, CTF_SEV_MAX_4_to_7)
+#define CTF_SEV_NR	   (CTF_SEV_MAX - CTF_SEV_MIN + 1)
 
 #define CTF_SEV_VALID(ctf_sev)						\
 ({									\
@@ -50,6 +51,7 @@ struct ctf_msg_ctx {
 struct cbor_item_t;
 
 extern enum ctf_severity ctf_sev_lvl;
+const char *ctf_severity_string(enum ctf_severity);
 int ctf_msg_core(const struct ctf_msg_ctx *, const char *, ...);
 size_t cbor_refcount(const struct cbor_item_t *);
 bool render_flags_core(const struct ctf_msg_ctx *, int);
