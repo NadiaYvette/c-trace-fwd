@@ -18,6 +18,7 @@ enum peer_role {
 			__ctx_role##__LINE__ <= PEER_ROLE_MAX;		\
 	})
 
+#if defined(RAW_AGENCY)
 enum raw_agency {
 	raw_agency_client = 0,
 	raw_agency_server = 1,
@@ -34,6 +35,9 @@ enum raw_agency {
 		__ctx_raw_agency##__LINE__ >= RAW_AGENCY_MIN &&		\
 			__ctx_raw_agency##__LINE__ <= RAW_AGENCY_MAX;	\
 	})
+
+const char *raw_agency_string(enum raw_agency);
+#endif /* RAW_AGENCY */
 
 enum relative_agency {
 	relative_agency_we_have    = 0,
@@ -54,6 +58,9 @@ enum relative_agency {
 		__ctx_relative_agency##__LINE__ <= RELATIVE_AGENCY_MAX;	\
 })
 
+const char *relative_agency_string(enum relative_agency);
+
+#if defined(DEPRECATED_AGENCY)
 enum agency {
 	agency_local  = 0, /* WeHaveAgency */
 	agency_remote = 1, /* TheyHaveAgency */
@@ -70,4 +77,4 @@ enum agency {
 	})
 
 const char *agency_string(enum agency);
-const char *relative_agency_string(enum relative_agency);
+#endif /* DEPRECATED AGENCY */

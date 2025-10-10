@@ -253,12 +253,15 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 			break;
 		}
 		switch (agency) {
-		case agency_nobody:
+		case relative_agency_nobody_has:
 			ctf_msg(ctf_debug, service,
 					"about to service_issue_request()\n");
 			status = service_issue_request(state);
+			ctf_set_agency(service, &state->unix_io,
+					relative_agency_they_have,
+					mpn_trace_objects);
 			break;
-		case agency_remote:
+		case relative_agency_they_have:
 			/* XXX: waiting like this is never the right answer */
 			status = !usleep(10 * 1000);
 			break;
@@ -267,7 +270,7 @@ service_loop(struct ctf_state *state, struct ctf_conf *conf)
 					"unrecognized agency value %d\n",
 					(int)agency);
 			/* fall through */
-		case agency_local:
+		case relative_agency_we_have:
 			status = true;
 			break;
 		}

@@ -27,10 +27,12 @@ service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *st
 	(void)!!cpsdr;
 	ctf_msg(ctf_debug, thread, "entering\n");
 	switch (state->unix_io.agencies[mpn_data_points]) {
-	case agency_local:
-	case agency_nobody:
+	case relative_agency_we_have:
+	case relative_agency_nobody_has:
+		ctf_set_agency(thread, &state->unix_io,
+				relative_agency_they_have, mpn_data_points);
 		return service_unix_sock_thread_data_points_reply(conf, state);
-	case agency_remote:
+	case relative_agency_they_have:
 	default:
 		/* never make datapoint requests */
 		return true;
@@ -58,10 +60,12 @@ service_unix_sock_thread_metrics(struct ctf_conf *conf, struct ctf_state *state,
 	(void)!!cpsdr;
 	ctf_msg(ctf_debug, thread, "entering\n");
 	switch (state->unix_io.agencies[mpn_EKG_metrics]) {
-	case agency_local:
-	case agency_nobody:
+	case relative_agency_we_have:
+	case relative_agency_nobody_has:
+		ctf_set_agency(thread, &state->unix_io,
+				relative_agency_they_have, mpn_EKG_metrics);
 		return service_unix_sock_thread_metrics_reply(conf, state);
-	case agency_remote:
+	case relative_agency_they_have:
 	default:
 		/* never make requests */
 		break;
@@ -101,10 +105,12 @@ service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *
 {
 	(void)!!conf;
 	switch (state->unix_io.agencies[mpn_trace_objects]) {
-	case agency_local:
-	case agency_nobody:
+	case relative_agency_we_have:
+	case relative_agency_nobody_has:
+		ctf_set_agency(thread, &state->unix_io,
+				relative_agency_they_have, mpn_trace_objects);
 		return service_unix_sock_thread_trace_objects_local(conf, state, cpsdr);
-	case agency_remote:
+	case relative_agency_they_have:
 		break;
 	default:
 		/* relaying user socket data goes here */

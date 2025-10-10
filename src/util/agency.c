@@ -4,6 +4,7 @@
 #include "mpn.h"
 #include "queue.h"
 
+#if defined(DEPRECATED_AGENCY)
 const char *
 agency_string(enum agency agency)
 {
@@ -18,7 +19,9 @@ agency_string(enum agency agency)
 		return agency_table[agency];
 	return default_string;
 }
+#endif /* DEPRECATED_AGENCY */
 
+#if defined(RAW_AGENCY)
 const char *
 raw_agency_string(enum raw_agency agency)
 {
@@ -33,6 +36,7 @@ raw_agency_string(enum raw_agency agency)
 		return string_table[agency];
 	return default_string;
 }
+#endif /* RAW_AGENCY */
 
 const char *
 relative_agency_string(enum relative_agency agency)
