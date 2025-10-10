@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/param.h>
 #include "agency.h"
+#include "mpn.h"
 
 enum ctf_severity {
 	ctf_debug     = 0,
@@ -128,20 +129,24 @@ do {									\
 		= (__ctx_agency_ary##__LINE__)[__ctx_mpn_off##__LINE__];\
 	if (RELATIVE_AGENCY_VALID(__ctx_old_agency##__LINE__) &&	\
 		RELATIVE_AGENCY_VALID(__ctx_new_agency##__LINE__))	\
-		ctf_msg(ctf_debug, mod, "agency %s -> %s\n",		\
+		ctf_msg(ctf_debug, mod, "agency [%s] %s -> %s\n",	\
+			mini_protocol_string(__ctx_mpn##__LINE__),	\
 			relative_agency_string(__ctx_old_agency##__LINE__),\
 			relative_agency_string(__ctx_new_agency##__LINE__));\
 	else if (RELATIVE_AGENCY_VALID(__ctx_old_agency##__LINE__))	\
-		ctf_msg(ctf_error, mod, "agency %s -> <unknown> %d\n",	\
+		ctf_msg(ctf_error, mod, "agency [%s] %s -> <unknown> %d\n",\
+			mini_protocol_string(__ctx_mpn##__LINE__),	\
 			relative_agency_string(__ctx_old_agency##__LINE__),\
 			__ctx_new_agency##__LINE__);			\
 	else if (RELATIVE_AGENCY_VALID(__ctx_new_agency##__LINE__))	\
-		ctf_msg(ctf_error, mod, "agency <unknown> %d -> %s\n",	\
+		ctf_msg(ctf_error, mod, "agency [%s] <unknown> %d -> %s\n",\
+			mini_protocol_string(__ctx_mpn##__LINE__),	\
 			__ctx_old_agency##__LINE__,			\
 			relative_agency_string(__ctx_new_agency##__LINE__));\
 	else								\
-		ctf_msg(ctf_error, mod, "agency <unknown> %d "		\
+		ctf_msg(ctf_error, mod, "agency [%s] <unknown> %d "	\
 					"-> <unknown> %d\n",		\
+			mini_protocol_string(__ctx_mpn##__LINE__),	\
 			__ctx_old_agency##__LINE__,			\
 			__ctx_new_agency##__LINE__);			\
 	io_queue_agency_set(__ctx_q##__LINE__, __ctx_mpn##__LINE__,	\
