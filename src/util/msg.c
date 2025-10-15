@@ -50,6 +50,8 @@ int ctf_msg_core(const struct ctf_msg_ctx *ctx, const char *fmt, ...)
 	retval = vfprintf(stderr, tmp_fmt, args);
 	va_end(args);
 	retval = retval > 0 ? 0 : -1;
+	if (!!fflush(stderr))
+		retval = -1;
 	free(tmp_fmt);
 exit_free_pfx:
 	free(pfx);
