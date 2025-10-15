@@ -52,7 +52,7 @@ retry_send:
 	else if (!ret_sz && !errno) { /* EOF */
 		retval = RETVAL_SUCCESS;
 		goto out_free_buf;
-	} else if (!ret_sz && errno != EAGAIN && errno != EWOULDBLOCK)
+	} else if (!ret_sz && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK)
 		goto out_free_buf;
 	else if (ret_sz >= 0) {
 		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];

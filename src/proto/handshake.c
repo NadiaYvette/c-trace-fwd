@@ -766,7 +766,7 @@ handshake_xmit(int fd)
 	while ((reply_len = recv(fd, buf, buf_sz, 0)) <= 0) {
 		/* Cancel any pending alarms. */
 		alarm(0);
-		if (!!errno && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
+		if (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
 			ctf_msg(ctf_alert, handshake,
 					"handshake read got "
 					"errno %d\n", errno);
