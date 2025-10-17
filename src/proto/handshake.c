@@ -2,8 +2,8 @@
 #include <cbor/ints.h>
 #include <glib.h>
 #include <limits.h>
+#include <linux/errno.h>
 #include <poll.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -621,28 +621,18 @@ static struct handshake handshake_proposal = {
 
 static cbor_item_t *handshake_proposal_cbor = NULL;
 
-static void
-sig_action(int sig, siginfo_t *info, void *data)
-{
-	(void)!info;
-	(void)!data;
-	ctf_msg(ctf_notice, handshake, "received signal %d\n", sig);
-}
-
 int
 handshake_xmit(int fd)
 {
 	struct handshake *handshake_reply;
 	cbor_item_t *reply_cbor, *handshake_proposal_map;
-	unsigned char *sdu_buf, *buf = NULL;
+	unsigned char *sdu_buf, *buf = NULL, sdu_bytearray[8];
 	size_t buf_sz, sdu_buf_sz, send_len;
 	ssize_t reply_len, send_ret;
 	int retval = RETVAL_FAILURE;
-	struct sigaction old_sigact, new_sigact;
 	struct sdu sdu, reply_sdu;
 	struct cbor_load_result cbor_load_result;
 	union sdu_ptr sdu_ptr;
-	sigset_t sig_mask, old_sig_mask;
 	struct pollfd pollfd = {
 		.fd = fd,
 		.events = POLLOUT,
@@ -743,46 +733,40 @@ handshake_xmit(int fd)
 	}
 	ctf_msg(ctf_debug, handshake,
 			"about to try to read for handshake reply\n");
-	sigemptyset(&sig_mask);
-	sigemptyset(&old_sig_mask);
-	sigaddset(&sig_mask, SIGALRM);
-	sigaddset(&sig_mask, SIGPIPE);
-	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
-		ctf_msg(ctf_alert, handshake, "sigprocmask failed\n");
-	sigaddset(&old_sig_mask, SIGPIPE);
-	new_sigact.sa_sigaction = sig_action;
-	sigemptyset(&new_sigact.sa_mask);
-	sigaddset(&new_sigact.sa_mask, SIGALRM);
-	sigaddset(&new_sigact.sa_mask, SIGPIPE);
-	new_sigact.sa_flags = SA_SIGINFO;
-	new_sigact.sa_restorer = NULL;
-	if (!!sigaction(SIGALRM, &new_sigact, &old_sigact))
-		ctf_msg(ctf_alert, handshake, "sigaction failed\n");
-	/* The alarm is to interrupt stalled reads to restart them. */
-	alarm(1);
-	sigdelset(&sig_mask, SIGPIPE);
-	if (!!sigprocmask(SIG_UNBLOCK, &sig_mask, &old_sig_mask))
-		ctf_msg(ctf_alert, handshake, "sigprocmask failed\n");
-	while ((reply_len = recv(fd, buf, buf_sz, 0)) <= 0) {
-		/* Cancel any pending alarms. */
-		alarm(0);
-		if (errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK) {
+	if ((reply_len = read(fd, sdu_bytearray, 8)) != 8) {
+		ctf_msg(ctf_debug, handshake, "handshake reply SDU read fail\n");
+		goto out_free_buf;
+	}
+	ctf_msg(ctf_debug, handshake, "attempting sdu_decode()\n");
+	sdu_ptr.sdu8 = (uint8_t *)sdu_bytearray;
+	if (sdu_decode(sdu_ptr, &reply_sdu) != RETVAL_SUCCESS) {
+		ctf_msg(ctf_alert, handshake,
+				"saw sdu_decode() failure, now goto "
+				"out_free_buf\n");
+		goto out_free_buf;
+	}
+	ctf_msg(ctf_debug, handshake, "got past sdu_decode(), "
+			"checking reply_sdu.sdu_len\n");
+	if (false && reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t)) {
+		ctf_msg(ctf_alert, handshake,
+				"SDU length unexpected was 0x%x expected"
+			       " 0x%zx\n", reply_sdu.sdu_len,
+			       (size_t)reply_len);
+		reply_sdu.sdu_len = reply_len - 2*sizeof(uint32_t);
+	}
+	ctf_msg(ctf_debug, handshake,
+			"got past reply_sdu.sdu_len check "
+			"trying cbor_load()\n");
+	while ((reply_len = read(fd, buf, reply_sdu.sdu_len)) <= 0) {
+		if (!errno_is_restart(errno)) {
 			ctf_msg(ctf_alert, handshake,
 					"handshake read got "
 					"errno %d\n", errno);
-			break;
+			goto out_free_buf;
 		}
 		errno = 0;
 		ctf_msg(ctf_debug, handshake, "read zero data, looping\n");
-		sleep(1);
-		alarm(1);
 	}
-	alarm(0);
-	sigaddset(&sig_mask, SIGPIPE);
-	if (!!sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask))
-		ctf_msg(ctf_alert, handshake, "sigprocmask failed\n");
-	if (!!sigaction(SIGALRM, &old_sigact, NULL))
-		ctf_msg(ctf_alert, handshake, "sigaction cleanup failed\n");
 	if (!errno)
 		ctf_msg(ctf_debug, handshake,
 				"got past reading for handshake reply\n");
@@ -794,27 +778,7 @@ handshake_xmit(int fd)
 				"negative reply length, exiting\n");
 		goto out_free_buf;
 	}
-	ctf_msg(ctf_debug, handshake, "attempting sdu_decode()\n");
-	sdu_ptr.sdu8 = (uint8_t *)buf;
-	if (sdu_decode(sdu_ptr, &reply_sdu) != RETVAL_SUCCESS) {
-		ctf_msg(ctf_alert, handshake,
-				"saw sdu_decode() failure, now goto "
-				"out_free_buf\n");
-		goto out_free_buf;
-	}
-	ctf_msg(ctf_debug, handshake, "got past sdu_decode(), "
-			"checking reply_sdu.sdu_len\n");
-	if (reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t)) {
-		ctf_msg(ctf_alert, handshake,
-				"SDU length unexpected was 0x%x expected"
-			       " 0x%zx\n", reply_sdu.sdu_len,
-			       (size_t)reply_len);
-		reply_sdu.sdu_len = reply_len - 2*sizeof(uint32_t);
-	}
-	ctf_msg(ctf_debug, handshake,
-			"got past reply_sdu.sdu_len check "
-			"trying cbor_load()\n");
-	if (!(reply_cbor = cbor_load(&buf[2*sizeof(uint32_t)], reply_sdu.sdu_len, &cbor_load_result))) {
+	if (!(reply_cbor = cbor_load(&buf[0], reply_sdu.sdu_len, &cbor_load_result))) {
 		ctf_msg(ctf_alert, handshake,
 				"cbor_load() failed, freeing buffer\n");
 		goto out_free_buf;

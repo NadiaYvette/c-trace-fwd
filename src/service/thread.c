@@ -135,8 +135,12 @@ service_unix_sock_thread_core(struct ctf_conf *conf, struct ctf_state *state)
 
 	(void)!!conf;
 	ctf_msg(ctf_debug, thread, "entered\n");
-	if (!(cpsdr = ctf_proto_stk_decode(state->unix_io.fd)))
+	io_queue_show_agencies(&state->unix_io);
+	if (!(cpsdr = ctf_proto_stk_decode(state->unix_io.fd))) {
+		ctf_msg(ctf_debug, thread, "ctf_proto_stk_decode() failed\n");
 		goto out_free_cpsdr;
+	} else
+		ctf_msg(ctf_debug, thread, "cpsdr = %p\n", cpsdr);
 	switch (mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
 	case mpn_data_points:
 		if (!service_unix_sock_thread_data_points(conf, state, cpsdr))
@@ -167,6 +171,15 @@ service_unix_sock_thread(void *pthread_arg)
 	struct ctf_thread_arg *arg = pthread_arg;
 	struct ctf_conf *conf;
 	struct ctf_state *state;
+	struct tof_msg request_msg = {
+		.tof_msg_type = tof_request,
+		.tof_msg_body = {
+			.request = {
+				.tof_blocking = true,
+				.tof_nr_obj = 100,
+			},
+		},
+	};
 
 	if (!arg)
 		return NULL;
@@ -174,6 +187,16 @@ service_unix_sock_thread(void *pthread_arg)
 	state = arg->state;
 	if (!conf || !state)
 		return NULL;
+	if (0) {
+		ctf_msg(ctf_debug, thread, "sending initial request\n");
+		if (service_send_tof(state, &request_msg, state->unix_io.fd) != RETVAL_SUCCESS) {
+			ctf_msg(ctf_debug, thread, "sending initial request failed\n");
+			return NULL;
+		}
+		ctf_msg(ctf_debug, thread, "back from sending initial request\n");
+	}
+	ctf_set_agency(thread, &state->unix_io,
+				relative_agency_they_have, mpn_trace_objects);
 	for (;;) {
 		bool ret;
 
@@ -207,8 +230,7 @@ service_user_sock_thread(void *pthread_arg)
 }
 
 bool
-service_thread_spawn(struct ctf_conf *conf,
-			struct ctf_state *state)
+service_thread_spawn(struct ctf_conf *conf, struct ctf_state *state)
 {
 	pthread_t unix_thread, user_thread;
 	pthread_attr_t attr;

@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <linux/errno.h>
 #include <poll.h>
 #include <sched.h>
 #include <stdlib.h>
@@ -52,7 +53,7 @@ retry_send:
 	else if (!ret_sz && !errno) { /* EOF */
 		retval = RETVAL_SUCCESS;
 		goto out_free_buf;
-	} else if (!ret_sz && errno != EAGAIN && errno != EINTR && errno != EWOULDBLOCK)
+	} else if (!ret_sz && !errno_is_restart(errno))
 		goto out_free_buf;
 	else if (ret_sz >= 0) {
 		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];

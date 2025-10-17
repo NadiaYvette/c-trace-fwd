@@ -1,5 +1,7 @@
 #include <cbor.h>
+#include <linux/errno.h>
 #include <time.h>
+#include <sys/ioctl.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
 #include "datapoint.h"
@@ -83,20 +85,40 @@ ctf_proto_stk_decode(int fd)
 				cur_sz, ret_sz);
 		if (ret_sz < 0) {
 			ctf_msg(ctf_alert, stk, "negative branch\n");
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
+			if (errno_is_restart(errno))
 				continue;
 			ctf_msg(ctf_alert, stk,
 					"read() failure (%d): %s\n",
 					errno, strerror(errno));
 			goto out_free_cpsdr;
 		} else if (!ret_sz) {
+			int buf_cnt = -1;
+
 			ctf_msg(ctf_debug, stk,
 					"zero case retry %u\n", retries);
-			if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			if (!errno_is_restart(errno)) {
 				ctf_msg(ctf_alert, stk,
 					"read() failure (%d): %s\n",
 					errno, strerror(errno));
 				goto out_free_cpsdr;
+			}
+			if (!!ioctl(fd, FIONREAD, &buf_cnt)) {
+				ctf_msg(ctf_alert, stk,
+					"FIONREAD failure (%d): %s\n",
+					errno, strerror(errno));
+				goto out_free_cpsdr;
+			}
+			ctf_msg(ctf_debug, stk, "buf_cnt = %d\n", buf_cnt);
+			if (!buf_cnt) {
+				int flg;
+
+				if ((flg = fcntl(fd, F_GETFL)) == -1) {
+					ctf_msg(ctf_alert, stk,
+						"fcntl failure (%d): %s\n",
+						errno, strerror(errno));
+					goto out_free_cpsdr;
+				}
+				render_flags(stk, flg);
 			}
 			if (++retries >= retry_limit) {
 				ctf_msg(ctf_alert, stk,
@@ -146,7 +168,7 @@ ctf_proto_stk_decode(int fd)
 	do {
 		ret_sz = read(fd, cur_buf, cur_sz);
 		if (ret_sz < 0) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
+			if (errno_is_restart(errno))
 				continue;
 			goto out_free_buf;
 		} else if (ret_sz < cur_sz) {
@@ -295,10 +317,16 @@ out_free_tof_cbor:
 		ctf_cbor_decref(stk, &tof_cbor);
 out_free_buf:
 	ctf_msg(ctf_debug, stk, "at out_free_buf label\n");
-	g_rc_box_release(buf);
+	if (!!buf)
+		g_rc_box_release(buf);
 out_free_cpsdr:
 	ctf_msg(ctf_debug, stk, "at out_free_cpsdr label\n");
-	g_rc_box_release_full(cpsdr, cpsdr_release_memory);
+	if (ctf_check_ptr(stk, cpsdr))
+		ctf_msg(ctf_debug, stk, "invalid ptr %p\n", cpsdr);
+	else if (!!cpsdr) {
+		ctf_msg(ctf_debug, stk, "trying to release %p\n", cpsdr);
+		g_rc_box_release_full(cpsdr, cpsdr_release_memory);
+	}
 	ctf_msg(ctf_debug, stk, "error return NULL\n");
 	return NULL;
 }

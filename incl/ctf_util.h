@@ -57,6 +57,7 @@ int ctf_msg_core(const struct ctf_msg_ctx *, const char *, ...);
 size_t cbor_refcount(const struct cbor_item_t *);
 bool render_flags_core(const struct ctf_msg_ctx *, int);
 void ctf_severity_init(const char *);
+bool errno_is_restart(int);
 
 #define CTF_CHK_PTR_LO_ADDR	(((uintptr_t)1) << 20)
 #define ctf_check_ptr(mod, ptr)						\
