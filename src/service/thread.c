@@ -86,17 +86,58 @@ service_unix_sock_thread_trace_objects_local(struct ctf_conf *conf, struct ctf_s
 			},
 		},
 	};
+	const char *namespace[] = { [0] = "Tracer.BuildInfo", };
+	struct trace_object dummy = {
+		.to_human = "dummy trace object (human)",
+		.to_machine = "dummy trace object (machine)",
+		.to_namespace_nr = 1,
+		.to_namespace = &namespace[0],
+		.to_severity = severity_debug,
+		.to_details = ddetailed,
+		.to_timestamp = time(NULL),
+		.to_hostname = "nyc-ipad-mini",
+		.to_thread_id = "ctf-thread",
+	};
+	struct trace_object *reply_ary[] = { [0] = &dummy, };
+	struct tof_msg empty_reply = {
+		.tof_msg_type = tof_reply,
+		.tof_msg_body = {
+			.reply = {
+				.tof_nr_replies = 1,
+				.tof_replies = &reply_ary[0],
+			},
+		},
+	};
 	struct tof_msg *incoming_msg
 		= (struct tof_msg *)cpsdr->proto_stk_decode_result_body;
+	struct tof_msg *reply_msg = NULL;
 
 	switch (incoming_msg->tof_msg_type) {
-	case tof_request:
-		return true;
+	case tof_reply:
+		ctf_msg(ctf_alert, thread, "received tof_reply\n");
+		return service_send_tof(state, &request_msg, state->unix_io.fd) == RETVAL_SUCCESS;
 	default:
 		ctf_msg(ctf_alert, thread, "unexpected tof_msg_type\n");
+		return false;
 	case tof_done:
-	case tof_reply:
-		return service_send_tof(state, &request_msg, state->unix_io.fd) == RETVAL_SUCCESS;
+		ctf_msg(ctf_alert, thread, "received tof_done\n");
+		return true;
+	case tof_request:
+		struct tof_request *request;
+		request = &incoming_msg->tof_msg_body.request;
+		switch (to_queue_answer_request(&state->unix_io.out_queue, request, &reply_msg)) {
+		case svc_req_success:
+			ctf_msg(ctf_alert, thread, "svc_req_success\n");
+			return true;
+		case svc_req_must_block:
+		case svc_req_none_available:
+			ctf_msg(ctf_debug, thread, "must_block/none_available\n");
+			return service_send_tof(state, &empty_reply, state->unix_io.fd) == RETVAL_SUCCESS;
+		case svc_req_failure:
+		default:
+			ctf_msg(ctf_alert, thread, "svc_req_failure\n");
+			return false;
+		}
 	}
 }
 
@@ -111,6 +152,7 @@ service_unix_sock_thread_trace_objects(struct ctf_conf *conf, struct ctf_state *
 				relative_agency_they_have, mpn_trace_objects);
 		return service_unix_sock_thread_trace_objects_local(conf, state, cpsdr);
 	case relative_agency_they_have:
+		ctf_msg(ctf_alert, thread, "they have agency\n");
 		break;
 	default:
 		/* relaying user socket data goes here */
@@ -138,10 +180,13 @@ service_unix_sock_thread_core(struct ctf_conf *conf, struct ctf_state *state)
 	io_queue_show_agencies(&state->unix_io);
 	if (!(cpsdr = ctf_proto_stk_decode(state->unix_io.fd))) {
 		ctf_msg(ctf_debug, thread, "ctf_proto_stk_decode() failed\n");
-		goto out_free_cpsdr;
+		return false;
 	} else
 		ctf_msg(ctf_debug, thread, "cpsdr = %p\n", cpsdr);
-	switch (mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num) {
+	mpn = cpsdr->sdu.sdu_proto_un.sdu_proto_num;
+	if (MPN_VALID(mpn))
+		ctf_set_agency(thread, &state->unix_io, relative_agency_we_have, mpn);
+	switch (mpn) {
 	case mpn_data_points:
 		if (!service_unix_sock_thread_data_points(conf, state, cpsdr))
 			goto out_free_cpsdr;

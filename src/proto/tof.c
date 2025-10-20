@@ -327,65 +327,105 @@ trace_object_encode(const struct trace_object *trace_object)
 	cbor_item_t *human, *machine, *namespace, *severity,
 		    *details, *timestamp, *hostname, *thread_id;
 
-	if (!(array = cbor_new_definite_array(8)))
+	if (!(array = cbor_new_definite_array(8))) {
+		ctf_msg(ctf_alert, tof, "cbor_new_definite_array failed\n");
 		return NULL;
-	if (!trace_object->to_human)
+	}
+	if (!trace_object->to_human) {
+		ctf_msg(ctf_debug, tof, "NULL ->to_human\n");
 		human = cbor_new_null();
-	else
+	} else
 		human = cbor_build_string(trace_object->to_human);
-	if (!human)
+	if (!human) {
+		ctf_msg(ctf_alert, tof, "human cbor_build_string failed\n");
 		goto out_free_array;
+	}
 	if (!(human_array = cbor_new_definite_array(1))) {
+		ctf_msg(ctf_alert, tof, "human_array failed\n");
 		ctf_cbor_decref(tof, &human);
 		goto out_free_array;
 	}
 	if (!cbor_array_set(human_array, 0, human)) {
+		ctf_msg(ctf_alert, tof, "human_array set elt 0 failed\n");
 		ctf_cbor_decref(tof, &human);
 		goto out_free_human_array;
 	}
-	if (!cbor_array_set(array, 1, human_array))
+	if (!cbor_array_set(array, 0, human_array)) {
+		ctf_msg(ctf_alert, tof, "human_array set ary elt failed\n");
 		goto out_free_human_array;
-	if (!(machine = cbor_build_string(trace_object->to_machine)))
+	}
+	if (!(machine = cbor_build_string(trace_object->to_machine))) {
+		ctf_msg(ctf_alert, tof, "machine cbor_build_string failed\n");
 		goto out_free_array;
-	if (!cbor_array_set(array, 1, machine))
+	}
+	if (!cbor_array_set(array, 1, machine)) {
+		ctf_msg(ctf_alert, tof, "machine set ary elt failed\n");
 		goto out_free_machine;
+	}
 	namespace = cbor_new_definite_array(trace_object->to_namespace_nr);
-	if (!namespace)
+	if (!namespace) {
+		ctf_msg(ctf_alert, tof, "namespace cbor_new_definite_array failed\n");
 		goto out_free_array;
+	}
 	for (k = 0; k < trace_object->to_namespace_nr; ++k) {
 		cbor_item_t *item;
 
-		if (!(item = cbor_build_string(trace_object->to_namespace[k])))
+		if (!(item = cbor_build_string(trace_object->to_namespace[k]))) {
+			ctf_msg(ctf_alert, tof, "namespace cbor_build_string for elt %d failed\n", k);
 			goto out_free_namespace;
+		}
 		if (!cbor_array_set(namespace, k, item)) {
+			ctf_msg(ctf_alert, tof, "namespace set elt %d failed\n", k);
 			ctf_cbor_decref(tof, &item);
 			goto out_free_namespace;
 		}
 	}
-	if (!cbor_array_set(array, 2, namespace))
+	if (!cbor_array_set(array, 2, namespace)) {
+		ctf_msg(ctf_alert, tof, "namespace set ary elt failed\n");
 		goto out_free_namespace;
-	if (!(severity = cbor_new_int32()))
+	}
+	if (!(severity = cbor_new_int32())) {
+		ctf_msg(ctf_alert, tof, "severity cbor_new_int32 failed\n");
 		goto out_free_array;
+	}
 	cbor_set_uint32(severity, trace_object->to_severity);
-	if (!cbor_array_set(array, 3, severity))
+	if (!cbor_array_set(array, 3, severity)) {
+		ctf_msg(ctf_alert, tof, "severity set ary elt failed\n");
 		goto out_free_severity;
-	if (!(details = cbor_new_int32()))
+	}
+	if (!(details = cbor_new_int32())) {
+		ctf_msg(ctf_alert, tof, "details cbor_new_int32 failed\n");
 		goto out_free_array;
+	}
 	cbor_set_uint32(details, trace_object->to_details);
-	if (!cbor_array_set(array, 4, details))
+	if (!cbor_array_set(array, 4, details)) {
+		ctf_msg(ctf_alert, tof, "details set ary elt failed\n");
 		goto out_free_details;
-	if (!(timestamp = cbor_build_uint64(trace_object->to_timestamp)))
+	}
+	if (!(timestamp = cbor_build_uint64(trace_object->to_timestamp))) {
+		ctf_msg(ctf_alert, tof, "timestamp cbor_build_uint64 failed\n");
 		goto out_free_array;
-	if (!cbor_array_set(array, 5, timestamp))
+	}
+	if (!cbor_array_set(array, 5, timestamp)) {
+		ctf_msg(ctf_alert, tof, "timestamp set ary elt failed\n");
 		goto out_free_timestamp;
-	if (!(hostname = cbor_build_string(trace_object->to_hostname)))
+	}
+	if (!(hostname = cbor_build_string(trace_object->to_hostname))) {
+		ctf_msg(ctf_alert, tof, "hostname cbor_build_string failed\n");
 		goto out_free_array;
-	if (!cbor_array_set(array, 6, hostname))
+	}
+	if (!cbor_array_set(array, 6, hostname)) {
+		ctf_msg(ctf_alert, tof, "hostname set ary elt failed\n");
 		goto out_free_hostname;
-	if (!(thread_id = cbor_build_string(trace_object->to_thread_id)))
+	}
+	if (!(thread_id = cbor_build_string(trace_object->to_thread_id))) {
+		ctf_msg(ctf_alert, tof, "thread_id cbor_build_string failed\n");
 		goto out_free_array;
-	if (!cbor_array_set(array, 7, thread_id))
+	}
+	if (!cbor_array_set(array, 7, thread_id)) {
+		ctf_msg(ctf_alert, tof, "thread_id set ary elt failed\n");
 		goto out_free_thread_id;
+	}
 	return array;
 	/*
 	 * array holds the reference counts for all of the array entries.

@@ -51,11 +51,14 @@ retry_send:
 	if (ret_sz == (ssize_t)cur_sz)
 		retval = RETVAL_SUCCESS;
 	else if (!ret_sz && !errno) { /* EOF */
+		ctf_msg(ctf_alert, client, "other end closed connection\n");
 		retval = RETVAL_SUCCESS;
 		goto out_free_buf;
-	} else if (!ret_sz && !errno_is_restart(errno))
+	} else if (!ret_sz && !errno_is_restart(errno)) {
+		ctf_msg(ctf_alert, client, "write failed %d (%s)\n",
+				errno, strerror(errno));
 		goto out_free_buf;
-	else if (ret_sz >= 0) {
+	} else if (ret_sz >= 0) {
 		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
 		cur_sz -= MIN(cur_sz, ret_sz);
 		(void)!sched_yield();
