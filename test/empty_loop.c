@@ -1,6 +1,7 @@
 #include <getopt.h>
 #include <glib.h>
 #include <inttypes.h>
+#include <linux/errno.h>
 #include <poll.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -104,7 +105,7 @@ retry_send:
 	else if (!ret_sz && !errno) { /* EOF */
 		retval = RETVAL_SUCCESS;
 		goto out_free_buf;
-	} else if (!ret_sz && errno != EAGAIN && errno != EWOULDBLOCK)
+	} else if (!ret_sz && !errno_is_restart(errno))
 		goto out_free_buf;
 	else if (ret_sz >= 0) {
 		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
@@ -182,7 +183,7 @@ retry_send:
 	else if (!ret_sz && !errno) { /* EOF */
 		retval = true;
 		goto out_free_buf;
-	} else if (!ret_sz && errno != EAGAIN && errno != EWOULDBLOCK)
+	} else if (!ret_sz && !errno_is_restart(errno))
 		goto out_free_buf;
 	else if (ret_sz >= 0) {
 		cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
@@ -254,7 +255,7 @@ loop:
 		struct tof_msg *tof;
 
 		ctf_msg(ctf_debug, empty_loop,
-				"remote agency, doing recv()\n");
+				"remote agency, doing recv_tof()\n");
 		(void)!fd_wait_readable(fd);
 		if (!(cpsdr = recv_tof(fd))) {
 			ctf_msg(ctf_alert, empty_loop,
