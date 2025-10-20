@@ -13,9 +13,11 @@ service_unix_sock_thread_data_points_reply(struct ctf_conf *conf, struct ctf_sta
 	size_t size;
 	ssize_t send_ret;
 
-	if (!(buf = datapoint_encode_empty_resp(&size)))
+	if (!(buf = datapoint_hostname_reply(&size)))
 		return false;
-	if ((send_ret = write(state->unix_io.fd, buf, size)) < 0)
+	send_ret = write(state->unix_io.fd, buf, size);
+	g_rc_box_release(buf);
+	if (send_ret < 0)
 		return false;
 	return send_ret == (ssize_t)size;
 }
