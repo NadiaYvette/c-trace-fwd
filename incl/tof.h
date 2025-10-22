@@ -82,6 +82,7 @@ struct trace_object *trace_object_decode(const cbor_item_t *);
 cbor_item_t *trace_object_encode(const struct trace_object *);
 const char *tof_msg_type_string(enum tof_msg_type);
 bool cbor_strdup_array_get(const char **, const cbor_item_t *, unsigned);
+bool cbor_bytestrdup_array_get(const char **, size_t *, const cbor_item_t *, unsigned);
 
 enum svc_result;
 struct ctf_state;

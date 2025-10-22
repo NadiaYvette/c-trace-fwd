@@ -199,6 +199,72 @@ out_string_free:
 	return retval;
 }
 
+bool
+cbor_bytestrdup_array_get(const char **string, size_t *len, const cbor_item_t *array, unsigned k)
+{
+	bool retval;
+	cbor_item_t *item;
+	char *new_string = NULL;
+
+	if (!(item = cbor_array_get(array, k))) {
+		ctf_msg(ctf_alert, tof, "cbor_array_get() failed\n");
+		return false;
+	}
+	if (cbor_is_null(item)) {
+		ctf_msg(ctf_alert, tof, "null item\n");
+		*string = NULL;
+		return false;
+	}
+	if (!cbor_isa_bytestring(item)) {
+		ctf_msg(ctf_alert, tof, "item not a string\n");
+		cbor_describe((cbor_item_t *)array, stderr);
+		retval = false;
+		goto out_string_free;
+	}
+	if (cbor_bytestring_is_definite(item)) {
+		size_t new_string_len = cbor_bytestring_length(item);
+
+		if (!(new_string = (char *)cbor_bytestring_handle(item))) {
+			ctf_msg(ctf_alert, tof, "string handle NULL\n");
+			retval = false;
+			goto out_string_free;
+		}
+		if (!(*string = g_rc_box_dup(new_string_len, new_string))) {
+			ctf_msg(ctf_alert, tof, "strdup() failed\n");
+			retval = false;
+			goto out_string_free;
+		}
+		*len = new_string_len;
+		retval = true;
+	} else if (cbor_bytestring_is_indefinite(item)) {
+		cbor_item_t **chunks;
+		size_t k, nr_chunks, new_string_len;
+		char *cur;
+
+		if (!(chunks = cbor_bytestring_chunks_handle(item))) {
+			ctf_msg(ctf_alert, tof,
+				"cbor_bytestring_chunks_handle() failed\n");
+			retval = false;
+			goto out_string_free;
+		}
+		nr_chunks = cbor_bytestring_chunk_count(item);
+		for (k = 0, new_string_len = 0; k < nr_chunks; ++k)
+			new_string_len += cbor_bytestring_length(chunks[k]);
+		if (!(new_string = g_rc_box_alloc0(new_string_len))) {
+			retval = false;
+			goto out_string_free;
+		}
+		for (k = 0, cur = new_string; k < nr_chunks; ++k)
+			cur = mempcpy(cur, (const char *)cbor_bytestring_handle(chunks[k]), cbor_bytestring_length(chunks[k]));
+		*string = new_string;
+		retval = true;
+	} else
+		retval = false;
+out_string_free:
+	ctf_cbor_decref(tof, &item);
+	return retval;
+}
+
 struct trace_object *
 trace_object_decode(const cbor_item_t *array)
 {

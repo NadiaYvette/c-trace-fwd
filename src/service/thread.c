@@ -28,6 +28,7 @@ service_unix_sock_thread_data_points(struct ctf_conf *conf, struct ctf_state *st
 	(void)!!conf;
 	(void)!!cpsdr;
 	ctf_msg(ctf_debug, thread, "entering\n");
+	(void)!datapoint_examine(&cpsdr->proto_stk_decode_result_body->undecoded);
 	switch (state->unix_io.agencies[mpn_data_points]) {
 	case relative_agency_we_have:
 	case relative_agency_nobody_has:

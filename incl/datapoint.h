@@ -51,3 +51,4 @@ struct cbor_item_t *build_empty_datapoint_resp(void);
 void *datapoint_encode_empty_resp(size_t *);
 struct cbor_item_t *datapoint_hostname_reply_cbor(void);
 char *datapoint_hostname_reply(size_t *);
+bool datapoint_examine(struct cbor_item_t *);

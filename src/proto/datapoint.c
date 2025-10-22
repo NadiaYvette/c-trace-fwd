@@ -1,11 +1,14 @@
 #include <cbor.h>
 #include <glib.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include "c_trace_fwd.h"
 #include "ctf_util.h"
-#include "sdu.h"
 #include "datapoint.h"
+#include "mpn.h"
+#include "sdu.h"
+#include "tof.h"
 
 char *
 datapoint_hostname_reply(size_t *size)
@@ -45,34 +48,53 @@ out_free_cbor:
 cbor_item_t *
 datapoint_hostname_reply_cbor(void)
 {
-	cbor_item_t *top_ary, *bot_ary, *key_str, *host_str, *tag_nr;
+	char host_raw_str[] = "nyc-ipad-mini";
+	char key_raw_str[] = "NodeInfo";
+	unsigned char *reply_buf = NULL;
+	size_t reply_buf_len = 0;
+	cbor_item_t *top_ary, *mid_ary, *bot_ary, *key_str, *host_str, *host_bytestr, *tag_nr;
 
 	if (!(top_ary = cbor_new_definite_array(2)))
 		return NULL;
-	if (!(bot_ary = cbor_new_definite_array(1)))
+	if (!(mid_ary = cbor_new_definite_array(1)))
 		goto out_free_top;
-	if (!(host_str = cbor_build_string("nyc-ipad-mini")))
+	if (!(bot_ary = cbor_new_definite_array(2)))
+		goto out_free_mid;
+	if (!(host_str = cbor_build_string(host_raw_str)))
 		goto out_free_bot;
-	if (!(key_str = cbor_build_string("HostName")))
+	if (!cbor_serialize_alloc(host_str, &reply_buf, &reply_buf_len))
+		goto out_free_host;
+	if (!(host_bytestr = cbor_build_bytestring(reply_buf, reply_buf_len)))
+		goto out_free_reply_buf;
+	if (!(key_str = cbor_build_string(key_raw_str)))
 		goto out_free_host;
 	if (!(tag_nr = cbor_new_int8()))
 		goto out_free_key;
 	cbor_set_uint8(tag_nr, 3);
 	if (!cbor_array_set(top_ary, 0, tag_nr))
 		goto out_free_tag;
-	if (!cbor_array_set(bot_ary, 0, host_str))
+	if (!cbor_array_set(top_ary, 1, mid_ary))
 		goto out_free_tag;
-	if (!cbor_array_set(top_ary, 1, bot_ary))
+	if (!cbor_array_set(mid_ary, 0, bot_ary))
 		goto out_free_tag;
+	if (!cbor_array_set(bot_ary, 0, key_str))
+		goto out_free_tag;
+	if (!cbor_array_set(bot_ary, 1, host_bytestr))
+		goto out_free_tag;
+	free(reply_buf);
 	return top_ary;
 out_free_tag:
 	ctf_cbor_decref(datapoint, &tag_nr);
 out_free_key:
 	ctf_cbor_decref(datapoint, &key_str);
+out_free_reply_buf:
+	free(reply_buf);
 out_free_host:
 	ctf_cbor_decref(datapoint, &host_str);
 out_free_bot:
 	ctf_cbor_decref(datapoint, &bot_ary);
+out_free_mid:
+	ctf_cbor_decref(datapoint, &mid_ary);
 out_free_top:
 	ctf_cbor_decref(datapoint, &top_ary);
 	return NULL;
@@ -140,4 +162,62 @@ out_decref_tag:
 out_decref_arr:
 	cbor_decref(&arr);
 	return NULL;
+}
+
+bool
+datapoint_examine(cbor_item_t *payload)
+{
+	cbor_item_t *entry, *bot, *key, *val, *val_decoded;
+	struct cbor_load_result result;
+	char *val_str = NULL;
+	size_t val_str_len = 0;
+
+	cbor_describe(payload, stdout);
+	if (cbor_typeof(payload) != CBOR_TYPE_ARRAY)
+		return false;
+	if (cbor_array_size(payload) != 2)
+		return false;
+	if (!(entry = cbor_array_get(payload, 0)))
+		return false;
+	if (cbor_typeof(entry) != CBOR_TYPE_UINT)
+		return false;
+	if (cbor_int_get_width(entry) != CBOR_INT_8)
+		return false;
+	if (cbor_get_uint8(entry) != (int)mpn_data_points)
+		return false;
+	cbor_decref(&entry);
+	if (!(entry = cbor_array_get(payload, 1)))
+		return false;
+	if (cbor_typeof(entry) != CBOR_TYPE_ARRAY)
+		return false;
+	if (cbor_array_size(entry) != 1)
+		return false;
+	if (!(bot = cbor_array_get(entry, 0)))
+		return false;
+	if (cbor_typeof(bot) != CBOR_TYPE_ARRAY)
+		return false;
+	if (cbor_array_size(bot) != 2)
+		return false;
+	if (!(key = cbor_array_get(bot, 0)))
+		return false;
+	if (cbor_typeof(key) != CBOR_TYPE_STRING)
+		return false;
+	if (!(val = cbor_array_get(bot, 1)))
+		return false;
+	if (cbor_typeof(val) != CBOR_TYPE_BYTESTRING)
+		return false;
+	/* decode & print key */
+	/* decode val & cbor_load it & the describe it */
+	if (!cbor_bytestrdup_array_get((const char **)&val_str, &val_str_len, bot, 1))
+		goto out_free_val_str;
+	if (!(val_decoded = cbor_load((unsigned char *)val_str, val_str_len, &result)))
+		goto out_free_val_str;
+	cbor_describe(val_decoded, stderr);
+	fflush(stderr);
+	(void)result;
+	g_rc_box_release(val_str);
+	return true;
+out_free_val_str:
+	g_rc_box_release(val_str);
+	return false;
 }

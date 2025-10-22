@@ -87,7 +87,7 @@ restart_loop_from_tell:
 		goto exit_free_buf;
 	}
 restart_loop:
-	if ((ret = read(STDIN_FILENO, sdu_buf.sdu8, 8)) != 8) {
+	if ((ret = read(STDIN_FILENO, buf, 8)) != 8) {
 		if (!ret && !errno)
 			/* This is the EOF condition. */
 			retval = EXIT_SUCCESS;
@@ -98,6 +98,8 @@ restart_loop:
 					  ret, errno);
 		goto exit_free_buf;
 	}
+	memset(&sdu, 0xc, sizeof(struct sdu));
+	sdu_buf.sdu8 = (uint8_t *)buf;
 	if (sdu_decode(sdu_buf, &sdu) != RETVAL_SUCCESS) {
 		ctf_msg(ctf_alert, cbor_dissect,
 				"SDU header sdu_decode() failure\n");
@@ -116,7 +118,7 @@ restart_loop:
 				     "it may merely reflect a small datum\n");
 	}
 	/* The tell was done before the read. */
-	dst_off = cur_off + sdu.sdu_len;
+	dst_off = cur_off + sdu.sdu_len + 8;
 	if (dst_off > stat_buf.st_size) {
 		ctf_msg(ctf_alert, cbor_dissect,
 				"sdu_len runs past EOF, "
