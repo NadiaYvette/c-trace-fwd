@@ -33,12 +33,13 @@ OBJBINDIR:=$(OBJDIR)/bin
 OBJLIBDIR:=$(OBJDIR)/lib
 OBJTSTDIR:=$(OBJDIR)/tst
 INCDIR:=$(TOPDIR)/incl
-INCFLAGS:=-I$(INCDIR) $(shell pkgconf --cflags glib-2.0)
 CTF_LIBS:=c_trace_fwd
 
 # The placement of the library is assumed in-place for the moment.
 # Installation directories should follow.
-PKGCONF_LIST:=libcbor glib-2.0
+PKGCONF_LIST:=libcbor glib-2.0 json-c
+INCFLAGS:=-I$(INCDIR) $(foreach PKG,$(PKGCONF_LIST), \
+			$(shell pkgconf --cflags $(PKG)))
 LDFLAGS:=-L$(OBJLIBDIR) -L/usr/lib64 -L/lib64 $(addprefix -l,$(CTF_LIBS)) \
 		$(foreach PKG,$(PKGCONF_LIST), \
 			$(shell pkgconf --libs --keep-system-libs $(PKG)))
