@@ -26,7 +26,10 @@ import Data.Aeson as Aeson hiding (decode')
 import Codec.Serialise as Ser
 import Codec.CBOR.Pretty (prettyHexEnc)
 
+import           Cardano.Logging.Types.NodeInfo
+
 import           Trace.Forward.Protocol.DataPoint.Type
+import           Data.Time
 
 codecDataPointForward
   :: forall m.
@@ -93,7 +96,7 @@ codecDataPointForward encodeRequest   decodeRequest
 
 
 sampleData :: ToJSON a => a -> DataPointValues
-sampleData val = [("Sample", Just (Aeson.encode val))]
+sampleData val = [("NodeInfo", Just (Aeson.encode val))]
 
 testData :: DataPointValues
 testData = [("Nothing", Nothing), ("Empty", Just "{}")]
@@ -104,7 +107,21 @@ printPretty = putStrLn . prettyHexEnc . wrapInMsgReply
     wrapInMsgReply payload =
       CBOR.encodeListLen 2 <> CBOR.encodeWord 3 <> Ser.encode payload
 
+testNI :: IO NodeInfo
+testNI = do
+  now <- getCurrentTime
+  let
+    niName = "nyc-ipad-mini"
+    niProtocol = "N/A"
+    niVersion = "N/A"
+    niCommit = "N/A"
+    niStartTime = now
+    niSystemStartTime = now
+  pure NodeInfo {..}
+
 main :: IO ()
 main = do
   printPretty testData
-  printPretty $ sampleData ("nyc-ipad-mini" :: String)
+  let sd = sampleData ("nyc-ipad-mini" :: String)
+  print sd
+  printPretty sd
