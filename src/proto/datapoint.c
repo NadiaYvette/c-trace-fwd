@@ -1,5 +1,6 @@
 #include <cbor.h>
 #include <glib.h>
+#include <json_object.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -21,6 +22,7 @@ datapoint_hostname_reply(size_t *size)
 
 	if (!(cbor_reply = datapoint_hostname_reply_cbor()))
 		return NULL;
+	cbor_describe(cbor_reply, stderr);
 	if (!(sz = cbor_serialized_size(cbor_reply)))
 		goto out_free_cbor;
 	sdu.sdu_len = sz;
@@ -51,20 +53,27 @@ datapoint_hostname_reply_cbor(void)
 	char host_raw_str[] = "nyc-ipad-mini";
 	char key_raw_str[] = "NodeInfo";
 	unsigned char *reply_buf = NULL;
-	size_t reply_buf_len = 0;
-	cbor_item_t *top_ary, *mid_ary, *bot_ary, *key_str, *host_str, *host_bytestr, *tag_nr;
+	size_t k, reply_buf_len = 0;
+	cbor_item_t *top_ary, *upp_ary, *mid_ary, *bot_ary,
+		    *key_str, *host_str, *host_bytestr, *tag_nr;
+	struct json_object *ni_json_obj;
+	const char *ni_json_str;
 
 	if (!(top_ary = cbor_new_definite_array(2)))
 		return NULL;
-	if (!(mid_ary = cbor_new_definite_array(1)))
+	if (!(upp_ary = cbor_new_indefinite_array()))
 		goto out_free_top;
-	if (!(bot_ary = cbor_new_definite_array(2)))
+	if (!(mid_ary = cbor_new_definite_array(2)))
+		goto out_free_upp;
+	if (!(bot_ary = cbor_new_definite_array(1)))
 		goto out_free_mid;
-	if (!(host_str = cbor_build_string(host_raw_str)))
+	if (!(ni_json_obj = json_object_new_string(host_raw_str)))
 		goto out_free_bot;
-	if (!cbor_serialize_alloc(host_str, &reply_buf, &reply_buf_len))
-		goto out_free_host;
-	if (!(host_bytestr = cbor_build_bytestring(reply_buf, reply_buf_len)))
+	if (!(ni_json_str = json_object_to_json_string_ext(ni_json_obj, JSON_C_TO_STRING_PLAIN)))
+		goto out_free_json_obj;
+	if (!(host_str = cbor_build_bytestring((cbor_data)ni_json_str, strlen(ni_json_str))))
+		goto out_free_json_str;
+	if (!(host_bytestr = cbor_new_indefinite_bytestring()))
 		goto out_free_reply_buf;
 	if (!(key_str = cbor_build_string(key_raw_str)))
 		goto out_free_host;
@@ -73,14 +82,29 @@ datapoint_hostname_reply_cbor(void)
 	cbor_set_uint8(tag_nr, 3);
 	if (!cbor_array_set(top_ary, 0, tag_nr))
 		goto out_free_tag;
-	if (!cbor_array_set(top_ary, 1, mid_ary))
+	if (!cbor_array_set(top_ary, 1, upp_ary))
 		goto out_free_tag;
-	if (!cbor_array_set(mid_ary, 0, bot_ary))
+	if (!cbor_array_push(upp_ary, mid_ary))
 		goto out_free_tag;
-	if (!cbor_array_set(bot_ary, 0, key_str))
+	if (!cbor_array_set(mid_ary, 0, key_str))
 		goto out_free_tag;
-	if (!cbor_array_set(bot_ary, 1, host_bytestr))
+	if (!cbor_array_set(mid_ary, 1, bot_ary))
 		goto out_free_tag;
+	if (!cbor_array_set(bot_ary, 0, host_bytestr))
+		goto out_free_tag;
+	if (!cbor_bytestring_add_chunk(host_bytestr, host_str))
+		goto out_free_tag;
+	if (!cbor_serialize_alloc(top_ary, &reply_buf, &reply_buf_len))
+		goto out_free_tag;
+	(void)!fputc('\n', stderr);
+	for (k = 0; k < reply_buf_len; ++k) {
+		(void)!fprintf(stderr, "%02x", (unsigned)reply_buf[k]);
+		if (k + 1 < reply_buf_len)
+			(void)!fputc((int)' ', stderr);
+	}
+	(void)!fputc('\n', stderr);
+	json_object_put(ni_json_obj);
+	(void)!ni_json_str;
 	free(reply_buf);
 	return top_ary;
 out_free_tag:
@@ -91,10 +115,16 @@ out_free_reply_buf:
 	free(reply_buf);
 out_free_host:
 	ctf_cbor_decref(datapoint, &host_str);
+out_free_json_str:
+	(void)!ni_json_str;
+out_free_json_obj:
+	json_object_put(ni_json_obj);
 out_free_bot:
 	ctf_cbor_decref(datapoint, &bot_ary);
 out_free_mid:
 	ctf_cbor_decref(datapoint, &mid_ary);
+out_free_upp:
+	ctf_cbor_decref(datapoint, &upp_ary);
 out_free_top:
 	ctf_cbor_decref(datapoint, &top_ary);
 	return NULL;
