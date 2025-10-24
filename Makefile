@@ -3,8 +3,8 @@ LANG:=en_GB.UTF-8
 GDM_LANG:=en_GB.UTF-8
 LANGUAGE:=en_GB:en
 # This should be compatible with either gcc or clang.
-# CC:=clang
-CC:=gcc
+CC:=clang
+# CC:=gcc
 DBG:=$(shell which gdb)
 LD:=$(CC)
 
@@ -31,6 +31,7 @@ APP_OBJDIRS:=$(addprefix $(OBJDIR)/,$(APP_SUBDIRS))
 LIB_OBJDIRS:=$(addprefix $(OBJDIR)/,$(LIB_SUBDIRS))
 OBJBINDIR:=$(OBJDIR)/bin
 OBJLIBDIR:=$(OBJDIR)/lib
+OBJTSTDIR:=$(OBJDIR)/tst
 INCDIR:=$(TOPDIR)/incl
 INCFLAGS:=-I$(INCDIR) $(shell pkgconf --cflags glib-2.0)
 CTF_LIBS:=c_trace_fwd
@@ -38,7 +39,7 @@ CTF_LIBS:=c_trace_fwd
 # The placement of the library is assumed in-place for the moment.
 # Installation directories should follow.
 PKGCONF_LIST:=libcbor glib-2.0
-LDFLAGS:=-L$(OBJLIBDIR) \
+LDFLAGS:=-L$(OBJLIBDIR) -L/usr/lib64 -L/lib64 $(addprefix -l,$(CTF_LIBS)) \
 		$(foreach PKG,$(PKGCONF_LIST), \
 			$(shell pkgconf --libs --keep-system-libs $(PKG)))
 LIBS:=$(CBOR_LIBS)
@@ -82,13 +83,13 @@ DOC:=$(DOCDIR)/cardiff.pdf
 
 CTF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,c_trace_fwd)
 CTF_LIB_DSO:=$(addprefix $(OBJLIBDIR)/lib,$(addsuffix .so,$(CTF_LIBS)))
-CBOR_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_dissect)
-DSC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_cbor_dsc)
-EMP_BIN_EXE:=$(addprefix $(OBJBINDIR)/,empty_loop)
-RNC_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_reencode)
-SDU_BIN_EXE:=$(addprefix $(OBJBINDIR)/,sdu_dissect)
-TOF_BIN_EXE:=$(addprefix $(OBJBINDIR)/,tof_stdin)
-TRY_BIN_EXE:=$(addprefix $(OBJBINDIR)/,cbor_try)
+CBOR_BIN_EXE:=$(addprefix $(OBJTSTDIR)/,cbor_dissect)
+DSC_BIN_EXE:=$(addprefix $(OBJTSTDIR)/,sdu_cbor_dsc)
+EMP_BIN_EXE:=$(addprefix $(OBJTSTDIR)/,empty_loop)
+RNC_BIN_EXE:=$(addprefix $(OBJTSTDIR)/,sdu_reencode)
+SDU_BIN_EXE:=$(addprefix $(OBJTSTDIR)/,sdu_dissect)
+TOF_BIN_EXE:=$(addprefix $(OBJTSTDIR)/,tof_stdin)
+TRY_BIN_EXE:=$(addprefix $(OBJTSTDIR)/,cbor_try)
 
 $(CTF_BIN_EXE): $(APP_OBJ) $(CTF_LIB_DSO)
 	@mkdir -p $(dir $@)
@@ -185,10 +186,19 @@ clean:
 depclean:
 	-rm -f $(DEP)
 
+codec-testing: $(shell find $(TSTDIR) -name '*.hs')
+	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
+	cd $(TSTDIR); cabal run trace-compare:exe:codec-testing \
+		-- ../logs/*.007.A ../logs/*.007.D
+
 trace-compare: $(shell find $(TSTDIR) -name '*.hs')
 	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
 	cd $(TSTDIR); cabal run trace-compare:exe:trace-compare \
 		-- ../logs/*.007.A ../logs/*.007.D
+
+codec-testing-repl: $(shell find $(TSTDIR) -name '*.hs')
+	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;
+	cd $(TSTDIR); cabal repl trace-compare:exe:codec-testing
 
 trace-compare-repl: $(shell find $(TSTDIR) -name '*.hs')
 	find $(TOPDIR) -name '*.[mt]ix' -exec rm -f \{\} \;

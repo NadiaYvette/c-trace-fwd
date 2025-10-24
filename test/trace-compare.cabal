@@ -106,3 +106,49 @@ benchmark trace-compare-bench
   hs-source-dirs:       .
   main-is:              trace-compare-bench.hs
   build-depends:      , trace-compare
+
+executable codec-testing
+  import:               library-deps, project-config, rts-opts
+  hs-source-dirs:       .
+  main-is:              codec-testing.hs
+  build-depends:      , aeson
+                      , cborg
+                      , directory
+                      , ekg-forward
+                      , filepath
+                      , io-classes
+                      , network-mux
+                      , optparse-applicative
+                      , ouroboros-network-api
+                      , ouroboros-network-framework
+                      , ouroboros-network-testing
+                      , serialise
+                      , trace-forward
+                      , transformers-except
+                      , typed-protocols
+                      , typed-protocols-cborg
+  -- The -T flag says to collect runtime statistics.
+  -- It's added to RTS options already in project-config's ghc-options.
+  ghc-options:          -with-rtsopts=-T
+  other-modules:        Trace.Forward.Test.CCodec
+
+test-suite codec-testing-test
+  import:               project-config, rts-opts
+  type:                 exitcode-stdio-1.0
+  hs-source-dirs:       .
+  main-is:              codec-testing-test.hs
+  build-depends:      , base
+
+test-suite codec-testing-test-ext
+  import:               project-config, rts-opts
+  type:                 exitcode-stdio-1.0
+  hs-source-dirs:       .
+  main-is:              codec-testing-test-ext.hs
+  build-depends:      , base
+
+benchmark codec-testing-bench
+  import:               project-config, rts-opts
+  type:                 exitcode-stdio-1.0
+  hs-source-dirs:       .
+  main-is:              codec-testing-bench.hs
+  build-depends:      , base
