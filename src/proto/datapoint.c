@@ -56,7 +56,9 @@ datapoint_hostname_reply_cbor(void)
 	size_t k, reply_buf_len = 0;
 	cbor_item_t *top_ary, *upp_ary, *mid_ary, *bot_ary,
 		    *key_str, *host_str, *host_bytestr, *tag_nr;
-	struct json_object *ni_json_obj;
+	struct json_object *ni_json_obj, *ni_name, *ni_proto,
+			   *ni_version, *ni_commit, *ni_start_time,
+			   *ni_system_start_time;
 	const char *ni_json_str;
 
 	if (!(top_ary = cbor_new_definite_array(2)))
@@ -67,8 +69,32 @@ datapoint_hostname_reply_cbor(void)
 		goto out_free_upp;
 	if (!(bot_ary = cbor_new_definite_array(1)))
 		goto out_free_mid;
-	if (!(ni_json_obj = json_object_new_string(host_raw_str)))
+	if (!(ni_name = json_object_new_string(host_raw_str)))
 		goto out_free_bot;
+	if (!(ni_proto = json_object_new_string("NA")))
+		goto out_free_ni_name;
+	if (!(ni_version = json_object_new_string("NA")))
+		goto out_free_ni_proto;
+	if (!(ni_commit = json_object_new_string("NA")))
+		goto out_free_ni_version;
+	if (!(ni_start_time = json_object_new_string("\"2025-10-24T09:27:21.043872387Z\"")))
+		goto out_free_ni_commit;
+	if (!(ni_system_start_time = json_object_new_string("\"2025-10-24T09:27:21.043872387Z\"")))
+		goto out_free_ni_start_time;
+	if (!(ni_json_obj = json_object_new_object()))
+		goto out_free_ni_system_start_time;
+	if (!!json_object_object_add(ni_json_obj, "niName", ni_name))
+		goto out_free_json_obj;
+	if (!!json_object_object_add(ni_json_obj, "niProtocol", ni_proto))
+		goto out_free_json_obj;
+	if (!!json_object_object_add(ni_json_obj, "niVersion", ni_version))
+		goto out_free_json_obj;
+	if (!!json_object_object_add(ni_json_obj, "niCommit", ni_commit))
+		goto out_free_json_obj;
+	if (!!json_object_object_add(ni_json_obj, "niStartTime", ni_start_time))
+		goto out_free_json_obj;
+	if (!!json_object_object_add(ni_json_obj, "niSystemStartTime", ni_system_start_time))
+		goto out_free_json_obj;
 	if (!(ni_json_str = json_object_to_json_string_ext(ni_json_obj, JSON_C_TO_STRING_PLAIN)))
 		goto out_free_json_obj;
 	if (!(host_str = cbor_build_bytestring((cbor_data)ni_json_str, strlen(ni_json_str))))
@@ -96,6 +122,7 @@ datapoint_hostname_reply_cbor(void)
 		goto out_free_tag;
 	if (!cbor_serialize_alloc(top_ary, &reply_buf, &reply_buf_len))
 		goto out_free_tag;
+	(void)!fprintf(stderr, "NodeInfo %s\n", ni_json_str);
 	(void)!fputc('\n', stderr);
 	for (k = 0; k < reply_buf_len; ++k) {
 		(void)!fprintf(stderr, "%02x", (unsigned)reply_buf[k]);
@@ -119,6 +146,18 @@ out_free_json_str:
 	(void)!ni_json_str;
 out_free_json_obj:
 	json_object_put(ni_json_obj);
+out_free_ni_system_start_time:
+	(void)!json_object_put(ni_system_start_time);
+out_free_ni_start_time:
+	(void)!json_object_put(ni_start_time);
+out_free_ni_commit:
+	(void)!json_object_put(ni_commit);
+out_free_ni_version:
+	(void)!json_object_put(ni_version);
+out_free_ni_proto:
+	(void)!json_object_put(ni_proto);
+out_free_ni_name:
+	(void)!json_object_put(ni_name);
 out_free_bot:
 	ctf_cbor_decref(datapoint, &bot_ary);
 out_free_mid:
