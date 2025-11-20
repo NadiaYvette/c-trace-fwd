@@ -20,8 +20,6 @@ static int split_addrinfo(struct addrinfo **addrinfo, char *s)
 	return retval;
 exit_failure:
 	ctf_msg(ctf_error, conf, "getaddrinfo failed on \"%s\"\n", s);
-	free(*addrinfo);
-	*addrinfo = NULL;
 	return retval;
 }
 
