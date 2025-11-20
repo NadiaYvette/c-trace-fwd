@@ -35,7 +35,7 @@
 
           src = ./.;
 
-          buildInputs = [clang coreutils gcc gdb glib glibc gnumake libcbor libsysprof-capture pcre2 pkgconf pkg-config which];
+          buildInputs = [clang coreutils gcc gdb glib glibc gnumake libcbor libsysprof-capture pcre2 pkgconf pkg-config which json_c];
           buildTarget = ''
             $(pwd)/obj/bin/c_trace_fwd obj/lib/libc_trace_fwd.so $(pwd)/obj/bin/c_trace_fwd obj/lib/libc_trace_fwd.so
           '';
@@ -61,8 +61,8 @@
             #!/bin/sh
             # Set the environment variables for your libs
             export LD_PRELOAD="$out/lib/libc_trace_fwd.so"
-            export LD_LIBRARY_PATH="$out/lib:${LD_LIBRARY_PATH}"
-
+            export LD_LIBRARY_PATH="$out/lib$${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            
             # Execute the actual program
             exec "$out/bin/c_trace_fwd.bin" "\$@"
             EOF
