@@ -107,7 +107,6 @@ continue_for_loop:
 			switch (tof_msg->tof_msg_type) {
 			case tof_request:
 			case tof_done:
-				tof_free(&result->proto_stk_decode_result_body->tof_msg);
 				cpsdr_free(result);
 				continue;
 			case tof_reply:
@@ -116,7 +115,6 @@ continue_for_loop:
 						continue;
 					ctf_msg(ctf_alert, state,
 							"enqueue failed\n");
-					tof_free(&result->proto_stk_decode_result_body->tof_msg);
 					cpsdr_free(result);
 					goto out_close_fd;
 				}
@@ -226,6 +224,7 @@ setup_state(struct ctf_state **state, struct ctf_conf *conf)
 		goto exit_failure;
 	}
 	(void)!pthread_mutex_init(&(*state)->state_lock, &state_lock_attr);
+	(void)!pthread_mutexattr_destroy(&state_lock_attr);
 	unix_sock = (struct sockaddr *)&conf->unix_sock;
 	if (!setup_unix_sock(&(*state)->unix_io.fd, unix_sock)) {
 		ctf_msg(ctf_alert, state, "setup_unix_sock() failed\n");
@@ -299,14 +298,35 @@ static void
 state_release_memory(void *p)
 {
 	struct ctf_state *state = p;
+	int k;
 
 	(void)!shutdown(state->unix_io.fd, SHUT_RDWR);
 	(void)!close(state->unix_io.fd);
 	state->unix_io.fd = -1;
+
+	while (!g_queue_is_empty(&state->unix_io.in_queue))
+		trace_object_free(to_dequeue(&state->unix_io.in_queue));
+	while (!g_queue_is_empty(&state->unix_io.out_queue))
+		trace_object_free(to_dequeue(&state->unix_io.out_queue));
+
 	(void)!shutdown(state->ux_sock_fd, SHUT_RDWR);
+	(void)!close(state->ux_sock_fd);
 	state->ux_sock_fd = -1;
 	(void)!pthread_mutex_destroy(&state->state_lock);
-	free(state->ux_io);
+
+	if (state->ux_io) {
+		for (k = 0; k < state->nr_clients; ++k) {
+			if (state->ux_io[k].fd > 0) {
+				(void)!shutdown(state->ux_io[k].fd, SHUT_RDWR);
+				(void)!close(state->ux_io[k].fd);
+			}
+			while (!g_queue_is_empty(&state->ux_io[k].in_queue))
+				trace_object_free(to_dequeue(&state->ux_io[k].in_queue));
+			while (!g_queue_is_empty(&state->ux_io[k].out_queue))
+				trace_object_free(to_dequeue(&state->ux_io[k].out_queue));
+		}
+		free(state->ux_io);
+	}
 }
 
 void teardown_state(struct ctf_state **state)
