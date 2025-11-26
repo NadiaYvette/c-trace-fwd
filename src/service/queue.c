@@ -59,6 +59,8 @@ to_queue_move(GQueue *dst, GQueue *src, size_t nr_requested)
 int
 to_enqueue(GQueue *queue, struct trace_object *to)
 {
+	if (to)
+		g_rc_box_acquire(to);
 	g_queue_push_tail(queue, to);
 	return RETVAL_SUCCESS;
 }
