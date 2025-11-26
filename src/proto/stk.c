@@ -16,6 +16,9 @@ cpsdr_release_memory(void *p)
 	struct ctf_proto_stk_decode_result *cpsdr = p;
 	union msg *msg;
 
+	if (cpsdr->buf)
+		g_rc_box_release(cpsdr->buf);
+
 	if (cpsdr->load_result.error.code != CBOR_ERR_NONE)
 		return;
 	if (!(msg = cpsdr->proto_stk_decode_result_body))
@@ -157,6 +160,7 @@ ctf_proto_stk_decode(int fd)
 		ctf_msg(ctf_alert, stk, "buf calloc() failed\n");
 		goto out_free_cpsdr;
 	}
+	cpsdr->buf = buf;
 	(void)!memcpy(&buf[0], &sdu, 2*sizeof(uint32_t));
 	cpsdr->sdu.sdu_data = &buf[2*sizeof(uint32_t)];
 	sdu_data_addr = (cbor_data)cpsdr->sdu.sdu_data;
@@ -170,7 +174,7 @@ ctf_proto_stk_decode(int fd)
 		if (ret_sz < 0) {
 			if (errno_is_restart(errno))
 				continue;
-			goto out_free_buf;
+			goto out_free_cpsdr;
 		} else if (ret_sz < cur_sz) {
 			cur_buf = &cur_buf[MIN(cur_sz, ret_sz)];
 			cur_sz -= MIN(cur_sz, ret_sz);
@@ -315,10 +319,6 @@ out_free_tof_cbor:
 	ctf_msg(ctf_debug, stk, "at out_free_tof_cbor label\n");
 	if (!!tof_cbor)
 		ctf_cbor_decref(stk, &tof_cbor);
-out_free_buf:
-	ctf_msg(ctf_debug, stk, "at out_free_buf label\n");
-	if (!!buf)
-		g_rc_box_release(buf);
 out_free_cpsdr:
 	ctf_msg(ctf_debug, stk, "at out_free_cpsdr label\n");
 	if (ctf_check_ptr(stk, cpsdr))

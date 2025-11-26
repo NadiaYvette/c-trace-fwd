@@ -7,6 +7,7 @@
 struct ctf_proto_stk_decode_result {
 	struct cbor_load_result load_result;
 	struct sdu sdu;
+	void *buf;
 	union msg *proto_stk_decode_result_body;
 };
 
