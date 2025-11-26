@@ -273,7 +273,7 @@ setup_state(struct ctf_state **state, struct ctf_conf *conf)
 		if (!MPN_VALID(mpn))
 			continue;
 		ctf_set_agency(state, &(*state)->unix_io,
-				relative_agency_we_have, mpn);
+				relative_agency_they_have, mpn);
 	}
 	ctf_msg(ctf_debug, state, "state_handshake() returned %d\n", retval);
 	return retval;
