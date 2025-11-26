@@ -321,6 +321,7 @@ propose_versions_encode(const struct handshake_propose_versions *propose_version
 		goto out_free_proposal_array;
 	if (!cbor_array_set(proposal_array, 0, array_zero_element))
 		goto out_free_array_zero_element;
+	ctf_cbor_decref(handshake, &array_zero_element);
 	ctf_msg(ctf_debug, handshake, "about to build proposal map\n");
 	if (!(proposal_map = cbor_new_definite_map(propose_versions->handshake_propose_versions_len))) {
 		ctf_msg(ctf_debug, handshake,
@@ -384,6 +385,7 @@ propose_versions_encode(const struct handshake_propose_versions *propose_version
 					"failed!\n", k);
 			goto out_free_proposal_map;
 		}
+		ctf_cbor_decref(handshake, &pair.key);
 		ctf_msg(ctf_debug, handshake,
 				"finished proposal map loop iter %u\n", k);
 	}
@@ -392,6 +394,7 @@ propose_versions_encode(const struct handshake_propose_versions *propose_version
 				   "proposal_map failed!\n");
 		goto out_free_proposal_map;
 	}
+	ctf_cbor_decref(handshake, &proposal_map);
 	if (cbor_typeof(proposal_map) != CBOR_TYPE_MAP) {
 		ctf_msg(ctf_alert, handshake, "proposal_map changed type!\n");
 		goto out_free_proposal_map;
@@ -475,13 +478,33 @@ exit_free_item:
 static cbor_item_t *
 accept_version_encode(const struct handshake_accept_version *accept_version)
 {
-	cbor_item_t *item;
+	cbor_item_t *item, *tmp;
 
-	item = cbor_new_definite_array(3);
-	(void)!cbor_array_set(item, 0, cbor_build_encode_word(handshake_accept_version));
-	(void)!cbor_array_set(item, 1, cbor_build_encode_word(accept_version->handshake_accept_version_number));
-	(void)!cbor_array_set(item, 2, accept_version->handshake_accept_version_params);
+	if (!(item = cbor_new_definite_array(3)))
+		return NULL;
+
+	if (!(tmp = cbor_build_encode_word(handshake_accept_version)))
+		goto out_free_item;
+	if (!cbor_array_set(item, 0, tmp)) {
+		ctf_cbor_decref(handshake, &tmp);
+		goto out_free_item;
+	}
+	ctf_cbor_decref(handshake, &tmp);
+
+	if (!(tmp = cbor_build_encode_word(accept_version->handshake_accept_version_number)))
+		goto out_free_item;
+	if (!cbor_array_set(item, 1, tmp)) {
+		ctf_cbor_decref(handshake, &tmp);
+		goto out_free_item;
+	}
+	ctf_cbor_decref(handshake, &tmp);
+
+	if (!cbor_array_set(item, 2, accept_version->handshake_accept_version_params))
+		goto out_free_item;
 	return item;
+out_free_item:
+	ctf_cbor_decref(handshake, &item);
+	return NULL;
 }
 
 static cbor_item_t *
