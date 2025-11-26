@@ -56,10 +56,12 @@ build_empty_metrics_resp(void)
 		goto out_decref_arr;
 	if (!cbor_array_set(arr, 0, tag))
 		goto out_decref_tag;
+	cbor_decref(&tag);
 	if (!(val = cbor_new_definite_array(0)))
-		goto out_decref_tag;
+		goto out_decref_arr;
 	if (!cbor_array_set(arr, 1, val))
 		goto out_decref_val;
+	cbor_decref(&val);
 	return arr;
 out_decref_val:
 	cbor_decref(&val);
