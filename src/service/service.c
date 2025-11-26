@@ -82,7 +82,7 @@ static int
 service_loop_move(struct ctf_state *state)
 {
 	struct trace_object **to_move = NULL;
-	size_t k, nr_to_move = 1024;
+	size_t k, m, nr_to_move = 1024;
 	bool retval = true;
 
 	if (!to_queue_fillarray(&to_move, &state->unix_io.out_queue, &nr_to_move)) {
@@ -90,11 +90,19 @@ service_loop_move(struct ctf_state *state)
 		return false;
 	}
 	for (k = 0; k < state->nr_clients; ++k) {
+		for (m = 0; m < nr_to_move; ++m)
+			g_rc_box_acquire(to_move[m]);
+
 		if (to_queue_putarray(&state->ux_io[k].in_queue, to_move, nr_to_move))
 			continue;
 		ctf_msg(ctf_alert, service, "to_queue_putarray() failed\n");
 		retval = false;
 	}
+
+	for (m = 0; m < nr_to_move; ++m)
+		g_rc_box_release_full(to_move[m], (GDestroyNotify)trace_object_free);
+
+	free(to_move);
 	return retval;
 }
 
