@@ -45,8 +45,10 @@ continue_for_loop:
 					"returned NULL\n");
 			continue;
 		}
-		if (result->load_result.error.code == CBOR_ERR_NOTENOUGHDATA)
+		if (result->load_result.error.code == CBOR_ERR_NOTENOUGHDATA) {
+			cpsdr_free(result);
 			break;
+		}
 		switch (result->load_result.error.code) {
 		case CBOR_ERR_NONE:
 			break;
@@ -118,7 +120,8 @@ continue_for_loop:
 					cpsdr_free(result);
 					goto out_close_fd;
 				}
-				break;
+				cpsdr_free(result);
+				continue;
 			default:
 				ctf_msg(ctf_warning, state,
 					"unrecognized tof_msg_type %d\n",
@@ -168,6 +171,7 @@ continue_for_loop:
 			cpsdr_free(result);
 			continue;
 		}
+		cpsdr_free(result);
 	}
 	close(fd);
 	return true;
