@@ -104,7 +104,7 @@ datapoint_hostname_reply_cbor(void)
 	if (!(host_bytestr = cbor_new_indefinite_bytestring()))
 		goto out_free_reply_buf;
 	if (!(key_str = cbor_build_string(key_raw_str)))
-		goto out_free_host;
+		goto out_free_host_bytestr;
 	if (!(tag_nr = cbor_new_int8()))
 		goto out_free_key;
 	cbor_set_uint8(tag_nr, datapoint_resp);
@@ -132,6 +132,13 @@ datapoint_hostname_reply_cbor(void)
 			(void)!fputc((int)' ', stderr);
 	}
 	(void)!fputc('\n', stderr);
+	cbor_decref(&tag_nr);
+	cbor_decref(&upp_ary);
+	cbor_decref(&mid_ary);
+	cbor_decref(&bot_ary);
+	cbor_decref(&key_str);
+	cbor_decref(&host_bytestr);
+	cbor_decref(&host_str);
 	json_object_put(ni_json_obj);
 	(void)!ni_json_str;
 	free(reply_buf);
@@ -140,6 +147,8 @@ out_free_tag:
 	ctf_cbor_decref(datapoint, &tag_nr);
 out_free_key:
 	ctf_cbor_decref(datapoint, &key_str);
+out_free_host_bytestr:
+	ctf_cbor_decref(datapoint, &host_bytestr);
 out_free_reply_buf:
 	free(reply_buf);
 out_free_host:
@@ -221,13 +230,16 @@ build_empty_datapoint_resp(void)
 		goto out_decref_arr;
 	if (!cbor_array_set(arr, 0, tag))
 		goto out_decref_tag;
+	cbor_decref(&tag);
 	if (!(val = cbor_new_definite_array(0)))
-		goto out_decref_tag;
+		goto out_decref_arr;
 	if (!cbor_array_set(arr, 1, val))
 		goto out_decref_val;
+	cbor_decref(&val);
 	return arr;
 out_decref_val:
 	cbor_decref(&val);
+	goto out_decref_arr;
 out_decref_tag:
 	cbor_decref(&tag);
 out_decref_arr:
