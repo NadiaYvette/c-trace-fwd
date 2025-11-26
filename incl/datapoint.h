@@ -22,9 +22,9 @@ struct datapoint_resp {
 };
 
 enum datapoint_msg_type {
-	datapoint_req  = 1,
+	datapoint_req  = 0,
+	datapoint_resp = 1,
 	datapoint_done = 2,
-	datapoint_resp = 3,
 };
 
 #define DATAPOINT_MSG_TYPE_MIN						\

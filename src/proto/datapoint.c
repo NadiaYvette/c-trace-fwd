@@ -50,7 +50,7 @@ out_free_cbor:
 cbor_item_t *
 datapoint_hostname_reply_cbor(void)
 {
-	char host_raw_str[] = "nyc-ipad-mini";
+	char host_raw_str[] = "mainnetsingle";
 	char key_raw_str[] = "NodeInfo";
 	unsigned char *reply_buf = NULL;
 	size_t k, reply_buf_len = 0;
@@ -61,6 +61,7 @@ datapoint_hostname_reply_cbor(void)
 			   *ni_system_start_time;
 	const char *ni_json_str;
 
+	/* NodeInfo values taken from log capture */
 	if (!(top_ary = cbor_new_definite_array(2)))
 		return NULL;
 	if (!(upp_ary = cbor_new_indefinite_array()))
@@ -71,15 +72,15 @@ datapoint_hostname_reply_cbor(void)
 		goto out_free_mid;
 	if (!(ni_name = json_object_new_string(host_raw_str)))
 		goto out_free_bot;
-	if (!(ni_proto = json_object_new_string("NA")))
+	if (!(ni_proto = json_object_new_string("Byron; Shelley")))
 		goto out_free_ni_name;
-	if (!(ni_version = json_object_new_string("NA")))
+	if (!(ni_version = json_object_new_string("10.5.0")))
 		goto out_free_ni_proto;
-	if (!(ni_commit = json_object_new_string("NA")))
+	if (!(ni_commit = json_object_new_string("64ed6659885a88d3aad4fd22e01d7fa8d1507887")))
 		goto out_free_ni_version;
-	if (!(ni_start_time = json_object_new_string("\"2025-10-24T09:27:21.043872387Z\"")))
+	if (!(ni_start_time = json_object_new_string("2025-10-22T08:58:43.565577801Z")))
 		goto out_free_ni_commit;
-	if (!(ni_system_start_time = json_object_new_string("\"2025-10-24T09:27:21.043872387Z\"")))
+	if (!(ni_system_start_time = json_object_new_string("2017-09-23T21:44:51Z")))
 		goto out_free_ni_start_time;
 	if (!(ni_json_obj = json_object_new_object()))
 		goto out_free_ni_system_start_time;
@@ -97,6 +98,7 @@ datapoint_hostname_reply_cbor(void)
 		goto out_free_json_obj;
 	if (!(ni_json_str = json_object_to_json_string_ext(ni_json_obj, JSON_C_TO_STRING_PLAIN)))
 		goto out_free_json_obj;
+	ctf_msg(ctf_debug, datapoint, "%s\n", ni_json_str);
 	if (!(host_str = cbor_build_bytestring((cbor_data)ni_json_str, strlen(ni_json_str))))
 		goto out_free_json_str;
 	if (!(host_bytestr = cbor_new_indefinite_bytestring()))
@@ -105,7 +107,7 @@ datapoint_hostname_reply_cbor(void)
 		goto out_free_host;
 	if (!(tag_nr = cbor_new_int8()))
 		goto out_free_key;
-	cbor_set_uint8(tag_nr, 3);
+	cbor_set_uint8(tag_nr, datapoint_resp);
 	if (!cbor_array_set(top_ary, 0, tag_nr))
 		goto out_free_tag;
 	if (!cbor_array_set(top_ary, 1, upp_ary))
@@ -252,7 +254,7 @@ datapoint_examine(cbor_item_t *payload)
 		return false;
 	if (cbor_int_get_width(entry) != CBOR_INT_8)
 		return false;
-	if (cbor_get_uint8(entry) != (int)mpn_data_points)
+	if (cbor_get_uint8(entry) != (int)datapoint_resp)
 		return false;
 	cbor_decref(&entry);
 	if (!(entry = cbor_array_get(payload, 1)))
@@ -273,12 +275,21 @@ datapoint_examine(cbor_item_t *payload)
 		return false;
 	if (!(val = cbor_array_get(bot, 1)))
 		return false;
-	if (cbor_typeof(val) != CBOR_TYPE_BYTESTRING)
+	if (cbor_isa_array(val) && cbor_array_size(val) == 1) {
+		if (!cbor_bytestrdup_array_get((const char **)&val_str, &val_str_len, val, 0)) {
+			cbor_decref(&val);
+			goto out_free_val_str;
+		}
+	} else if (cbor_isa_bytestring(val)) {
+		if (!cbor_bytestrdup_array_get((const char **)&val_str, &val_str_len, bot, 1)) {
+			cbor_decref(&val);
+			goto out_free_val_str;
+		}
+	} else {
+		cbor_decref(&val);
 		return false;
-	/* decode & print key */
-	/* decode val & cbor_load it & the describe it */
-	if (!cbor_bytestrdup_array_get((const char **)&val_str, &val_str_len, bot, 1))
-		goto out_free_val_str;
+	}
+	cbor_decref(&val);
 	if (!(val_decoded = cbor_load((unsigned char *)val_str, val_str_len, &result)))
 		goto out_free_val_str;
 	cbor_describe(val_decoded, stderr);
