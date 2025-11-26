@@ -307,6 +307,7 @@ trace_object_decode(const cbor_item_t *array)
 		/* field optional */
 		/* goto out_free_to; */
 	}
+	ctf_cbor_decref(tof, &subarray);
 
 	if (!cbor_strdup_array_get(&to->to_machine, array, 2)) {
 		ctf_msg(ctf_alert, tof, "machine lacking\n");
@@ -338,6 +339,7 @@ trace_object_decode(const cbor_item_t *array)
 		ctf_cbor_decref(tof, &subarray);
 		goto out_free_namespace_entries;
 	}
+	ctf_cbor_decref(tof, &subarray);
 
 	if (!to_uint_array_get(array, 4, &val)) {
 		ctf_msg(ctf_alert, tof, "severity failed\n");
@@ -416,10 +418,12 @@ trace_object_encode(const struct trace_object *trace_object)
 		ctf_cbor_decref(tof, &human);
 		goto out_free_human_array;
 	}
+	ctf_cbor_decref(tof, &human);
 	if (!cbor_array_set(array, 0, human_array)) {
 		ctf_msg(ctf_alert, tof, "human_array set ary elt failed\n");
 		goto out_free_human_array;
 	}
+	ctf_cbor_decref(tof, &human_array);
 	if (!(machine = cbor_build_string(trace_object->to_machine))) {
 		ctf_msg(ctf_alert, tof, "machine cbor_build_string failed\n");
 		goto out_free_array;
@@ -428,6 +432,7 @@ trace_object_encode(const struct trace_object *trace_object)
 		ctf_msg(ctf_alert, tof, "machine set ary elt failed\n");
 		goto out_free_machine;
 	}
+	ctf_cbor_decref(tof, &machine);
 	namespace = cbor_new_definite_array(trace_object->to_namespace_nr);
 	if (!namespace) {
 		ctf_msg(ctf_alert, tof, "namespace cbor_new_definite_array failed\n");
@@ -445,11 +450,13 @@ trace_object_encode(const struct trace_object *trace_object)
 			ctf_cbor_decref(tof, &item);
 			goto out_free_namespace;
 		}
+		ctf_cbor_decref(tof, &item);
 	}
 	if (!cbor_array_set(array, 2, namespace)) {
 		ctf_msg(ctf_alert, tof, "namespace set ary elt failed\n");
 		goto out_free_namespace;
 	}
+	ctf_cbor_decref(tof, &namespace);
 	if (!(severity = cbor_new_int32())) {
 		ctf_msg(ctf_alert, tof, "severity cbor_new_int32 failed\n");
 		goto out_free_array;
@@ -459,6 +466,7 @@ trace_object_encode(const struct trace_object *trace_object)
 		ctf_msg(ctf_alert, tof, "severity set ary elt failed\n");
 		goto out_free_severity;
 	}
+	ctf_cbor_decref(tof, &severity);
 	if (!(details = cbor_new_int32())) {
 		ctf_msg(ctf_alert, tof, "details cbor_new_int32 failed\n");
 		goto out_free_array;
@@ -468,6 +476,7 @@ trace_object_encode(const struct trace_object *trace_object)
 		ctf_msg(ctf_alert, tof, "details set ary elt failed\n");
 		goto out_free_details;
 	}
+	ctf_cbor_decref(tof, &details);
 	if (!(timestamp = cbor_build_uint64(trace_object->to_timestamp))) {
 		ctf_msg(ctf_alert, tof, "timestamp cbor_build_uint64 failed\n");
 		goto out_free_array;
@@ -476,6 +485,7 @@ trace_object_encode(const struct trace_object *trace_object)
 		ctf_msg(ctf_alert, tof, "timestamp set ary elt failed\n");
 		goto out_free_timestamp;
 	}
+	ctf_cbor_decref(tof, &timestamp);
 	if (!(hostname = cbor_build_string(trace_object->to_hostname))) {
 		ctf_msg(ctf_alert, tof, "hostname cbor_build_string failed\n");
 		goto out_free_array;
@@ -484,6 +494,7 @@ trace_object_encode(const struct trace_object *trace_object)
 		ctf_msg(ctf_alert, tof, "hostname set ary elt failed\n");
 		goto out_free_hostname;
 	}
+	ctf_cbor_decref(tof, &hostname);
 	if (!(thread_id = cbor_build_string(trace_object->to_thread_id))) {
 		ctf_msg(ctf_alert, tof, "thread_id cbor_build_string failed\n");
 		goto out_free_array;
@@ -492,6 +503,7 @@ trace_object_encode(const struct trace_object *trace_object)
 		ctf_msg(ctf_alert, tof, "thread_id set ary elt failed\n");
 		goto out_free_thread_id;
 	}
+	ctf_cbor_decref(tof, &thread_id);
 	return array;
 	/*
 	 * array holds the reference counts for all of the array entries.
@@ -545,6 +557,7 @@ tof_encode(const struct tof_msg *msg)
 			goto out_free_msg_array;
 		if (!cbor_array_set(msg_array, 0, msg_type))
 			goto out_free_msg_type;
+		ctf_cbor_decref(tof, &msg_type);
 		break;
 
 	case tof_request:
@@ -560,14 +573,17 @@ tof_encode(const struct tof_msg *msg)
 			goto out_free_msg_array;
 		if (!cbor_array_set(msg_array, 0, msg_type))
 			goto out_free_msg_type;
+		ctf_cbor_decref(tof, &msg_type);
 		if (!(tof_blocking = cbor_build_bool(request->tof_blocking)))
-			goto out_free_msg_type;
+			goto out_free_msg_array;
 		if (!cbor_array_set(msg_array, 1, tof_blocking))
 			goto out_free_tof_blocking;
+		ctf_cbor_decref(tof, &tof_blocking);
 		if (!(tof_nr_obj = cbor_build_uint16(request->tof_nr_obj)))
 			goto out_free_msg_array;
 		if (!cbor_array_set(msg_array, 2, tof_nr_obj))
 			goto out_free_tof_nr_obj;
+		ctf_cbor_decref(tof, &tof_nr_obj);
 		break;
 	out_free_tof_nr_obj:
 		ctf_cbor_decref(tof, &tof_nr_obj);
@@ -589,6 +605,7 @@ tof_encode(const struct tof_msg *msg)
 			goto out_free_msg_array;
 		if (!cbor_array_set(msg_array, 0, msg_type))
 			goto out_free_msg_type;
+		ctf_cbor_decref(tof, &msg_type);
 		reply_array = cbor_new_definite_array(reply->tof_nr_replies);
 		if (!reply_array)
 			goto out_free_msg_array;
@@ -604,13 +621,16 @@ tof_encode(const struct tof_msg *msg)
 				goto out_free_reply_array;
 				break;
 			}
-			if (cbor_array_set(reply_array, k, reply_array_entry))
+			if (cbor_array_set(reply_array, k, reply_array_entry)) {
+				ctf_cbor_decref(tof, &reply_array_entry);
 				continue;
+			}
 			ctf_cbor_decref(tof, &reply_array_entry);
 			goto out_free_reply_array;
 		}
 		if (!cbor_array_set(msg_array, 1, reply_array))
 			goto out_free_reply_array;
+		ctf_cbor_decref(tof, &reply_array);
 		break;
 	}
 	return msg_array;
@@ -766,6 +786,7 @@ tof_decode(const cbor_item_t *msg)
 		goto exit_free_tof;
 	}
 	tof->tof_msg_type = (enum tof_msg_type)cbor_get_int(item);
+	ctf_cbor_decref(tof, &item);
 	if (!tof_valid_msg_type(tof->tof_msg_type)) {
 		ctf_msg(ctf_alert, tof,
 				"invalid msg type %d\n", tof->tof_msg_type);
@@ -790,16 +811,23 @@ tof_decode(const cbor_item_t *msg)
 		if (!cbor_is_bool(blocking_cbor)) {
 			ctf_msg(ctf_alert, tof,
 					"blocking_cbor not a bool!\n");
+			ctf_cbor_decref(tof, &blocking_cbor);
 			goto exit_free_tof;
 		}
 		if (!(nr_obj_cbor = cbor_array_get(msg, 2))) {
 			ctf_msg(ctf_alert, tof, "nr_obj_cbor = "
 				     "cbor_array_get(msg, 2) failed!\n");
+			ctf_cbor_decref(tof, &blocking_cbor);
 			goto exit_free_tof;
 		}
-		if (!tof_nr_obj_decode(nr_obj_cbor, &request->tof_nr_obj))
+		if (!tof_nr_obj_decode(nr_obj_cbor, &request->tof_nr_obj)) {
+			ctf_cbor_decref(tof, &nr_obj_cbor);
+			ctf_cbor_decref(tof, &blocking_cbor);
 			goto exit_free_tof;
+		}
 		request->tof_blocking = cbor_get_bool(blocking_cbor);
+		ctf_cbor_decref(tof, &nr_obj_cbor);
+		ctf_cbor_decref(tof, &blocking_cbor);
 		break;
 	case tof_done:
 		/* This trace object type has no content apart from its
@@ -827,14 +855,14 @@ tof_decode(const cbor_item_t *msg)
 			goto exit_free_reply;
 		}
 		reply->tof_nr_replies = cbor_array_size(reply_array);
-		reply->tof_replies
-			= g_rc_box_alloc0(reply->tof_nr_replies * sizeof(struct trace_object *));
 		if (reply->tof_nr_replies > UINT16_MAX) {
 			ctf_msg(ctf_alert, tof,
 					"too many tof_nr_replies %zd\n",
 					reply->tof_nr_replies);
 			goto exit_free_reply;
 		}
+		reply->tof_replies
+			= g_rc_box_alloc0(reply->tof_nr_replies * sizeof(struct trace_object *));
 		for (k = 0; k < reply->tof_nr_replies; ++k) {
 			cbor_item_t *array_entry;
 
@@ -855,6 +883,7 @@ tof_decode(const cbor_item_t *msg)
 				goto exit_free_reply;
 			}
 		}
+		ctf_cbor_decref(tof, &reply_array);
 		/* cbor_decref(&reply_array); will happen eventually
 		 * anyway upon falling through to the exit_free_reply
 		 * label. */
@@ -885,7 +914,7 @@ exit_free_tof:
 	if (!!msg) {
 		if (0)
 			cbor_describe((cbor_item_t *)msg, stderr);
-		ctf_cbor_decref(tof, (cbor_item_t **)&msg);
+		/* ctf_cbor_decref(tof, (cbor_item_t **)&msg); */
 	}
 	tof_free(tof);
 	return NULL;
@@ -917,7 +946,10 @@ tof_free_members(void *p)
 		return;
 	reply = &tof->tof_msg_body.reply;
 	for (k = 0; k < reply->tof_nr_replies; ++k)
-		g_rc_box_release_full(reply->tof_replies[k], (GDestroyNotify)trace_object_free);
+		if (reply->tof_replies[k])
+			g_rc_box_release_full(reply->tof_replies[k], (GDestroyNotify)trace_object_free);
+	if (reply->tof_replies)
+		g_rc_box_release(reply->tof_replies);
 }
 
 void tof_free(struct tof_msg *tof)
