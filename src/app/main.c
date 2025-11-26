@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include "c_trace_fwd.h"
@@ -22,6 +23,7 @@ teardown_ctf_data(void)
 
 int main(int argc, char *argv[])
 {
+	signal(SIGPIPE, SIG_IGN);
 	if (setup_conf(&ctf_data.conf, argc, argv))
 		goto exit_failure;
 	if (setup_state(&ctf_data.state, ctf_data.conf))
