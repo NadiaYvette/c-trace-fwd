@@ -82,9 +82,27 @@ service_build_reply(struct ctf_state *state, struct tof_request *req)
 void
 service_client_destroy(struct ctf_state *state, int fd)
 {
+	int k;
+
 	(void)!shutdown(fd, SHUT_RDWR);
 	(void)!close(fd);
 	FD_CLR(fd, &state->state_fds);
+	
+	if (!!state->ux_io) {
+		for (k = 0; k < state->nr_clients; ++k) {
+			if (state->ux_io[k].fd == fd) {
+				while (!g_queue_is_empty(&state->ux_io[k].in_queue))
+					g_rc_box_release_full(to_dequeue(&state->ux_io[k].in_queue),
+							      (GDestroyNotify)trace_object_free);
+				while (!g_queue_is_empty(&state->ux_io[k].out_queue))
+					g_rc_box_release_full(to_dequeue(&state->ux_io[k].out_queue),
+							      (GDestroyNotify)trace_object_free);
+				if (k < state->nr_clients - 1)
+					state->ux_io[k] = state->ux_io[state->nr_clients - 1];
+				break;
+			}
+		}
+	}
 	state->nr_clients--;
 }
 
@@ -150,11 +168,9 @@ tof_msg_type_switch:
 	default:
 		ctf_msg(ctf_alert, client, "bad tof_msg_type %d\n",
 				tof->tof_msg_type);
-		goto out_free_tof;
+		goto out_free_cpsdr;
 	}
 out_free_cpsdr:
 	cpsdr_free(cpsdr);
-out_free_tof:
-	tof_free(tof);
 	return retval;
 }
