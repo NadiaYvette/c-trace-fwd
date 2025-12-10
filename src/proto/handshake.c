@@ -758,7 +758,7 @@ handshake_xmit(int fd)
 	}
 	ctf_msg(ctf_debug, handshake,
 			"about to try to read for handshake reply\n");
-	if ((reply_len = read(fd, sdu_bytearray, 8)) != 8) {
+	if (read(fd, sdu_bytearray, 8) != 8) {
 		ctf_msg(ctf_debug, handshake, "handshake reply SDU read fail\n");
 		goto out_free_buf;
 	}
@@ -772,16 +772,6 @@ handshake_xmit(int fd)
 	}
 	ctf_msg(ctf_debug, handshake, "got past sdu_decode(), "
 			"checking reply_sdu.sdu_len\n");
-	if (reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t) && false) {
-		ctf_msg(ctf_alert, handshake,
-				"SDU length unexpected was 0x%x expected"
-			       " 0x%zx\n", reply_sdu.sdu_len,
-			       (size_t)reply_len);
-		reply_sdu.sdu_len = reply_len - 2*sizeof(uint32_t);
-	}
-	ctf_msg(ctf_debug, handshake,
-			"got past reply_sdu.sdu_len check "
-			"trying cbor_load()\n");
 	while ((reply_len = read(fd, buf, reply_sdu.sdu_len)) <= 0) {
 		if (!errno_is_restart(errno)) {
 			ctf_msg(ctf_alert, handshake,
