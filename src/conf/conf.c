@@ -94,6 +94,8 @@ exit_failure:
 
 void teardown_conf(struct ctf_conf **conf)
 {
+	if (!*conf)
+		return;
 	g_rc_box_release_full(*conf, conf_free_memory);
 	*conf = NULL;
 }

@@ -303,6 +303,8 @@ handshake_release_memory(void *p)
 void
 handshake_free(struct handshake *handshake)
 {
+	if (!handshake)
+		return;
 	g_rc_box_release_full(handshake, handshake_release_memory);
 }
 

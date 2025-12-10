@@ -53,6 +53,8 @@ cpsdr_release_memory(void *p)
 void
 cpsdr_free(struct ctf_proto_stk_decode_result *cpsdr)
 {
+	if (!cpsdr)
+		return;
 	g_rc_box_release_full(cpsdr, cpsdr_release_memory);
 }
 

@@ -946,13 +946,15 @@ tof_free_members(void *p)
 		return;
 	reply = &tof->tof_msg_body.reply;
 	for (k = 0; k < reply->tof_nr_replies; ++k)
-		if (reply->tof_replies[k])
+		if (!!reply->tof_replies[k])
 			g_rc_box_release_full(reply->tof_replies[k], (GDestroyNotify)trace_object_free);
-	if (reply->tof_replies)
+	if (!!reply->tof_replies)
 		g_rc_box_release(reply->tof_replies);
 }
 
 void tof_free(struct tof_msg *tof)
 {
+	if (!tof)
+		return;
 	g_rc_box_release_full(tof, tof_free_members);
 }

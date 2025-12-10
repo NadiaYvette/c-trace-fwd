@@ -335,6 +335,8 @@ state_release_memory(void *p)
 
 void teardown_state(struct ctf_state **state)
 {
+	if (!*state)
+		return;
 	g_rc_box_release_full(*state, state_release_memory);
 	*state = NULL;
 }
