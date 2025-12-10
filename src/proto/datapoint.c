@@ -102,7 +102,7 @@ datapoint_hostname_reply_cbor(void)
 	if (!(host_str = cbor_build_bytestring((cbor_data)ni_json_str, strlen(ni_json_str))))
 		goto out_free_json_str;
 	if (!(host_bytestr = cbor_new_indefinite_bytestring()))
-		goto out_free_reply_buf;
+		goto out_free_host;
 	if (!(key_str = cbor_build_string(key_raw_str)))
 		goto out_free_host_bytestr;
 	if (!(tag_nr = cbor_new_int8()))
@@ -149,8 +149,6 @@ out_free_key:
 	ctf_cbor_decref(datapoint, &key_str);
 out_free_host_bytestr:
 	ctf_cbor_decref(datapoint, &host_bytestr);
-out_free_reply_buf:
-	free(reply_buf);
 out_free_host:
 	ctf_cbor_decref(datapoint, &host_str);
 out_free_json_str:
@@ -177,6 +175,7 @@ out_free_upp:
 	ctf_cbor_decref(datapoint, &upp_ary);
 out_free_top:
 	ctf_cbor_decref(datapoint, &top_ary);
+	free(reply_buf);
 	return NULL;
 }
 
