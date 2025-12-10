@@ -132,13 +132,13 @@ datapoint_hostname_reply_cbor(void)
 			(void)!fputc((int)' ', stderr);
 	}
 	(void)!fputc('\n', stderr);
-	cbor_decref(&tag_nr);
-	cbor_decref(&upp_ary);
-	cbor_decref(&mid_ary);
-	cbor_decref(&bot_ary);
-	cbor_decref(&key_str);
-	cbor_decref(&host_bytestr);
-	cbor_decref(&host_str);
+	ctf_cbor_decref(datapoint, &tag_nr);
+	ctf_cbor_decref(datapoint, &upp_ary);
+	ctf_cbor_decref(datapoint, &mid_ary);
+	ctf_cbor_decref(datapoint, &bot_ary);
+	ctf_cbor_decref(datapoint, &key_str);
+	ctf_cbor_decref(datapoint, &host_bytestr);
+	ctf_cbor_decref(datapoint, &host_str);
 	json_object_put(ni_json_obj);
 	(void)!ni_json_str;
 	free(reply_buf);
