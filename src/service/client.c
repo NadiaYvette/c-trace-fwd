@@ -88,21 +88,28 @@ service_client_destroy(struct ctf_state *state, int fd)
 	(void)!close(fd);
 	FD_CLR(fd, &state->state_fds);
 	
-	if (!!state->ux_io) {
-		for (k = 0; k < state->nr_clients; ++k) {
-			if (state->ux_io[k].fd == fd) {
-				while (!g_queue_is_empty(&state->ux_io[k].in_queue))
-					g_rc_box_release_full(to_dequeue(&state->ux_io[k].in_queue),
-							      (GDestroyNotify)trace_object_free);
-				while (!g_queue_is_empty(&state->ux_io[k].out_queue))
-					g_rc_box_release_full(to_dequeue(&state->ux_io[k].out_queue),
-							      (GDestroyNotify)trace_object_free);
-				if (k < state->nr_clients - 1)
-					state->ux_io[k] = state->ux_io[state->nr_clients - 1];
-				break;
-			}
+	if (!state->ux_io)
+		goto out_dec_clients;
+	for (k = 0; k < state->nr_clients; ++k) {
+		if (state->ux_io[k].fd != fd)
+			continue;
+		while (!g_queue_is_empty(&state->ux_io[k].in_queue)) {
+			struct trace_object *to
+				= to_dequeue(&state->ux_io[k].in_queue);
+			assert(!!to);
+			g_rc_box_release_full(to, trace_object_free_core);
 		}
+		while (!g_queue_is_empty(&state->ux_io[k].out_queue)) {
+			struct trace_object *to
+				= to_dequeue(&state->ux_io[k].out_queue);
+			assert(!!to);
+			g_rc_box_release_full(to, trace_object_free_core);
+		}
+		if (k < state->nr_clients - 1)
+			state->ux_io[k] = state->ux_io[state->nr_clients - 1];
+		break;
 	}
+out_dec_clients:
 	state->nr_clients--;
 }
 

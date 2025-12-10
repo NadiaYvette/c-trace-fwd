@@ -920,7 +920,14 @@ exit_free_tof:
 	return NULL;
 }
 
-void trace_object_free(struct trace_object *to)
+void
+trace_object_free_core(gpointer p)
+{
+	trace_object_free((struct trace_object *)p);
+}
+
+void
+trace_object_free(struct trace_object *to)
 {
 	int k;
 
@@ -945,9 +952,12 @@ tof_free_members(void *p)
 	if (tof->tof_msg_type != tof_reply)
 		return;
 	reply = &tof->tof_msg_body.reply;
-	for (k = 0; k < reply->tof_nr_replies; ++k)
-		if (!!reply->tof_replies[k])
-			g_rc_box_release_full(reply->tof_replies[k], (GDestroyNotify)trace_object_free);
+	for (k = 0; k < reply->tof_nr_replies; ++k) {
+		if (!reply->tof_replies[k])
+			continue;
+		g_rc_box_release_full(reply->tof_replies[k],
+					trace_object_free_core);
+	}
 	if (!!reply->tof_replies)
 		g_rc_box_release(reply->tof_replies);
 }

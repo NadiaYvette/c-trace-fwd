@@ -101,7 +101,7 @@ service_loop_move(struct ctf_state *state)
 
 	for (m = 0; m < nr_to_move; ++m) {
 		assert(!!to_move[m]);
-		g_rc_box_release_full(to_move[m], (GDestroyNotify)trace_object_free);
+		g_rc_box_release_full(to_move[m], trace_object_free_core);
 	}
 
 	free(to_move);
