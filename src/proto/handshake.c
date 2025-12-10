@@ -772,7 +772,7 @@ handshake_xmit(int fd)
 	}
 	ctf_msg(ctf_debug, handshake, "got past sdu_decode(), "
 			"checking reply_sdu.sdu_len\n");
-	if (false && reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t)) {
+	if (reply_sdu.sdu_len != reply_len - 2 * sizeof(uint32_t) && false) {
 		ctf_msg(ctf_alert, handshake,
 				"SDU length unexpected was 0x%x expected"
 			       " 0x%zx\n", reply_sdu.sdu_len,
