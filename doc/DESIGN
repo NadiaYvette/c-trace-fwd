@@ -1,0 +1,114 @@
+# C Trace Forward Library Design Document
+
+## Application Driver Subsystem (`src/app`)
+
+This is the driver for calling into the sample drivers' initialization
+and teardown code.
+
+## Configuration Management Subsystem (`src/conf`)
+
+This is a sample configuration handler, operating primarily by parsing
+command lines.
+
+## Callback-based CBOR Decoder (`src/drv`)
+
+There is a way to set up `libcbor` as a caller so it uses a
+callback-based decoder. It requires a set of callbacks implementing the
+state changes for the incremental parsing.
+
+## FFI (`src/ffi`)
+
+The foreign function interface, while not fleshed out enough to be made
+use of, is relatively clear in purpose.
+
+## Protocol Repertoire Subsystem (`src/proto`)
+
+There are protocol layers for the datapoint, handshake, metrics, and
+trace object (`tof.c`) Ouroboros mini-protocols, the SDU encapsulation
+layer, and a stack integration module. Indirect calls are avoided in
+part for the sake of debuggability, where the usual structure is usually
+something like a vtable written by hand.
+
+## Service Loop Management Subsystem (`src/service`)
+
+This represents the ongoing kinds of events and response, albeit with
+some less-than-smooth architecture.
+
+### Service Client Helpers (`src/service/client.c`)
+
+Sending and receiving trace objects, building replies, tearing down
+per-client state, and responding to `poll(2)` events on a file descriptor
+on a client's behalf are covered here.
+
+### Service Queue Helpers (`src/service/queue.c`)
+
+Queues for pending packets to be sent and received have helper functions
+to help manipulate them. The `GQueue` from `glib` is used for the
+queueing itself; however, resized-on-demand arrays of pointers are used
+for depositing and withdrawing objects from the queues. They're oriented
+primarily toward trace objects.
+
+### Service Event Loop (`src/service/service.c`)
+
+The ongoing event handling is split between a `poll(2)` -based driver in
+this file and a threaded driver. Issuing requests is piggybacked in here
+as a design wart. Invoking the thread-based event loop when the option is
+passed to use it is also here.
+
+### Service Thread-Based Event Loop (`src/service/thread.c`)
+
+Per-client threads access the state with a coarse-grained `state_lock`
+and a listener/acceptor thread that spawns client threads are
+implemented, with some per-protocol breakout of aspects of the process.
+
+### Service Unix Domain Socket Helpers (`src/service/unix.c`)
+
+Glue code to carry out IO over Unix domain sockets in the course of
+service loop activity sits here.
+
+### Service User Interface Socket Helpers (`src/service/ux.c`)
+
+Clients of the C trace forwarding library's drivers have some glue code
+to carry IO out over IPv4 (`AF_INET`) or IPv6 (`AF_INET6`) TCP
+(`SOCK_STREAM`) sockets here, albeit only a very small amount for the
+actual call to `accept(2)` and some minor data structure set-up beyond that.
+
+## State Management Subsystem (`src/state/state.c`)
+
+This is largely the set-up and teardown code for the state data
+structure, though there was an intention not fully carried out to
+provide convenience functions for the state's manipulation in this
+subsystem as well.
+
+## Utility Subsystem (`src/util`)
+
+### Agency, Mini-Protocol Number and Severity Enum Helpers (`src/util/(agency|mpn|sev).c`)
+
+These correspond primarily to various `enum` types to validity check the
+values of the integers backing them and render them to strings.
+
+### `errno` Helper (`src/util/errno.c`)
+
+Some oddities occur with `errno` handling that this module tries to take
+out-of-line so different code examining `errno` doesn't get out-of-synch.
+
+### `flags`  Helper (`src/util/flags.c`)
+
+`fcntl(2)` with `F_GETFL` is occasionally checked for debugging purposes.
+In order to display the retrieved flags comprehensibly, this goes about
+having some strings and doing some arithmetic to help.
+
+### Log Message Helper (`src/util/msg.c`)
+
+`vasprintf(3)` and `vsnprintf(3)` exist, but there is no `vasnprintf`,
+so this implements that for the sake of the debugging affairs lurking in
+header files.
+
+### Debug Macros (`incl/ctf_util.h`)
+
+Here `ctf_msg()` and `ctf_cbor_decref()` and `ctf_set_agency()` and other
+helpers use macros like `__func__` and `__FILE__` and `__LINE__`  as well
+as a symbolic macro to be stringified for the module name to pass to the
+back-end helpers written in `C` proper in order to provide dressed-up and
+more informative log messages. Message severity levels and command-line
+option -controlled logging verbosity levels are also included.
