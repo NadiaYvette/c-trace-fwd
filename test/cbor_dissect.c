@@ -111,8 +111,6 @@ restart_loop:
 		ctf_msg(ctf_warning, cbor_dissect,
 				"sdu_len < sizeof(struct sdu), "
 				     "trying to keep going anyway\n");
-		if (0)
-			goto restart_loop_from_tell;
 		ctf_msg(ctf_warning, cbor_dissect,
 				"omitting recovery attempt; "
 				     "it may merely reflect a small datum\n");
@@ -145,8 +143,6 @@ restart_loop:
 				     "dst_off = 0x%jx, "
 				     "cur_off = 0x%jx\n",
 				     ret, (intmax_t)dst_off, (intmax_t)cur_off);
-		if (0)
-			goto exit_free_buf;
 	}
 	if (!(item = cbor_load(buf, sdu.sdu_len, &result))) {
 		ctf_msg(ctf_alert, cbor_dissect,

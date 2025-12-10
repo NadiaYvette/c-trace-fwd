@@ -123,14 +123,6 @@ sdu_encode(const struct sdu *sdu, union sdu_ptr hdr)
 				"sdu->sdu_proto_un.sdu_proto_word16 = 0x%"
 				PRIx16"!\n",
 				sdu->sdu_proto_un.sdu_proto_word16);
-		if (0) {
-			ctf_msg(ctf_alert, sdu,
-					"overriding with mpn_data_points "
-					"because it's best not to try to "
-					"interpret the data, because it will "
-					"fail.\n");
-			hdr.sdu8[4+1] = mpn_trace_objects;
-		}
 		if (sdu->sdu_proto_un.sdu_proto_word16 >= UINT8_MAX)
 			ctf_msg(ctf_alert, sdu,
 					"mpn = 0x%"PRIx16" > UINT8_MAX!\n",

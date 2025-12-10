@@ -94,8 +94,6 @@ restart_loop:
 		ctf_msg(ctf_warning, sdu_dissect,
 				"sdu_len < sizeof(struct sdu), "
 				     "trying to keep going anyway\n");
-		if (0)
-			goto restart_loop_from_tell;
 		ctf_msg(ctf_warning, sdu_dissect,
 				"omitting recovery attempt; "
 				     "it may merely reflect a small datum\n");

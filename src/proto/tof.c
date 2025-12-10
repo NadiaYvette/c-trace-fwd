@@ -305,14 +305,12 @@ trace_object_decode(const cbor_item_t *array)
 	else if (!cbor_strdup_array_get(&to->to_human, subarray, 0)) {
 		ctf_msg(ctf_alert, tof, "human lacking\n");
 		/* field optional */
-		/* goto out_free_to; */
 	}
 	ctf_cbor_decref(tof, &subarray);
 
 	if (!cbor_strdup_array_get(&to->to_machine, array, 2)) {
 		ctf_msg(ctf_alert, tof, "machine lacking\n");
 		/* field optional */
-		/* goto out_free_to; */
 	}
 
 	if (!(subarray = cbor_array_get(array, 3))) {
@@ -355,8 +353,6 @@ trace_object_decode(const cbor_item_t *array)
 
 	if (!to_uint_array_get(array, 6, &val)) {
 		ctf_msg(ctf_alert, tof, "timestamp failed\n");
-		if (0)
-			cbor_describe((cbor_item_t *)array, stderr);
 		goto out_free_namespace_entries;
 	}
 	to->to_timestamp = (time_t)val;
@@ -378,12 +374,9 @@ out_free_namespace_entries:
 	g_rc_box_release(to->to_namespace);
 out_free_machine:
 	g_rc_box_release((void *)to->to_machine);
-/* out_free_human: */
 	g_rc_box_release((void *)to->to_human);
 out_free_to:
 	g_rc_box_release(to);
-	if (0)
-		cbor_describe((cbor_item_t *)array, stderr);
 	return NULL;
 }
 
@@ -911,11 +904,6 @@ exit_free_reply:
 exit_free_tof:
 	ctf_msg(ctf_alert, tof,
 			"error return, describing msg if non-NULL\n");
-	if (!!msg) {
-		if (0)
-			cbor_describe((cbor_item_t *)msg, stderr);
-		/* ctf_cbor_decref(tof, (cbor_item_t **)&msg); */
-	}
 	tof_free(tof);
 	return NULL;
 }

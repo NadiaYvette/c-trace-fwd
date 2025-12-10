@@ -219,15 +219,6 @@ service_unix_sock_thread(void *pthread_arg)
 	struct ctf_thread_arg *arg = pthread_arg;
 	struct ctf_conf *conf;
 	struct ctf_state *state;
-	struct tof_msg request_msg = {
-		.tof_msg_type = tof_request,
-		.tof_msg_body = {
-			.request = {
-				.tof_blocking = true,
-				.tof_nr_obj = 100,
-			},
-		},
-	};
 
 	if (!arg)
 		return NULL;
@@ -235,14 +226,6 @@ service_unix_sock_thread(void *pthread_arg)
 	state = arg->state;
 	if (!conf || !state)
 		return NULL;
-	if (0) {
-		ctf_msg(ctf_debug, thread, "sending initial request\n");
-		if (service_send_tof(state, &request_msg, state->unix_io.fd) != RETVAL_SUCCESS) {
-			ctf_msg(ctf_debug, thread, "sending initial request failed\n");
-			return NULL;
-		}
-		ctf_msg(ctf_debug, thread, "back from sending initial request\n");
-	}
 	ctf_set_agency(thread, &state->unix_io,
 				relative_agency_they_have, mpn_trace_objects);
 	for (;;) {
