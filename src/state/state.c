@@ -272,7 +272,6 @@ setup_state(struct ctf_state **state, struct ctf_conf *conf)
 	if (!setup_queue(*state, conf))
 		goto exit_shutdown_ux;
 	retval = state_handshake(*state, conf);
-	/* (*state)->agency = agency_local; */
 	for (mpn = MPN_MIN; mpn <= MPN_MAX; ++mpn) {
 		if (!MPN_VALID(mpn))
 			continue;
